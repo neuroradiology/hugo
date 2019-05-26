@@ -54,14 +54,24 @@ func (fi *fileInfo) Lang() string {
 }
 
 func (fi *fileInfo) Filename() string {
+	if fi == nil || fi.basePather == nil {
+		return ""
+	}
 	return fi.basePather.Filename()
+}
+
+func (fi *fileInfo) String() string {
+	if fi == nil || fi.ReadableFile == nil {
+		return ""
+	}
+	return fi.Path()
 }
 
 func (fi *fileInfo) isOwner() bool {
 	return fi.bundleTp > bundleNot
 }
 
-func isContentFile(filename string) bool {
+func IsContentFile(filename string) bool {
 	return contentFileExtensionsSet[strings.TrimPrefix(helpers.Ext(filename), ".")]
 }
 
@@ -98,7 +108,7 @@ const (
 // Returns the given file's name's bundle type and whether it is a content
 // file or not.
 func classifyBundledFile(name string) (bundleDirType, bool) {
-	if !isContentFile(name) {
+	if !IsContentFile(name) {
 		return bundleNot, false
 	}
 	if strings.HasPrefix(name, "_index.") {

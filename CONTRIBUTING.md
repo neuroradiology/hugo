@@ -18,11 +18,8 @@ The Hugo community and maintainers are [very active](https://github.com/gohugoio
 * [Submitting Patches](#submitting-patches)
   * [Code Contribution Guidelines](#code-contribution-guidelines)
   * [Git Commit Message Guidelines](#git-commit-message-guidelines)
-  * [Vendored Dependencies](#vendored-dependencies)
   * [Fetching the Sources From GitHub](#fetching-the-sources-from-github)
-  * [Using Git Remotes](#using-git-remotes)
-  * [Build Hugo with Your Changes](#build-hugo-with-your-changes)
-  * [Updating the Hugo Sources](#updating-the-hugo-sources)
+  * [Building Hugo with Your Changes](#building-hugo-with-your-changes)
 
 ## Asking Support Questions
 
@@ -73,7 +70,7 @@ To make the contribution process as seamless as possible, we ask for the followi
     * Run `go fmt`.
     * Add documentation if you are adding new features or changing functionality.  The docs site lives in `/docs`.
     * Squash your commits into a single commit. `git rebase -i`. It’s okay to force update your pull request with `git push -f`.
-    * Ensure that `mage check` succeeds. [Travis CI](https://travis-ci.org/gohugoio/hugo) (Linux and macOS) and [AppVeyor](https://ci.appveyor.com/project/gohugoio/hugo/branch/master) (Windows) will fail the build if `mage check` fails.
+    * Ensure that `mage check` succeeds. [Travis CI](https://travis-ci.org/gohugoio/hugo) (Windows, Linux and macOS) will fail the build if `mage check` fails.
     * Follow the **Git Commit Message Guidelines** below.
 
 ### Git Commit Message Guidelines
@@ -106,7 +103,7 @@ Fixes #1949
 
 ###  Fetching the Sources From GitHub
 
-Since Hugo 0.48, Hugo uses the Go Modules support built into Go 1.11 to build. The easiest is is to clone Hugo in a directory outside of `GOPATH`, as in the following example:
+Since Hugo 0.48, Hugo uses the Go Modules support built into Go 1.11 to build. The easiest is to clone Hugo in a directory outside of `GOPATH`, as in the following example:
 
 ```bash
 mkdir $HOME/src
@@ -116,13 +113,15 @@ cd hugo
 go install
 ```
 
+>Note: Some Go tools may not be fully updated to support Go Modules yet. One example would be LiteIDE. Follow [this workaround](https://github.com/visualfc/liteide/issues/986#issuecomment-428117702) for how to continue to work with Hugo below `GOPATH`.
+
 For some convenient build and test targets, you also will want to install Mage:
 
 ```bash
 go get github.com/magefile/mage
 ```
 
-Now, to make a change to Hugos's source:
+Now, to make a change to Hugo's source:
 
 1. Create a new branch for your changes (the branch name is arbitrary):
 
@@ -160,7 +159,7 @@ Hugo uses [mage](https://github.com/magefile/mage) to sync vendor dependencies, 
 cd $HOME/go/src/github.com/gohugoio/hugo
 ```
 
-To build Hugo: 
+To build Hugo:
 
 ```bash
 mage hugo
@@ -190,15 +189,3 @@ mage -l
 ```bash
 HUGO_BUILD_TAGS=extended mage install
 ````
-
-### Updating the Hugo Sources
-
-If you want to stay in sync with the Hugo repository, you can easily pull down
-the source changes, but you'll need to keep the vendored packages up-to-date as
-well.
-
-```bash
-git pull
-mage vendor
-```
-

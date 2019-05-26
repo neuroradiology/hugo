@@ -1,4 +1,4 @@
-// Copyright 2016 The Hugo Authors. All rights reserved.
+// Copyright 2019 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,8 @@ import (
 	"html/template"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cast"
 
 	"path/filepath"
 
@@ -67,9 +69,11 @@ func doTestShortcodeCrossrefs(t *testing.T, relative bool) {
 
 	s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{})
 
-	require.Len(t, s.RegularPages, 1)
+	require.Len(t, s.RegularPages(), 1)
 
-	output := string(s.RegularPages[0].content())
+	content, err := s.RegularPages()[0].Content()
+	require.NoError(t, err)
+	output := cast.ToString(content)
 
 	if !strings.Contains(output, expected) {
 		t.Errorf("Got\n%q\nExpected\n%q", output, expected)
@@ -123,22 +127,22 @@ func TestShortcodeFigure(t *testing.T) {
 	}{
 		{
 			`{{< figure src="/img/hugo-logo.png" >}}`,
-			"(?s)\n<figure>.*?<img src=\"/img/hugo-logo.png\" />.*?</figure>\n",
+			"(?s)<figure>.*?<img src=\"/img/hugo-logo.png\"/>.*?</figure>",
 		},
 		{
 			// set alt
 			`{{< figure src="/img/hugo-logo.png" alt="Hugo logo" >}}`,
-			"(?s)\n<figure>.*?<img src=\"/img/hugo-logo.png\" alt=\"Hugo logo\" />.*?</figure>\n",
+			"(?s)<figure>.*?<img src=\"/img/hugo-logo.png\".+?alt=\"Hugo logo\"/>.*?</figure>",
 		},
 		// set title
 		{
 			`{{< figure src="/img/hugo-logo.png" title="Hugo logo" >}}`,
-			"(?s)\n<figure>.*?<img src=\"/img/hugo-logo.png\" />.*?<figcaption>.*?<h4>Hugo logo</h4>.*?</figcaption>.*?</figure>\n",
+			"(?s)<figure>.*?<img src=\"/img/hugo-logo.png\"/>.*?<figcaption>.*?<h4>Hugo logo</h4>.*?</figcaption>.*?</figure>",
 		},
 		// set attr and attrlink
 		{
 			`{{< figure src="/img/hugo-logo.png" attr="Hugo logo" attrlink="/img/hugo-logo.png" >}}`,
-			"(?s)\n<figure>.*?<img src=\"/img/hugo-logo.png\" />.*?<figcaption>.*?<p>.*?<a href=\"/img/hugo-logo.png\">.*?Hugo logo.*?</a>.*?</p>.*?</figcaption>.*?</figure>\n",
+			"(?s)<figure>.*?<img src=\"/img/hugo-logo.png\"/>.*?<figcaption>.*?<p>.*?<a href=\"/img/hugo-logo.png\">.*?Hugo logo.*?</a>.*?</p>.*?</figcaption>.*?</figure>",
 		},
 	} {
 

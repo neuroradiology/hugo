@@ -78,12 +78,8 @@ See [`.Scratch`](/functions/scratch/) for page-scoped, writable variables.
 .Kind
 : the page's *kind*. Possible return values are `page`, `home`, `section`, `taxonomy`, or `taxonomyTerm`. Note that there are also `RSS`, `sitemap`, `robotsTXT`, and `404` kinds, but these are only available during the rendering of each of these respective page's kind and therefore *not* available in any of the `Pages` collections.
 
-.Lang
-: language taken from the language extension notation.
-
 .Language
-: a language object that points to the language's definition in the site
-`config`.
+: a language object that points to the language's definition in the site `config`. `.Language.Lang` gives you the language code.
 
 .Lastmod
 : the date the content was last modified. `.Lastmod` pulls from the `lastmod` field in a content's front matter.
@@ -97,10 +93,10 @@ See also `.ExpiryDate`, `.Date`, `.PublishDate`, and [`.GitInfo`][gitinfo].
 : access when creating links to the content. If set, Hugo will use the `linktitle` from the front matter before `title`.
 
 .Next
-: pointer to the following content (based on the `publishdate` field in front matter).
+: Pointer to the next [regular page](/variables/site/#site-pages) (sorted by Hugo's [default sort](/templates/lists#default-weight-date-linktitle-filepath)). Example: `{{if .NextPage}}{{.NextPage.Permalink}}{{end}}`.
 
 .NextInSection
-: pointer to the following content within the same section (based on `publishdate` field in front matter).
+: Pointer to the next [regular page](/variables/site/#site-pages) within the same section. Pages are sorted by Hugo's [default sort](/templates/lists#default-weight-date-linktitle-filepath). Example: `{{if .NextInSection}}{{.NextInSection.Permalink}}{{end}}`.
 
 .OutputFormats
 : contains all formats, including the current format, for a given page. Can be combined the with [`.Get` function](/functions/get/) to grab a specific format. (See [Output Formats](/templates/output-formats/).)
@@ -118,17 +114,17 @@ See also `.ExpiryDate`, `.Date`, `.PublishDate`, and [`.GitInfo`][gitinfo].
 .PlainWords
 : the Page content stripped of HTML as a `[]string` using Go's [`strings.Fields`](https://golang.org/pkg/strings/#Fields) to split `.Plain` into a slice.
 
-.Prev
-: Pointer to the previous content (based on `publishdate` in front matter).
+.Prev (deprecated)
+: Pointer to the previous [regular page](/variables/site/#site-pages) (sorted by Hugo's [default sort](/templates/lists#default-weight-date-linktitle-filepath)). Example: `{{if .PrevPage}}{{.PrevPage.Permalink}}{{end}}`.
 
 .PrevInSection
-: Pointer to the previous content within the same section (based on `publishdate` in front matter). For example, `{{if .PrevInSection}}{{.PrevInSection.Permalink}}{{end}}`.
+: Pointer to the previous [regular page](/variables/site/#site-pages) within the same section. Pages are sorted by Hugo's [default sort](/templates/lists#default-weight-date-linktitle-filepath). Example: `{{if .PrevInSection}}{{.PrevInSection.Permalink}}{{end}}`.
 
 .PublishDate
 : the date on which the content was or will be published; `.Publishdate` pulls from the `publishdate` field in a content's front matter. See also `.ExpiryDate`, `.Date`, and `.Lastmod`.
 
-.RSSLink
-: link to the taxonomies' RSS link.
+.RSSLink (deprecated)
+: link to the page's RSS feed. This is deprecated. You should instead do something like this: `{{ with .OutputFormats.Get "RSS" }}{{ .RelPermalink }}{{ end }}`.
 
 .RawContent
 : raw markdown content without the front matter. Useful with [remarkjs.com](
@@ -150,8 +146,14 @@ http://remarkjs.com)
 .Site
 : see [Site Variables](/variables/site/).
 
+.Sites
+: returns all sites (languages). A typical use case would be to link back to the main language: `<a href="{{ .Sites.First.Home.RelPermalink }}">...</a>`.
+
+.Sites.First
+: returns the site for the first language. If this is not a multilingual setup, it will return itself.
+
 .Summary
-: a generated summary of the content for easily showing a snippet in a summary view. The breakpoint can be set manually by inserting <code>&lt;!&#x2d;&#x2d;more&#x2d;&#x2d;&gt;</code> at the appropriate place in the content page. See [Content Summaries](/content-management/summaries/) for more details.
+: a generated summary of the content for easily showing a snippet in a summary view. The breakpoint can be set manually by inserting <code>&lt;!&#x2d;&#x2d;more&#x2d;&#x2d;&gt;</code> at the appropriate place in the content page, or the summary can be written independent of the page text.  See [Content Summaries](/content-management/summaries/) for more details.
 
 .TableOfContents
 : the rendered [table of contents](/content-management/toc/) for the page.
@@ -166,10 +168,7 @@ http://remarkjs.com)
 : a boolean, `true` if the `.Summary` is truncated. Useful for showing a "Read more..." link only when necessary.  See [Summaries](/content-management/summaries/) for more information.
 
 .Type
-: the [content type](/content-management/types/) of the content (e.g., `post`).
-
-.URL
-: the URL for the page relative to the web root. Note that a `url` set directly in front matter overrides the default relative URL for the rendered page.
+: the [content type](/content-management/types/) of the content (e.g., `posts`).
 
 .UniqueID
 : the MD5-checksum of the content file's path.

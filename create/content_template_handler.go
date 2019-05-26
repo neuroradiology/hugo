@@ -20,6 +20,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/source"
 
@@ -80,7 +82,7 @@ var (
 		"%}x}", "%}}")
 )
 
-func executeArcheTypeAsTemplate(s *hugolib.Site, kind, targetPath, archetypeFilename string) ([]byte, error) {
+func executeArcheTypeAsTemplate(s *hugolib.Site, name, kind, targetPath, archetypeFilename string) ([]byte, error) {
 
 	var (
 		archetypeContent  []byte
@@ -88,20 +90,16 @@ func executeArcheTypeAsTemplate(s *hugolib.Site, kind, targetPath, archetypeFile
 		err               error
 	)
 
-	ps, err := helpers.NewPathSpec(s.Deps.Fs, s.Deps.Cfg)
-	if err != nil {
-		return nil, err
-	}
-	sp := source.NewSourceSpec(ps, ps.Fs.Source)
+	f := s.SourceSpec.NewFileInfo("", targetPath, false, nil)
 
-	f := sp.NewFileInfo("", targetPath, false, nil)
+	if name == "" {
+		name = f.TranslationBaseName()
 
-	name := f.TranslationBaseName()
-
-	if name == "index" || name == "_index" {
-		// Page bundles; the directory name will hopefully have a better name.
-		dir := strings.TrimSuffix(f.Dir(), helpers.FilePathSeparator)
-		_, name = filepath.Split(dir)
+		if name == "index" || name == "_index" {
+			// Page bundles; the directory name will hopefully have a better name.
+			dir := strings.TrimSuffix(f.Dir(), helpers.FilePathSeparator)
+			_, name = filepath.Split(dir)
+		}
 	}
 
 	data := ArchetypeFileData{
@@ -131,14 +129,14 @@ func executeArcheTypeAsTemplate(s *hugolib.Site, kind, targetPath, archetypeFile
 	templateHandler := s.Deps.Tmpl.(tpl.TemplateHandler)
 	templateName := "_text/" + helpers.Filename(archetypeFilename)
 	if err := templateHandler.AddTemplate(templateName, string(archetypeTemplate)); err != nil {
-		return nil, fmt.Errorf("Failed to parse archetype file %q: %s", archetypeFilename, err)
+		return nil, errors.Wrapf(err, "Failed to parse archetype file %q:", archetypeFilename)
 	}
 
 	templ, _ := templateHandler.Lookup(templateName)
 
 	var buff bytes.Buffer
 	if err := templ.Execute(&buff, data); err != nil {
-		return nil, fmt.Errorf("Failed to process archetype file %q: %s", archetypeFilename, err)
+		return nil, errors.Wrapf(err, "Failed to process archetype file %q:", archetypeFilename)
 	}
 
 	archetypeContent = []byte(archetypeShortcodeReplacementsPost.Replace(buff.String()))
