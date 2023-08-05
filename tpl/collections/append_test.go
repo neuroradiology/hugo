@@ -14,53 +14,52 @@
 package collections
 
 import (
-	"fmt"
 	"reflect"
 	"testing"
 
-	"github.com/gohugoio/hugo/deps"
-	"github.com/stretchr/testify/require"
+	qt "github.com/frankban/quicktest"
 )
 
 // Also see tests in common/collection.
 func TestAppend(t *testing.T) {
 	t.Parallel()
-
-	ns := New(&deps.Deps{})
+	c := qt.New(t)
+	ns := newNs()
 
 	for i, test := range []struct {
-		start    interface{}
-		addend   []interface{}
-		expected interface{}
+		start    any
+		addend   []any
+		expected any
 	}{
-		{[]string{"a", "b"}, []interface{}{"c"}, []string{"a", "b", "c"}},
-		{[]string{"a", "b"}, []interface{}{"c", "d", "e"}, []string{"a", "b", "c", "d", "e"}},
-		{[]string{"a", "b"}, []interface{}{[]string{"c", "d", "e"}}, []string{"a", "b", "c", "d", "e"}},
+		{[]string{"a", "b"}, []any{"c"}, []string{"a", "b", "c"}},
+		{[]string{"a", "b"}, []any{"c", "d", "e"}, []string{"a", "b", "c", "d", "e"}},
+		{[]string{"a", "b"}, []any{[]string{"c", "d", "e"}}, []string{"a", "b", "c", "d", "e"}},
 		// Errors
-		{"", []interface{}{[]string{"a", "b"}}, false},
-		{[]string{"a", "b"}, []interface{}{}, false},
+		{"", []any{[]string{"a", "b"}}, false},
+		{[]string{"a", "b"}, []any{}, false},
 		// No string concatenation.
-		{"ab",
-			[]interface{}{"c"},
-			false},
+		{
+			"ab",
+			[]any{"c"},
+			false,
+		},
 	} {
 
-		errMsg := fmt.Sprintf("[%d]", i)
+		errMsg := qt.Commentf("[%d]", i)
 
 		args := append(test.addend, test.start)
 
 		result, err := ns.Append(args...)
 
 		if b, ok := test.expected.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
 
 		if !reflect.DeepEqual(test.expected, result) {
 			t.Fatalf("%s got\n%T: %v\nexpected\n%T: %v", errMsg, result, result, test.expected, test.expected)
 		}
 	}
-
 }

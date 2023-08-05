@@ -1,4 +1,4 @@
-// Copyright 2015 The Hugo Authors. All rights reserved.
+// Copyright 2023 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,11 +11,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package helpers
+package helpers_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -25,15 +24,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gohugoio/hugo/langs"
-
-	"github.com/stretchr/testify/require"
-
-	"github.com/stretchr/testify/assert"
-
-	"github.com/gohugoio/hugo/hugofs"
+	qt "github.com/frankban/quicktest"
+	"github.com/gohugoio/hugo/helpers"
 	"github.com/spf13/afero"
-	"github.com/spf13/viper"
 )
 
 func TestMakePath(t *testing.T) {
@@ -42,6 +35,10 @@ func TestMakePath(t *testing.T) {
 		expected      string
 		removeAccents bool
 	}{
+		{"dot.slash/backslash\\underscore_pound#plus+hyphen-", "dot.slash/backslash\\underscore_pound#plus+hyphen-", true},
+		{"abcXYZ0123456789", "abcXYZ0123456789", true},
+		{"%20 %2", "%20-2", true},
+		{"foo- bar", "foo-bar", true},
 		{"  Foo bar  ", "Foo-bar", true},
 		{"Foo.Bar/foo_Bar-Foo", "Foo.Bar/foo_Bar-Foo", true},
 		{"fOO,bar:foobAR", "fOObarfoobAR", true},
@@ -54,17 +51,12 @@ func TestMakePath(t *testing.T) {
 		{"a%C3%B1ame", "a%C3%B1ame", false},         // Issue #1292
 		{"this+is+a+test", "this+is+a+test", false}, // Issue #1290
 		{"~foo", "~foo", false},                     // Issue #2177
-
+		{"foo--bar", "foo--bar", true},              // Issue #7288
+		{"foo@bar", "foo@bar", true},                //	Issue #10548
 	}
 
 	for _, test := range tests {
-		v := newTestCfg()
-		v.Set("removePathAccents", test.removeAccents)
-
-		l := langs.NewDefaultLanguage(v)
-		p, err := NewPathSpec(hugofs.NewMem(v), l)
-		require.NoError(t, err)
-
+		p := newTestPathSpec("removePathAccents", test.removeAccents)
 		output := p.MakePath(test.input)
 		if output != test.expected {
 			t.Errorf("Expected %#v, got %#v\n", test.expected, output)
@@ -73,18 +65,7 @@ func TestMakePath(t *testing.T) {
 }
 
 func TestMakePathSanitized(t *testing.T) {
-	v := viper.New()
-	v.Set("contentDir", "content")
-	v.Set("dataDir", "data")
-	v.Set("i18nDir", "i18n")
-	v.Set("layoutDir", "layouts")
-	v.Set("assetDir", "assets")
-	v.Set("resourceDir", "resources")
-	v.Set("publishDir", "public")
-	v.Set("archetypeDir", "archetypes")
-
-	l := langs.NewDefaultLanguage(v)
-	p, _ := NewPathSpec(hugofs.NewMem(v), l)
+	p := newTestPathSpec()
 
 	tests := []struct {
 		input    string
@@ -107,12 +88,7 @@ func TestMakePathSanitized(t *testing.T) {
 }
 
 func TestMakePathSanitizedDisablePathToLower(t *testing.T) {
-	v := newTestCfg()
-
-	v.Set("disablePathToLower", true)
-
-	l := langs.NewDefaultLanguage(v)
-	p, _ := NewPathSpec(hugofs.NewMem(v), l)
+	p := newTestPathSpec("disablePathToLower", true)
 
 	tests := []struct {
 		input    string
@@ -134,65 +110,6 @@ func TestMakePathSanitizedDisablePathToLower(t *testing.T) {
 	}
 }
 
-func TestGetRelativePath(t *testing.T) {
-	tests := []struct {
-		path   string
-		base   string
-		expect interface{}
-	}{
-		{filepath.FromSlash("/a/b"), filepath.FromSlash("/a"), filepath.FromSlash("b")},
-		{filepath.FromSlash("/a/b/c/"), filepath.FromSlash("/a"), filepath.FromSlash("b/c/")},
-		{filepath.FromSlash("/c"), filepath.FromSlash("/a/b"), filepath.FromSlash("../../c")},
-		{filepath.FromSlash("/c"), "", false},
-	}
-	for i, this := range tests {
-		// ultimately a fancy wrapper around filepath.Rel
-		result, err := GetRelativePath(this.path, this.base)
-
-		if b, ok := this.expect.(bool); ok && !b {
-			if err == nil {
-				t.Errorf("[%d] GetRelativePath didn't return an expected error", i)
-			}
-		} else {
-			if err != nil {
-				t.Errorf("[%d] GetRelativePath failed: %s", i, err)
-				continue
-			}
-			if result != this.expect {
-				t.Errorf("[%d] GetRelativePath got %v but expected %v", i, result, this.expect)
-			}
-		}
-
-	}
-}
-
-func TestGetRealPath(t *testing.T) {
-	if runtime.GOOS == "windows" && os.Getenv("CI") == "" {
-		t.Skip("Skip TestGetRealPath as os.Symlink needs administrator rights on Windows")
-	}
-
-	d1, _ := ioutil.TempDir("", "d1")
-	defer os.Remove(d1)
-	fs := afero.NewOsFs()
-
-	rp1, err := GetRealPath(fs, d1)
-	require.NoError(t, err)
-	assert.Equal(t, d1, rp1)
-
-	sym := filepath.Join(os.TempDir(), "d1sym")
-	err = os.Symlink(d1, sym)
-	require.NoError(t, err)
-	defer os.Remove(sym)
-
-	rp2, err := GetRealPath(fs, sym)
-	require.NoError(t, err)
-
-	// On OS X, the temp folder is itself a symbolic link (to /private...)
-	// This has to do for now.
-	assert.True(t, strings.HasSuffix(rp2, d1))
-
-}
-
 func TestMakePathRelative(t *testing.T) {
 	type test struct {
 		inPath, path1, path2, output string
@@ -204,12 +121,12 @@ func TestMakePathRelative(t *testing.T) {
 	}
 
 	for i, d := range data {
-		output, _ := makePathRelative(d.inPath, d.path1, d.path2)
+		output, _ := helpers.MakePathRelative(d.inPath, d.path1, d.path2)
 		if d.output != output {
 			t.Errorf("Test #%d failed. Expected %q got %q", i, d.output, output)
 		}
 	}
-	_, error := makePathRelative("a/b/c.ss", "/a/c", "/d/c", "/e/f")
+	_, error := helpers.MakePathRelative("a/b/c.ss", "/a/c", "/d/c", "/e/f")
 
 	if error == nil {
 		t.Errorf("Test failed, expected error")
@@ -221,7 +138,6 @@ func TestGetDottedRelativePath(t *testing.T) {
 	for _, f := range []func(string) string{filepath.FromSlash, func(s string) string { return s }} {
 		doTestGetDottedRelativePath(f, t)
 	}
-
 }
 
 func doTestGetDottedRelativePath(urlFixer func(string) string, t *testing.T) {
@@ -248,7 +164,7 @@ func doTestGetDottedRelativePath(urlFixer func(string) string, t *testing.T) {
 		{"/404.html", "./"},
 	}
 	for i, d := range data {
-		output := GetDottedRelativePath(d.input)
+		output := helpers.GetDottedRelativePath(d.input)
 		if d.expected != output {
 			t.Errorf("Test %d failed. Expected %q got %q", i, d.expected, output)
 		}
@@ -265,38 +181,7 @@ func TestMakeTitle(t *testing.T) {
 		{"make_title", "make_title"},
 	}
 	for i, d := range data {
-		output := MakeTitle(d.input)
-		if d.expected != output {
-			t.Errorf("Test %d failed. Expected %q got %q", i, d.expected, output)
-		}
-	}
-}
-
-// Replace Extension is probably poorly named, but the intent of the
-// function is to accept a path and return only the file name with a
-// new extension. It's intentionally designed to strip out the path
-// and only provide the name. We should probably rename the function to
-// be more explicit at some point.
-func TestReplaceExtension(t *testing.T) {
-	type test struct {
-		input, newext, expected string
-	}
-	data := []test{
-		// These work according to the above definition
-		{"/some/random/path/file.xml", "html", "file.html"},
-		{"/banana.html", "xml", "banana.xml"},
-		{"./banana.html", "xml", "banana.xml"},
-		{"banana/pie/index.html", "xml", "index.xml"},
-		{"../pies/fish/index.html", "xml", "index.xml"},
-		// but these all fail
-		{"filename-without-an-ext", "ext", "filename-without-an-ext.ext"},
-		{"/filename-without-an-ext", "ext", "filename-without-an-ext.ext"},
-		{"/directory/mydir/", "ext", ".ext"},
-		{"mydir/", "ext", ".ext"},
-	}
-
-	for i, d := range data {
-		output := ReplaceExtension(filepath.FromSlash(d.input), d.newext)
+		output := helpers.MakeTitle(d.input)
 		if d.expected != output {
 			t.Errorf("Test %d failed. Expected %q got %q", i, d.expected, output)
 		}
@@ -317,7 +202,7 @@ func TestDirExists(t *testing.T) {
 		{"./..", true},
 		{"./../", true},
 		{os.TempDir(), true},
-		{os.TempDir() + FilePathSeparator, true},
+		{os.TempDir() + helpers.FilePathSeparator, true},
 		{"/", true},
 		{"/some-really-random-directory-name", false},
 		{"/some/really/random/directory/name", false},
@@ -326,7 +211,7 @@ func TestDirExists(t *testing.T) {
 	}
 
 	for i, d := range data {
-		exists, _ := DirExists(filepath.FromSlash(d.input), new(afero.OsFs))
+		exists, _ := helpers.DirExists(filepath.FromSlash(d.input), new(afero.OsFs))
 		if d.expected != exists {
 			t.Errorf("Test %d failed. Expected %t got %t", i, d.expected, exists)
 		}
@@ -347,161 +232,43 @@ func TestIsDir(t *testing.T) {
 
 	for i, d := range data {
 
-		exists, _ := IsDir(d.input, new(afero.OsFs))
+		exists, _ := helpers.IsDir(d.input, new(afero.OsFs))
 		if d.expected != exists {
 			t.Errorf("Test %d failed. Expected %t got %t", i, d.expected, exists)
 		}
 	}
 }
 
-func TestIsEmpty(t *testing.T) {
-	zeroSizedFile, _ := createZeroSizedFileInTempDir()
-	defer deleteFileInTempDir(zeroSizedFile)
-	nonZeroSizedFile, _ := createNonZeroSizedFileInTempDir()
-	defer deleteFileInTempDir(nonZeroSizedFile)
-	emptyDirectory, _ := createEmptyTempDir()
-	defer deleteTempDir(emptyDirectory)
-	nonEmptyZeroLengthFilesDirectory, _ := createTempDirWithZeroLengthFiles()
-	defer deleteTempDir(nonEmptyZeroLengthFilesDirectory)
-	nonEmptyNonZeroLengthFilesDirectory, _ := createTempDirWithNonZeroLengthFiles()
-	defer deleteTempDir(nonEmptyNonZeroLengthFilesDirectory)
-	nonExistentFile := os.TempDir() + "/this-file-does-not-exist.txt"
-	nonExistentDir := os.TempDir() + "/this/directory/does/not/exist/"
+func createZeroSizedFileInTempDir(t *testing.T) *os.File {
+	t.Helper()
 
-	fileDoesNotExist := fmt.Errorf("%q path does not exist", nonExistentFile)
-	dirDoesNotExist := fmt.Errorf("%q path does not exist", nonExistentDir)
-
-	type test struct {
-		input          string
-		expectedResult bool
-		expectedErr    error
-	}
-
-	data := []test{
-		{zeroSizedFile.Name(), true, nil},
-		{nonZeroSizedFile.Name(), false, nil},
-		{emptyDirectory, true, nil},
-		{nonEmptyZeroLengthFilesDirectory, false, nil},
-		{nonEmptyNonZeroLengthFilesDirectory, false, nil},
-		{nonExistentFile, false, fileDoesNotExist},
-		{nonExistentDir, false, dirDoesNotExist},
-	}
-	for i, d := range data {
-		exists, err := IsEmpty(d.input, new(afero.OsFs))
-		if d.expectedResult != exists {
-			t.Errorf("Test %d failed. Expected result %t got %t", i, d.expectedResult, exists)
-		}
-		if d.expectedErr != nil {
-			if d.expectedErr.Error() != err.Error() {
-				t.Errorf("Test %d failed. Expected %q(%#v) got %q(%#v)", i, d.expectedErr, d.expectedErr, err, err)
-			}
-		} else {
-			if d.expectedErr != err {
-				t.Errorf("Test %d failed. Expected %q(%#v) got %q(%#v)", i, d.expectedErr, d.expectedErr, err, err)
-			}
-		}
-	}
-}
-
-func createZeroSizedFileInTempDir() (*os.File, error) {
 	filePrefix := "_path_test_"
-	f, e := ioutil.TempFile("", filePrefix) // dir is os.TempDir()
-	if e != nil {
-		// if there was an error no file was created.
-		// => no requirement to delete the file
-		return nil, e
-	}
-	return f, nil
-}
-
-func createNonZeroSizedFileInTempDir() (*os.File, error) {
-	f, err := createZeroSizedFileInTempDir()
+	f, err := os.CreateTemp(t.TempDir(), filePrefix)
 	if err != nil {
-		// no file ??
-		return nil, err
+		t.Error(err)
 	}
+	if err := f.Close(); err != nil {
+		t.Error(err)
+	}
+	return f
+}
+
+func createNonZeroSizedFileInTempDir(t *testing.T) *os.File {
+	t.Helper()
+
+	f := createZeroSizedFileInTempDir(t)
 	byteString := []byte("byteString")
-	err = ioutil.WriteFile(f.Name(), byteString, 0644)
+	err := os.WriteFile(f.Name(), byteString, 0644)
 	if err != nil {
-		// delete the file
-		deleteFileInTempDir(f)
-		return nil, err
+		t.Error(err)
 	}
-	return f, nil
-}
-
-func deleteFileInTempDir(f *os.File) {
-	_ = os.Remove(f.Name())
-}
-
-func createEmptyTempDir() (string, error) {
-	dirPrefix := "_dir_prefix_"
-	d, e := ioutil.TempDir("", dirPrefix) // will be in os.TempDir()
-	if e != nil {
-		// no directory to delete - it was never created
-		return "", e
-	}
-	return d, nil
-}
-
-func createTempDirWithZeroLengthFiles() (string, error) {
-	d, dirErr := createEmptyTempDir()
-	if dirErr != nil {
-		return "", dirErr
-	}
-	filePrefix := "_path_test_"
-	_, fileErr := ioutil.TempFile(d, filePrefix) // dir is os.TempDir()
-	if fileErr != nil {
-		// if there was an error no file was created.
-		// but we need to remove the directory to clean-up
-		deleteTempDir(d)
-		return "", fileErr
-	}
-	// the dir now has one, zero length file in it
-	return d, nil
-
-}
-
-func createTempDirWithNonZeroLengthFiles() (string, error) {
-	d, dirErr := createEmptyTempDir()
-	if dirErr != nil {
-		return "", dirErr
-	}
-	filePrefix := "_path_test_"
-	f, fileErr := ioutil.TempFile(d, filePrefix) // dir is os.TempDir()
-	if fileErr != nil {
-		// if there was an error no file was created.
-		// but we need to remove the directory to clean-up
-		deleteTempDir(d)
-		return "", fileErr
-	}
-	byteString := []byte("byteString")
-
-	fileErr = ioutil.WriteFile(f.Name(), byteString, 0644)
-	if fileErr != nil {
-		// delete the file
-		deleteFileInTempDir(f)
-		// also delete the directory
-		deleteTempDir(d)
-		return "", fileErr
-	}
-
-	// the dir now has one, zero length file in it
-	return d, nil
-
-}
-
-func deleteTempDir(d string) {
-	_ = os.RemoveAll(d)
+	return f
 }
 
 func TestExists(t *testing.T) {
-	zeroSizedFile, _ := createZeroSizedFileInTempDir()
-	defer deleteFileInTempDir(zeroSizedFile)
-	nonZeroSizedFile, _ := createNonZeroSizedFileInTempDir()
-	defer deleteFileInTempDir(nonZeroSizedFile)
-	emptyDirectory, _ := createEmptyTempDir()
-	defer deleteTempDir(emptyDirectory)
+	zeroSizedFile := createZeroSizedFileInTempDir(t)
+	nonZeroSizedFile := createNonZeroSizedFileInTempDir(t)
+	emptyDirectory := t.TempDir()
 	nonExistentFile := os.TempDir() + "/this-file-does-not-exist.txt"
 	nonExistentDir := os.TempDir() + "/this/directory/does/not/exist/"
 
@@ -519,7 +286,7 @@ func TestExists(t *testing.T) {
 		{nonExistentDir, false, nil},
 	}
 	for i, d := range data {
-		exists, err := Exists(d.input, new(afero.OsFs))
+		exists, err := helpers.Exists(d.input, new(afero.OsFs))
 		if d.expectedResult != exists {
 			t.Errorf("Test %d failed. Expected result %t got %t", i, d.expectedResult, exists)
 		}
@@ -527,12 +294,9 @@ func TestExists(t *testing.T) {
 			t.Errorf("Test %d failed. Expected %q got %q", i, d.expectedErr, err)
 		}
 	}
-
 }
 
 func TestAbsPathify(t *testing.T) {
-	defer viper.Reset()
-
 	type test struct {
 		inPath, workingDir, expected string
 	}
@@ -552,9 +316,8 @@ func TestAbsPathify(t *testing.T) {
 	}
 
 	for i, d := range data {
-		viper.Reset()
 		// todo see comment in AbsPathify
-		ps := newTestDefaultPathSpec("workingDir", d.workingDir)
+		ps := newTestPathSpec("workingDir", d.workingDir)
 
 		expected := ps.AbsPathify(d.inPath)
 		if d.expected != expected {
@@ -564,7 +327,7 @@ func TestAbsPathify(t *testing.T) {
 	t.Logf("Running platform specific path tests for %s", runtime.GOOS)
 	if runtime.GOOS == "windows" {
 		for i, d := range windowsData {
-			ps := newTestDefaultPathSpec("workingDir", d.workingDir)
+			ps := newTestPathSpec("workingDir", d.workingDir)
 
 			expected := ps.AbsPathify(d.inPath)
 			if d.expected != expected {
@@ -573,7 +336,7 @@ func TestAbsPathify(t *testing.T) {
 		}
 	} else {
 		for i, d := range unixData {
-			ps := newTestDefaultPathSpec("workingDir", d.workingDir)
+			ps := newTestPathSpec("workingDir", d.workingDir)
 
 			expected := ps.AbsPathify(d.inPath)
 			if d.expected != expected {
@@ -581,94 +344,44 @@ func TestAbsPathify(t *testing.T) {
 			}
 		}
 	}
-
 }
 
-func TestExtNoDelimiter(t *testing.T) {
-	assert := require.New(t)
-	assert.Equal("json", ExtNoDelimiter(filepath.FromSlash("/my/data.json")))
-}
-
-func TestFilename(t *testing.T) {
-	type test struct {
-		input, expected string
-	}
-	data := []test{
-		{"index.html", "index"},
-		{"./index.html", "index"},
-		{"/index.html", "index"},
-		{"index", "index"},
-		{"/tmp/index.html", "index"},
-		{"./filename-no-ext", "filename-no-ext"},
-		{"/filename-no-ext", "filename-no-ext"},
-		{"filename-no-ext", "filename-no-ext"},
-		{"directory/", ""}, // no filename case??
-		{"directory/.hidden.ext", ".hidden"},
-		{"./directory/../~/banana/gold.fish", "gold"},
-		{"../directory/banana.man", "banana"},
-		{"~/mydir/filename.ext", "filename"},
-		{"./directory//tmp/filename.ext", "filename"},
+func TestExtractAndGroupRootPaths(t *testing.T) {
+	in := []string{
+		filepath.FromSlash("/a/b/c/d"),
+		filepath.FromSlash("/a/b/c/e"),
+		filepath.FromSlash("/a/b/e/f"),
+		filepath.FromSlash("/a/b"),
+		filepath.FromSlash("/a/b/c/b/g"),
+		filepath.FromSlash("/c/d/e"),
 	}
 
-	for i, d := range data {
-		output := Filename(filepath.FromSlash(d.input))
-		if d.expected != output {
-			t.Errorf("Test %d failed. Expected %q got %q", i, d.expected, output)
-		}
-	}
-}
+	inCopy := make([]string, len(in))
+	copy(inCopy, in)
 
-func TestFileAndExt(t *testing.T) {
-	type test struct {
-		input, expectedFile, expectedExt string
-	}
-	data := []test{
-		{"index.html", "index", ".html"},
-		{"./index.html", "index", ".html"},
-		{"/index.html", "index", ".html"},
-		{"index", "index", ""},
-		{"/tmp/index.html", "index", ".html"},
-		{"./filename-no-ext", "filename-no-ext", ""},
-		{"/filename-no-ext", "filename-no-ext", ""},
-		{"filename-no-ext", "filename-no-ext", ""},
-		{"directory/", "", ""}, // no filename case??
-		{"directory/.hidden.ext", ".hidden", ".ext"},
-		{"./directory/../~/banana/gold.fish", "gold", ".fish"},
-		{"../directory/banana.man", "banana", ".man"},
-		{"~/mydir/filename.ext", "filename", ".ext"},
-		{"./directory//tmp/filename.ext", "filename", ".ext"},
-	}
+	result := helpers.ExtractAndGroupRootPaths(in)
 
-	for i, d := range data {
-		file, ext := fileAndExt(filepath.FromSlash(d.input), fpb)
-		if d.expectedFile != file {
-			t.Errorf("Test %d failed. Expected filename %q got %q.", i, d.expectedFile, file)
-		}
-		if d.expectedExt != ext {
-			t.Errorf("Test %d failed. Expected extension %q got %q.", i, d.expectedExt, ext)
-		}
-	}
+	c := qt.New(t)
+	c.Assert(fmt.Sprint(result), qt.Equals, filepath.FromSlash("[/a/b/{c,e} /c/d/e]"))
 
-}
-
-func TestPathPrep(t *testing.T) {
-
-}
-
-func TestPrettifyPath(t *testing.T) {
-
+	// Make sure the original is preserved
+	c.Assert(in, qt.DeepEquals, inCopy)
 }
 
 func TestExtractRootPaths(t *testing.T) {
 	tests := []struct {
 		input    []string
 		expected []string
-	}{{[]string{filepath.FromSlash("a/b"), filepath.FromSlash("a/b/c/"), "b",
-		filepath.FromSlash("/c/d"), filepath.FromSlash("d/"), filepath.FromSlash("//e//")},
-		[]string{"a", "a", "b", "c", "d", "e"}}}
+	}{{
+		[]string{
+			filepath.FromSlash("a/b"), filepath.FromSlash("a/b/c/"), "b",
+			filepath.FromSlash("/c/d"), filepath.FromSlash("d/"), filepath.FromSlash("//e//"),
+		},
+		[]string{"a", "a", "b", "c", "d", "e"},
+	}}
 
 	for _, test := range tests {
-		output := ExtractRootPaths(test.input)
+		output := helpers.ExtractRootPaths(test.input)
 		if !reflect.DeepEqual(output, test.expected) {
 			t.Errorf("Expected %#v, got %#v\n", test.expected, output)
 		}
@@ -681,7 +394,7 @@ func TestFindCWD(t *testing.T) {
 		expectedErr error
 	}
 
-	//cwd, _ := os.Getwd()
+	// cwd, _ := os.Getwd()
 	data := []test{
 		//{cwd, nil},
 		// Commenting this out. It doesn't work properly.
@@ -689,7 +402,7 @@ func TestFindCWD(t *testing.T) {
 		// I really don't know a better way to test this function. - SPF 2014.11.04
 	}
 	for i, d := range data {
-		dir, err := FindCWD()
+		dir, err := helpers.FindCWD()
 		if d.expectedDir != dir {
 			t.Errorf("Test %d failed. Expected %q but got %q", i, d.expectedDir, dir)
 		}
@@ -700,10 +413,8 @@ func TestFindCWD(t *testing.T) {
 }
 
 func TestSafeWriteToDisk(t *testing.T) {
-	emptyFile, _ := createZeroSizedFileInTempDir()
-	defer deleteFileInTempDir(emptyFile)
-	tmpDir, _ := createEmptyTempDir()
-	defer deleteTempDir(tmpDir)
+	emptyFile := createZeroSizedFileInTempDir(t)
+	tmpDir := t.TempDir()
 
 	randomString := "This is a random string!"
 	reader := strings.NewReader(randomString)
@@ -723,7 +434,7 @@ func TestSafeWriteToDisk(t *testing.T) {
 	}
 
 	for i, d := range data {
-		e := SafeWriteToDisk(d.filename, reader, new(afero.OsFs))
+		e := helpers.SafeWriteToDisk(d.filename, reader, new(afero.OsFs))
 		if d.expectedErr != nil {
 			if d.expectedErr.Error() != e.Error() {
 				t.Errorf("Test %d failed. Expected error %q but got %q", i, d.expectedErr.Error(), e.Error())
@@ -732,7 +443,7 @@ func TestSafeWriteToDisk(t *testing.T) {
 			if d.expectedErr != e {
 				t.Errorf("Test %d failed. Expected %q but got %q", i, d.expectedErr, e)
 			}
-			contents, _ := ioutil.ReadFile(d.filename)
+			contents, _ := os.ReadFile(d.filename)
 			if randomString != string(contents) {
 				t.Errorf("Test %d failed. Expected contents %q but got %q", i, randomString, string(contents))
 			}
@@ -742,10 +453,8 @@ func TestSafeWriteToDisk(t *testing.T) {
 }
 
 func TestWriteToDisk(t *testing.T) {
-	emptyFile, _ := createZeroSizedFileInTempDir()
-	defer deleteFileInTempDir(emptyFile)
-	tmpDir, _ := createEmptyTempDir()
-	defer deleteTempDir(tmpDir)
+	emptyFile := createZeroSizedFileInTempDir(t)
+	tmpDir := t.TempDir()
 
 	randomString := "This is a random string!"
 	reader := strings.NewReader(randomString)
@@ -763,11 +472,11 @@ func TestWriteToDisk(t *testing.T) {
 	}
 
 	for i, d := range data {
-		e := WriteToDisk(d.filename, reader, new(afero.OsFs))
+		e := helpers.WriteToDisk(d.filename, reader, new(afero.OsFs))
 		if d.expectedErr != e {
 			t.Errorf("Test %d failed. WriteToDisk Error Expected %q but got %q", i, d.expectedErr, e)
 		}
-		contents, e := ioutil.ReadFile(d.filename)
+		contents, e := os.ReadFile(d.filename)
 		if e != nil {
 			t.Errorf("Test %d failed. Could not read file %s. Reason: %s\n", i, d.filename, e)
 		}
@@ -780,27 +489,27 @@ func TestWriteToDisk(t *testing.T) {
 
 func TestGetTempDir(t *testing.T) {
 	dir := os.TempDir()
-	if FilePathSeparator != dir[len(dir)-1:] {
-		dir = dir + FilePathSeparator
+	if helpers.FilePathSeparator != dir[len(dir)-1:] {
+		dir = dir + helpers.FilePathSeparator
 	}
-	testDir := "hugoTestFolder" + FilePathSeparator
+	testDir := "hugoTestFolder" + helpers.FilePathSeparator
 	tests := []struct {
 		input    string
 		expected string
 	}{
 		{"", dir},
-		{testDir + "  Foo bar  ", dir + testDir + "  Foo bar  " + FilePathSeparator},
-		{testDir + "Foo.Bar/foo_Bar-Foo", dir + testDir + "Foo.Bar/foo_Bar-Foo" + FilePathSeparator},
-		{testDir + "fOO,bar:foo%bAR", dir + testDir + "fOObarfoo%bAR" + FilePathSeparator},
-		{testDir + "fOO,bar:foobAR", dir + testDir + "fOObarfoobAR" + FilePathSeparator},
-		{testDir + "FOo/BaR.html", dir + testDir + "FOo/BaR.html" + FilePathSeparator},
-		{testDir + "трям/трям", dir + testDir + "трям/трям" + FilePathSeparator},
-		{testDir + "은행", dir + testDir + "은행" + FilePathSeparator},
-		{testDir + "Банковский кассир", dir + testDir + "Банковский кассир" + FilePathSeparator},
+		{testDir + "  Foo bar  ", dir + testDir + "  Foo bar  " + helpers.FilePathSeparator},
+		{testDir + "Foo.Bar/foo_Bar-Foo", dir + testDir + "Foo.Bar/foo_Bar-Foo" + helpers.FilePathSeparator},
+		{testDir + "fOO,bar:foo%bAR", dir + testDir + "fOObarfoo%bAR" + helpers.FilePathSeparator},
+		{testDir + "fOO,bar:foobAR", dir + testDir + "fOObarfoobAR" + helpers.FilePathSeparator},
+		{testDir + "FOo/BaR.html", dir + testDir + "FOo/BaR.html" + helpers.FilePathSeparator},
+		{testDir + "трям/трям", dir + testDir + "трям/трям" + helpers.FilePathSeparator},
+		{testDir + "은행", dir + testDir + "은행" + helpers.FilePathSeparator},
+		{testDir + "Банковский кассир", dir + testDir + "Банковский кассир" + helpers.FilePathSeparator},
 	}
 
 	for _, test := range tests {
-		output := GetTempDir(test.input, new(afero.MemMapFs))
+		output := helpers.GetTempDir(test.input, new(afero.MemMapFs))
 		if output != test.expected {
 			t.Errorf("Expected %#v, got %#v\n", test.expected, output)
 		}

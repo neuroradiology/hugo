@@ -1,47 +1,48 @@
 ---
 title: findRE
-description: Returns a list of strings that match the regular expression.
-godocref:
-date: 2017-02-01
-publishdate: 2017-02-01
-lastmod: 2017-02-01
+description: Returns a slice of strings that match the regular expression.
 categories: [functions]
 menu:
   docs:
-    parent: "functions"
+    parent: functions
 keywords: [regex]
-signature: ["findRE PATTERN INPUT [LIMIT]"]
-workson: []
-hugoversion:
-relatedfuncs: []
-deprecated: false
-aliases: []
+signature:
+  - "findRE PATTERN INPUT [LIMIT]"
+  - "strings.FindRE PATTERN INPUT [LIMIT]"
+relatedfuncs: [findRESubmatch, replaceRE]
 ---
+By default, `findRE` finds all matches. You can limit the number of matches with an optional LIMIT parameter.
 
+When specifying the regular expression, use a raw [string literal] (backticks) instead of an interpreted string literal (double quotes) to simplify the syntax. With an interpreted string literal you must escape backslashes.
 
-By default all matches will be included. The number of matches can be limitted with an optional third parameter.
+[string literal]: https://go.dev/ref/spec#String_literals
 
-The example below returns a list of all second level headers (`<h2>`) in the content:
+This function uses the [RE2] regular expression library. See the [RE2 syntax documentation] for details. Note that the RE2 `\C` escape sequence is not supported.
 
+[RE2]: https://github.com/google/re2/
+[RE2 syntax documentation]: https://github.com/google/re2/wiki/Syntax/
+
+{{% note %}}
+The RE2 syntax is a subset of that accepted by [PCRE], roughly speaking, and with various [caveats].
+
+[caveats]: https://swtch.com/~rsc/regexp/regexp3.html#caveats
+[PCRE]: https://www.pcre.org/
+{{% /note %}}
+
+This example returns a slice of all second level headings (`h2` elements) within the rendered `.Content`:
+
+```go-html-template
+{{ findRE `(?s)<h2.*?>.*?</h2>` .Content }}
 ```
-{{ findRE "<h2.*?>(.|\n)*?</h2>" .Content }}
-```
 
-You can limit the number of matches in the list with a third parameter. The following example shows how to limit the returned value to just one match (or none, if there are no matched substrings):
+The `s` flag causes `.` to match `\n` as well, allowing us to find an `h2` element that contains newlines.
 
-```
-{{ findRE "<h2.*?>(.|\n)*?</h2>" .Content 1 }}
-    <!-- returns ["<h2 id="#foo">Foo</h2>"] -->
+To limit the number of matches to one:
+
+```go-html-template
+{{ findRE `(?s)<h2.*?>.*?</h2>` .Content 1 }}
 ```
 
 {{% note %}}
-Hugo uses Go's [Regular Expression package](https://golang.org/pkg/regexp/), which is the same general syntax used by Perl, Python, and other languages but with a few minor differences for those coming from a background in PCRE. For a full syntax listing, see the [GitHub wiki for re2](https://github.com/google/re2/wiki/Syntax).
-
-If you are just learning RegEx, or at least Go's flavor, you can practice pattern matching in the browser at <https://regex101.com/>.
+You can write and test your regular expression using [regex101.com](https://regex101.com/). Be sure to select the Go flavor before you begin.
 {{% /note %}}
-
-
-[partials]: /templates/partials/
-[`plainify`]: /functions/plainify/
-[toc]: /content-management/toc/
-[`urlize`]: /functions/urlize

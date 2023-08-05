@@ -14,21 +14,20 @@
 package strings
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	qt "github.com/frankban/quicktest"
 )
 
 func TestFindRE(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
+	for _, test := range []struct {
 		expr    string
-		content interface{}
-		limit   interface{}
-		expect  interface{}
+		content any
+		limit   any
+		expect  any
 	}{
 		{"[G|g]o", "Hugo is a static site generator written in Go.", 2, []string{"go", "Go"}},
 		{"[G|g]o", "Hugo is a static site generator written in Go.", -1, []string{"go", "Go"}},
@@ -39,48 +38,89 @@ func TestFindRE(t *testing.T) {
 		{"[G|go", "Hugo is a static site generator written in Go.", nil, false},
 		{"[G|g]o", t, nil, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
-
 		result, err := ns.FindRE(test.expr, test.content, test.limit)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Check(result, qt.DeepEquals, test.expect)
 	}
 }
 
-func TestReplaceRE(t *testing.T) {
+func TestFindRESubmatch(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		pattern interface{}
-		repl    interface{}
-		s       interface{}
-		expect  interface{}
+	for _, test := range []struct {
+		expr    string
+		content any
+		limit   any
+		expect  any
 	}{
-		{"^https?://([^/]+).*", "$1", "http://gohugo.io/docs", "gohugo.io"},
-		{"^https?://([^/]+).*", "$2", "http://gohugo.io/docs", ""},
-		{"(ab)", "AB", "aabbaab", "aABbaAB"},
-		// errors
-		{"(ab", "AB", "aabb", false}, // invalid re
-		{tstNoStringer{}, "$2", "http://gohugo.io/docs", false},
-		{"^https?://([^/]+).*", tstNoStringer{}, "http://gohugo.io/docs", false},
-		{"^https?://([^/]+).*", "$2", tstNoStringer{}, false},
-	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		{`<a\s*href="(.+?)">(.+?)</a>`, `<li><a href="#foo">Foo</a></li><li><a href="#bar">Bar</a></li>`, -1, [][]string{
+			{"<a href=\"#foo\">Foo</a>", "#foo", "Foo"},
+			{"<a href=\"#bar\">Bar</a>", "#bar", "Bar"},
+		}},
+		// Some simple cases.
+		{"([G|g]o)", "Hugo is a static site generator written in Go.", -1, [][]string{{"go", "go"}, {"Go", "Go"}}},
+		{"([G|g]o)", "Hugo is a static site generator written in Go.", 1, [][]string{{"go", "go"}}},
 
-		result, err := ns.ReplaceRE(test.pattern, test.repl, test.s)
+		// errors
+		{"([G|go", "Hugo is a static site generator written in Go.", nil, false},
+		{"([G|g]o)", t, nil, false},
+	} {
+		result, err := ns.FindRESubmatch(test.expr, test.content, test.limit)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Check(result, qt.DeepEquals, test.expect)
+	}
+}
+func TestReplaceRE(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+
+	for _, test := range []struct {
+		pattern any
+		repl    any
+		s       any
+		n       []any
+		expect  any
+	}{
+		{"^https?://([^/]+).*", "$1", "http://gohugo.io/docs", nil, "gohugo.io"},
+		{"^https?://([^/]+).*", "$2", "http://gohugo.io/docs", nil, ""},
+		{"(ab)", "AB", "aabbaab", nil, "aABbaAB"},
+		{"(ab)", "AB", "aabbaab", []any{1}, "aABbaab"},
+		// errors
+		{"(ab", "AB", "aabb", nil, false}, // invalid re
+		{tstNoStringer{}, "$2", "http://gohugo.io/docs", nil, false},
+		{"^https?://([^/]+).*", tstNoStringer{}, "http://gohugo.io/docs", nil, false},
+		{"^https?://([^/]+).*", "$2", tstNoStringer{}, nil, false},
+	} {
+
+		var (
+			result string
+			err    error
+		)
+		if len(test.n) > 0 {
+			result, err = ns.ReplaceRE(test.pattern, test.repl, test.s, test.n...)
+		} else {
+			result, err = ns.ReplaceRE(test.pattern, test.repl, test.s)
+		}
+
+		if b, ok := test.expect.(bool); ok && !b {
+			c.Assert(err, qt.Not(qt.IsNil))
+			continue
+		}
+
+		c.Assert(err, qt.IsNil)
+		c.Check(result, qt.Equals, test.expect)
 	}
 }

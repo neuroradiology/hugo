@@ -14,8 +14,12 @@
 package pageparser
 
 import (
+	"bytes"
 	"strings"
 	"testing"
+
+	qt "github.com/frankban/quicktest"
+	"github.com/gohugoio/hugo/parser/metadecoders"
 )
 
 func BenchmarkParse(b *testing.B) {
@@ -68,4 +72,59 @@ This is some summary. This is some summary. This is some summary. This is some s
 			b.Fatal(err)
 		}
 	}
+}
+
+func TestFormatFromFrontMatterType(t *testing.T) {
+	c := qt.New(t)
+	for _, test := range []struct {
+		typ    ItemType
+		expect metadecoders.Format
+	}{
+		{TypeFrontMatterJSON, metadecoders.JSON},
+		{TypeFrontMatterTOML, metadecoders.TOML},
+		{TypeFrontMatterYAML, metadecoders.YAML},
+		{TypeFrontMatterORG, metadecoders.ORG},
+		{TypeIgnore, ""},
+	} {
+		c.Assert(FormatFromFrontMatterType(test.typ), qt.Equals, test.expect)
+	}
+}
+
+func TestIsProbablyItemsSource(t *testing.T) {
+	c := qt.New(t)
+
+	input := ` {{< foo >}} `
+	items := collectStringMain(input)
+
+	c.Assert(IsProbablySourceOfItems([]byte(input), items), qt.IsTrue)
+	c.Assert(IsProbablySourceOfItems(bytes.Repeat([]byte(" "), len(input)), items), qt.IsFalse)
+	c.Assert(IsProbablySourceOfItems([]byte(`{{< foo >}}  `), items), qt.IsFalse)
+	c.Assert(IsProbablySourceOfItems([]byte(``), items), qt.IsFalse)
+}
+
+func TestHasShortcode(t *testing.T) {
+	c := qt.New(t)
+
+	c.Assert(HasShortcode("{{< foo >}}"), qt.IsTrue)
+	c.Assert(HasShortcode("aSDasd  SDasd aSD\n\nasdfadf{{% foo %}}\nasdf"), qt.IsTrue)
+	c.Assert(HasShortcode("{{</* foo */>}}"), qt.IsFalse)
+	c.Assert(HasShortcode("{{%/* foo */%}}"), qt.IsFalse)
+
+}
+
+func BenchmarkHasShortcode(b *testing.B) {
+	withShortcode := strings.Repeat("this is text", 30) + "{{< myshortcode >}}This is some inner content.{{< /myshortcode >}}" + strings.Repeat("this is text", 30)
+	withoutShortcode := strings.Repeat("this is text", 30) + "This is some inner content." + strings.Repeat("this is text", 30)
+	b.Run("Match", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			HasShortcode(withShortcode)
+		}
+	})
+
+	b.Run("NoMatch", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			HasShortcode(withoutShortcode)
+		}
+	})
+
 }

@@ -14,19 +14,76 @@
 package config
 
 import (
-	"github.com/spf13/cast"
+	"time"
+
+	"github.com/gohugoio/hugo/common/maps"
+	"github.com/gohugoio/hugo/common/types"
+	"github.com/gohugoio/hugo/common/urls"
+	"github.com/gohugoio/hugo/langs"
 )
+
+// AllProvider is a sub set of all config settings.
+type AllProvider interface {
+	Language() *langs.Language
+	Languages() langs.Languages
+	LanguagesDefaultFirst() langs.Languages
+	LanguagePrefix() string
+	BaseURL() urls.BaseURL
+	BaseURLLiveReload() urls.BaseURL
+	Environment() string
+	IsMultihost() bool
+	IsMultiLingual() bool
+	NoBuildLock() bool
+	BaseConfig() BaseConfig
+	Dirs() CommonDirs
+	Quiet() bool
+	DirsBase() CommonDirs
+	GetConfigSection(string) any
+	GetConfig() any
+	CanonifyURLs() bool
+	DisablePathToLower() bool
+	RemovePathAccents() bool
+	IsUglyURLs(section string) bool
+	DefaultContentLanguage() string
+	DefaultContentLanguageInSubdir() bool
+	IsLangDisabled(string) bool
+	SummaryLength() int
+	Paginate() int
+	PaginatePath() string
+	BuildExpired() bool
+	BuildFuture() bool
+	BuildDrafts() bool
+	Running() bool
+	PrintUnusedTemplates() bool
+	EnableMissingTranslationPlaceholders() bool
+	TemplateMetrics() bool
+	TemplateMetricsHints() bool
+	PrintI18nWarnings() bool
+	CreateTitle(s string) string
+	IgnoreFile(s string) bool
+	NewContentEditor() string
+	Timeout() time.Duration
+	StaticDirs() []string
+	IgnoredErrors() map[string]bool
+	WorkingDir() string
+}
 
 // Provider provides the configuration settings for Hugo.
 type Provider interface {
 	GetString(key string) string
 	GetInt(key string) int
 	GetBool(key string) bool
-	GetStringMap(key string) map[string]interface{}
+	GetParams(key string) maps.Params
+	GetStringMap(key string) map[string]any
 	GetStringMapString(key string) map[string]string
 	GetStringSlice(key string) []string
-	Get(key string) interface{}
-	Set(key string, value interface{})
+	Get(key string) any
+	Set(key string, value any)
+	Keys() []string
+	Merge(key string, value any)
+	SetDefaults(params maps.Params)
+	SetDefaultMergeStrategy()
+	WalkParams(walkFn func(params ...maps.KeyParams) bool)
 	IsSet(key string) bool
 }
 
@@ -35,20 +92,11 @@ type Provider interface {
 // we do not attempt to split it into fields.
 func GetStringSlicePreserveString(cfg Provider, key string) []string {
 	sd := cfg.Get(key)
-	if sds, ok := sd.(string); ok {
-		return []string{sds}
-	}
-	return cast.ToStringSlice(sd)
+	return types.ToStringSlicePreserveString(sd)
 }
 
-// SetBaseTestDefaults provides some common config defaults used in tests.
-func SetBaseTestDefaults(cfg Provider) {
-	cfg.Set("resourceDir", "resources")
-	cfg.Set("contentDir", "content")
-	cfg.Set("dataDir", "data")
-	cfg.Set("i18nDir", "i18n")
-	cfg.Set("layoutDir", "layouts")
-	cfg.Set("assetDir", "assets")
-	cfg.Set("archetypeDir", "archetypes")
-	cfg.Set("publishDir", "public")
+func setIfNotSet(cfg Provider, key string, value any) {
+	if !cfg.IsSet(key) {
+		cfg.Set(key, value)
+	}
 }

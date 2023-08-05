@@ -16,11 +16,12 @@ package page
 import (
 	"path"
 	"path/filepath"
-
 	"strings"
 
+	"github.com/gohugoio/hugo/common/urls"
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/output"
+	"github.com/gohugoio/hugo/resources/kinds"
 )
 
 const slash = "/"
@@ -31,8 +32,7 @@ const slash = "/"
 //
 // The big motivating behind this is to have only one source of truth for URLs,
 // and by that also get rid of most of the fragile string parsing/encoding etc.
-//
-//
+
 type TargetPathDescriptor struct {
 	PathSpec *helpers.PathSpec
 
@@ -93,18 +93,18 @@ func (p TargetPaths) RelPermalink(s *helpers.PathSpec) string {
 }
 
 func (p TargetPaths) PermalinkForOutputFormat(s *helpers.PathSpec, f output.Format) string {
-	var baseURL string
+	var baseURL urls.BaseURL
 	var err error
 	if f.Protocol != "" {
-		baseURL, err = s.BaseURL.WithProtocol(f.Protocol)
+		baseURL, err = s.Cfg.BaseURL().WithProtocol(f.Protocol)
 		if err != nil {
 			return ""
 		}
 	} else {
-		baseURL = s.BaseURL.String()
+		baseURL = s.Cfg.BaseURL()
 	}
-
-	return s.PermalinkForBaseURL(p.Link, baseURL)
+	baseURLstr := baseURL.String()
+	return s.PermalinkForBaseURL(p.Link, baseURLstr)
 }
 
 func isHtmlIndex(s string) bool {
@@ -112,7 +112,6 @@ func isHtmlIndex(s string) bool {
 }
 
 func CreateTargetPaths(d TargetPathDescriptor) (tp TargetPaths) {
-
 	if d.Type.Name == "" {
 		panic("CreateTargetPath: missing type")
 	}
@@ -130,6 +129,7 @@ func CreateTargetPaths(d TargetPathDescriptor) (tp TargetPaths) {
 	}
 
 	pagePath := slash
+	fullSuffix := d.Type.MediaType.FirstSuffix.FullSuffix
 
 	var (
 		pagePathDir string
@@ -148,7 +148,7 @@ func CreateTargetPaths(d TargetPathDescriptor) (tp TargetPaths) {
 		isUgly = true
 	}
 
-	if d.Kind != KindPage && d.URL == "" && len(d.Sections) > 0 {
+	if d.Kind != kinds.KindPage && d.URL == "" && len(d.Sections) > 0 {
 		if d.ExpandedPermalink != "" {
 			pagePath = pjoin(pagePath, d.ExpandedPermalink)
 		} else {
@@ -161,7 +161,7 @@ func CreateTargetPaths(d TargetPathDescriptor) (tp TargetPaths) {
 		pagePath = pjoin(pagePath, d.Type.Path)
 	}
 
-	if d.Kind != KindHome && d.URL != "" {
+	if d.Kind != kinds.KindHome && d.URL != "" {
 		pagePath = pjoin(pagePath, d.URL)
 
 		if d.Addends != "" {
@@ -174,7 +174,7 @@ func CreateTargetPaths(d TargetPathDescriptor) (tp TargetPaths) {
 		hasSlash := strings.HasSuffix(d.URL, slash)
 
 		if hasSlash || !hasDot {
-			pagePath = pjoin(pagePath, d.Type.BaseName+d.Type.MediaType.FullSuffix())
+			pagePath = pjoin(pagePath, d.Type.BaseName+fullSuffix)
 		} else if hasDot {
 			pagePathDir = path.Dir(pagePathDir)
 		}
@@ -201,11 +201,10 @@ func CreateTargetPaths(d TargetPathDescriptor) (tp TargetPaths) {
 			}
 		}
 
-	} else if d.Kind == KindPage {
+	} else if d.Kind == kinds.KindPage {
 
 		if d.ExpandedPermalink != "" {
 			pagePath = pjoin(pagePath, d.ExpandedPermalink)
-
 		} else {
 			if d.Dir != "" {
 				pagePath = pjoin(pagePath, d.Dir)
@@ -221,6 +220,8 @@ func CreateTargetPaths(d TargetPathDescriptor) (tp TargetPaths) {
 
 		link = pagePath
 
+		// TODO(bep) this should not happen after the fix in https://github.com/gohugoio/hugo/issues/4870
+		// but we may need some more testing before we can remove it.
 		if baseNameSameAsType {
 			link = strings.TrimSuffix(link, d.BaseName)
 		}
@@ -230,9 +231,9 @@ func CreateTargetPaths(d TargetPathDescriptor) (tp TargetPaths) {
 		linkDir = pagePathDir
 
 		if isUgly {
-			pagePath = addSuffix(pagePath, d.Type.MediaType.FullSuffix())
+			pagePath = addSuffix(pagePath, fullSuffix)
 		} else {
-			pagePath = pjoin(pagePath, d.Type.BaseName+d.Type.MediaType.FullSuffix())
+			pagePath = pjoin(pagePath, d.Type.BaseName+fullSuffix)
 		}
 
 		if !isHtmlIndex(pagePath) {
@@ -268,10 +269,9 @@ func CreateTargetPaths(d TargetPathDescriptor) (tp TargetPaths) {
 		linkDir = pagePathDir
 
 		if base != "" {
-			pagePath = path.Join(pagePath, addSuffix(base, d.Type.MediaType.FullSuffix()))
+			pagePath = path.Join(pagePath, addSuffix(base, fullSuffix))
 		} else {
-			pagePath = addSuffix(pagePath, d.Type.MediaType.FullSuffix())
-
+			pagePath = addSuffix(pagePath, fullSuffix)
 		}
 
 		if !isHtmlIndex(pagePath) {
@@ -306,12 +306,16 @@ func CreateTargetPaths(d TargetPathDescriptor) (tp TargetPaths) {
 
 	linkDir = strings.TrimSuffix(path.Join(slash, linkDir), slash)
 
-	// Note: MakePathSanitized will lower case the path if
-	// disablePathToLower isn't set.
-	pagePath = d.PathSpec.MakePathSanitized(pagePath)
-	pagePathDir = d.PathSpec.MakePathSanitized(pagePathDir)
-	link = d.PathSpec.MakePathSanitized(link)
-	linkDir = d.PathSpec.MakePathSanitized(linkDir)
+	// if page URL is explicitly set in frontmatter,
+	// preserve its value without sanitization
+	if d.Kind != kinds.KindPage || d.URL == "" {
+		// Note: MakePathSanitized will lower case the path if
+		// disablePathToLower isn't set.
+		pagePath = d.PathSpec.MakePathSanitized(pagePath)
+		pagePathDir = d.PathSpec.MakePathSanitized(pagePathDir)
+		link = d.PathSpec.MakePathSanitized(link)
+		linkDir = d.PathSpec.MakePathSanitized(linkDir)
+	}
 
 	tp.TargetFilename = filepath.FromSlash(pagePath)
 	tp.SubResourceBaseTarget = filepath.FromSlash(pagePathDir)

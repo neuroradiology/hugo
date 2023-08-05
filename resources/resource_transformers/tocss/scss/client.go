@@ -14,19 +14,22 @@
 package scss
 
 import (
-	"github.com/bep/go-tocss/scss"
+	"regexp"
+
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/hugolib/filesystems"
 	"github.com/gohugoio/hugo/resources"
-	"github.com/gohugoio/hugo/resources/resource"
+	"github.com/spf13/afero"
 
 	"github.com/mitchellh/mapstructure"
 )
 
+const transformationName = "tocss"
+
 type Client struct {
 	rs     *resources.Spec
 	sfs    *filesystems.SourceFilesystem
-	workFs *filesystems.SourceFilesystem
+	workFs afero.Fs
 }
 
 func New(fs *filesystems.SourceFilesystem, rs *resources.Spec) (*Client, error) {
@@ -57,47 +60,13 @@ type Options struct {
 
 	// When enabled, Hugo will generate a source map.
 	EnableSourceMap bool
+
+	// Vars will be available in 'hugo:vars', e.g:
+	//     @import "hugo:vars";
+	Vars map[string]any
 }
 
-type options struct {
-	// The options we receive from the end user.
-	from Options
-
-	// The options we send to the SCSS library.
-	to scss.Options
-}
-
-func (c *Client) ToCSS(res resource.Resource, opts Options) (resource.Resource, error) {
-	internalOptions := options{
-		from: opts,
-	}
-
-	// Transfer values from client.
-	internalOptions.to.Precision = opts.Precision
-	internalOptions.to.OutputStyle = scss.OutputStyleFromString(opts.OutputStyle)
-
-	if internalOptions.to.Precision == 0 {
-		// bootstrap-sass requires 8 digits precision. The libsass default is 5.
-		// https://github.com/twbs/bootstrap-sass/blob/master/README.md#sass-number-precision
-		internalOptions.to.Precision = 8
-	}
-
-	return c.rs.Transform(
-		res,
-		&toCSSTransformation{c: c, options: internalOptions},
-	)
-}
-
-type toCSSTransformation struct {
-	c       *Client
-	options options
-}
-
-func (t *toCSSTransformation) Key() resources.ResourceTransformationKey {
-	return resources.NewResourceTransformationKey("tocss", t.options.from)
-}
-
-func DecodeOptions(m map[string]interface{}) (opts Options, err error) {
+func DecodeOptions(m map[string]any) (opts Options, err error) {
 	if m == nil {
 		return
 	}
@@ -108,4 +77,18 @@ func DecodeOptions(m map[string]interface{}) (opts Options, err error) {
 	}
 
 	return
+}
+
+var (
+	regularCSSImportTo   = regexp.MustCompile(`.*(@import "(.*\.css)";).*`)
+	regularCSSImportFrom = regexp.MustCompile(`.*(\/\* HUGO_IMPORT_START (.*) HUGO_IMPORT_END \*\/).*`)
+)
+
+func replaceRegularImportsIn(s string) (string, bool) {
+	replaced := regularCSSImportTo.ReplaceAllString(s, "/* HUGO_IMPORT_START $2 HUGO_IMPORT_END */")
+	return replaced, s != replaced
+}
+
+func replaceRegularImportsOut(s string) string {
+	return regularCSSImportFrom.ReplaceAllString(s, "@import \"$2\";")
 }

@@ -20,9 +20,7 @@ import (
 	"github.com/gohugoio/hugo/common/collections"
 )
 
-var (
-	_ collections.Slicer = WeightedPage{}
-)
+var _ collections.Slicer = WeightedPage{}
 
 // WeightedPages is a list of Pages with their corresponding (and relative) weight
 // [{Weight: 30, Page: *1}, {Weight: 40, Page: *2}]
@@ -42,7 +40,7 @@ func (p WeightedPages) Page() Page {
 		return nil
 	}
 
-	return first.owner.Page
+	return first.owner
 }
 
 // A WeightedPage is a Page with a weight.
@@ -54,15 +52,10 @@ type WeightedPage struct {
 	// manual .Site.GetPage lookups. It is implemented in this roundabout way
 	// because we cannot add additional state to the WeightedPages slice
 	// without breaking lots of templates in the wild.
-	owner *PageWrapper
+	owner Page
 }
 
-// PageWrapper wraps a Page.
-type PageWrapper struct {
-	Page
-}
-
-func NewWeightedPage(weight int, p Page, owner *PageWrapper) WeightedPage {
+func NewWeightedPage(weight int, p Page, owner Page) WeightedPage {
 	return WeightedPage{Weight: weight, Page: p, owner: owner}
 }
 
@@ -70,13 +63,13 @@ func (w WeightedPage) String() string {
 	return fmt.Sprintf("WeightedPage(%d,%q)", w.Weight, w.Page.Title())
 }
 
-// Slice is not meant to be used externally. It's a bridge function
+// Slice is for internal use.
 // for the template functions. See collections.Slice.
-func (p WeightedPage) Slice(in interface{}) (interface{}, error) {
+func (p WeightedPage) Slice(in any) (any, error) {
 	switch items := in.(type) {
 	case WeightedPages:
 		return items, nil
-	case []interface{}:
+	case []any:
 		weighted := make(WeightedPages, len(items))
 		for i, v := range items {
 			g, ok := v.(WeightedPage)
@@ -100,13 +93,13 @@ func (wp WeightedPages) Pages() Pages {
 	return pages
 }
 
-// Prev returns the previous Page relative to the given Page in
+// Next returns the next Page relative to the given Page in
 // this weighted page set.
-func (wp WeightedPages) Prev(cur Page) Page {
+func (wp WeightedPages) Next(cur Page) Page {
 	for x, c := range wp {
-		if c.Page == cur {
+		if c.Page.Eq(cur) {
 			if x == 0 {
-				return wp[len(wp)-1].Page
+				return nil
 			}
 			return wp[x-1].Page
 		}
@@ -114,15 +107,15 @@ func (wp WeightedPages) Prev(cur Page) Page {
 	return nil
 }
 
-// Next returns the next Page relative to the given Page in
+// Prev returns the previous Page relative to the given Page in
 // this weighted page set.
-func (wp WeightedPages) Next(cur Page) Page {
+func (wp WeightedPages) Prev(cur Page) Page {
 	for x, c := range wp {
-		if c.Page == cur {
+		if c.Page.Eq(cur) {
 			if x < len(wp)-1 {
 				return wp[x+1].Page
 			}
-			return wp[0].Page
+			return nil
 		}
 	}
 	return nil

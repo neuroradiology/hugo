@@ -14,6 +14,8 @@
 package resources
 
 import (
+	"context"
+
 	"github.com/gohugoio/hugo/deps"
 	"github.com/gohugoio/hugo/tpl/internal"
 )
@@ -30,10 +32,15 @@ func init() {
 
 		ns := &internal.TemplateFuncsNamespace{
 			Name:    name,
-			Context: func(args ...interface{}) interface{} { return ctx },
+			Context: func(cctx context.Context, args ...any) (any, error) { return ctx, nil },
 		}
 
 		ns.AddMethodMapping(ctx.Get,
+			nil,
+			[][2]string{},
+		)
+
+		ns.AddMethodMapping(ctx.GetRemote,
 			nil,
 			[][2]string{},
 		)
@@ -60,8 +67,12 @@ func init() {
 			[][2]string{},
 		)
 
-		return ns
+		ns.AddMethodMapping(ctx.Babel,
+			[]string{"babel"},
+			[][2]string{},
+		)
 
+		return ns
 	}
 
 	internal.AddTemplateFuncsNamespace(f)

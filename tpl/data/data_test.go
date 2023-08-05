@@ -14,25 +14,29 @@
 package data
 
 import (
-	"fmt"
+	"bytes"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/bep/logg"
+	"github.com/gohugoio/hugo/common/maps"
+
+	qt "github.com/frankban/quicktest"
 )
 
 func TestGetCSV(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	for i, test := range []struct {
 		sep     string
 		url     string
 		content string
-		expect  interface{}
+		expect  any
 	}{
 		// Remotes
 		{
@@ -49,12 +53,6 @@ func TestGetCSV(t *testing.T) {
 		},
 		{
 			",",
-			`http://error.no.sep/`,
-			"gomeetup;city\nyes;Sydney\nyes;San Francisco\nyes;Stockholm\n",
-			false,
-		},
-		{
-			",",
 			`http://nofound/404`,
 			``,
 			false,
@@ -74,67 +72,70 @@ func TestGetCSV(t *testing.T) {
 			false,
 		},
 	} {
-		msg := fmt.Sprintf("Test %d", i)
 
-		ns := newTestNs()
+		c.Run(test.url, func(c *qt.C) {
+			msg := qt.Commentf("Test %d", i)
 
-		// Setup HTTP test server
-		var srv *httptest.Server
-		srv, ns.client = getTestServer(func(w http.ResponseWriter, r *http.Request) {
-			if !haveHeader(r.Header, "Accept", "text/csv") && !haveHeader(r.Header, "Accept", "text/plain") {
-				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			ns := newTestNs()
+
+			// Setup HTTP test server
+			var srv *httptest.Server
+			srv, ns.client = getTestServer(func(w http.ResponseWriter, r *http.Request) {
+				if !hasHeaderValue(r.Header, "Accept", "text/csv") && !hasHeaderValue(r.Header, "Accept", "text/plain") {
+					http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+					return
+				}
+
+				if r.URL.Path == "/404" {
+					http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+					return
+				}
+
+				w.Header().Add("Content-type", "text/csv")
+
+				w.Write([]byte(test.content))
+			})
+			defer func() { srv.Close() }()
+
+			// Setup local test file for schema-less URLs
+			if !strings.Contains(test.url, ":") && !strings.HasPrefix(test.url, "fail/") {
+				f, err := ns.deps.Fs.Source.Create(filepath.Join(ns.deps.Conf.BaseConfig().WorkingDir, test.url))
+				c.Assert(err, qt.IsNil, msg)
+				f.WriteString(test.content)
+				f.Close()
+			}
+
+			// Get on with it
+			got, err := ns.GetCSV(test.sep, test.url)
+
+			if _, ok := test.expect.(bool); ok {
+				c.Assert(int(ns.deps.Log.LoggCount(logg.LevelError)), qt.Equals, 1)
+				c.Assert(got, qt.IsNil)
 				return
 			}
 
-			if r.URL.Path == "/404" {
-				http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-				return
-			}
-
-			w.Header().Add("Content-type", "text/csv")
-
-			w.Write([]byte(test.content))
+			c.Assert(err, qt.IsNil, msg)
+			c.Assert(int(ns.deps.Log.LoggCount(logg.LevelError)), qt.Equals, 0)
+			c.Assert(got, qt.Not(qt.IsNil), msg)
+			c.Assert(got, qt.DeepEquals, test.expect, msg)
 		})
-		defer func() { srv.Close() }()
 
-		// Setup local test file for schema-less URLs
-		if !strings.Contains(test.url, ":") && !strings.HasPrefix(test.url, "fail/") {
-			f, err := ns.deps.Fs.Source.Create(filepath.Join(ns.deps.Cfg.GetString("workingDir"), test.url))
-			require.NoError(t, err, msg)
-			f.WriteString(test.content)
-			f.Close()
-		}
-
-		// Get on with it
-		got, err := ns.GetCSV(test.sep, test.url)
-
-		if _, ok := test.expect.(bool); ok {
-			require.Equal(t, 1, int(ns.deps.Log.ErrorCounter.Count()))
-			//require.Error(t, err, msg)
-			require.Nil(t, got)
-			continue
-		}
-
-		require.NoError(t, err, msg)
-		require.Equal(t, 0, int(ns.deps.Log.ErrorCounter.Count()))
-		require.NotNil(t, got, msg)
-
-		assert.EqualValues(t, test.expect, got, msg)
 	}
 }
 
 func TestGetJSON(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	for i, test := range []struct {
 		url     string
 		content string
-		expect  interface{}
+		expect  any
 	}{
 		{
 			`http://success/`,
 			`{"gomeetup":["Sydney","San Francisco","Stockholm"]}`,
-			map[string]interface{}{"gomeetup": []interface{}{"Sydney", "San Francisco", "Stockholm"}},
+			map[string]any{"gomeetup": []any{"Sydney", "San Francisco", "Stockholm"}},
 		},
 		{
 			`http://malformed/`,
@@ -150,63 +151,172 @@ func TestGetJSON(t *testing.T) {
 		{
 			"pass/semi",
 			`{"gomeetup":["Sydney","San Francisco","Stockholm"]}`,
-			map[string]interface{}{"gomeetup": []interface{}{"Sydney", "San Francisco", "Stockholm"}},
+			map[string]any{"gomeetup": []any{"Sydney", "San Francisco", "Stockholm"}},
 		},
 		{
 			"fail/no-file",
 			"",
 			false,
 		},
+		{
+			`pass/üńīçøðê-url.json`,
+			`{"gomeetup":["Sydney","San Francisco","Stockholm"]}`,
+			map[string]any{"gomeetup": []any{"Sydney", "San Francisco", "Stockholm"}},
+		},
 	} {
 
-		msg := fmt.Sprintf("Test %d", i)
-		ns := newTestNs()
+		c.Run(test.url, func(c *qt.C) {
 
-		// Setup HTTP test server
-		var srv *httptest.Server
-		srv, ns.client = getTestServer(func(w http.ResponseWriter, r *http.Request) {
-			if !haveHeader(r.Header, "Accept", "application/json") {
-				http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+			msg := qt.Commentf("Test %d", i)
+			ns := newTestNs()
+
+			// Setup HTTP test server
+			var srv *httptest.Server
+			srv, ns.client = getTestServer(func(w http.ResponseWriter, r *http.Request) {
+				if !hasHeaderValue(r.Header, "Accept", "application/json") {
+					http.Error(w, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+					return
+				}
+
+				if r.URL.Path == "/404" {
+					http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
+					return
+				}
+
+				w.Header().Add("Content-type", "application/json")
+
+				w.Write([]byte(test.content))
+			})
+			defer func() { srv.Close() }()
+
+			// Setup local test file for schema-less URLs
+			if !strings.Contains(test.url, ":") && !strings.HasPrefix(test.url, "fail/") {
+				f, err := ns.deps.Fs.Source.Create(filepath.Join(ns.deps.Conf.BaseConfig().WorkingDir, test.url))
+				c.Assert(err, qt.IsNil, msg)
+				f.WriteString(test.content)
+				f.Close()
+			}
+
+			// Get on with it
+			got, _ := ns.GetJSON(test.url)
+
+			if _, ok := test.expect.(bool); ok {
+				c.Assert(int(ns.deps.Log.LoggCount(logg.LevelError)), qt.Equals, 1)
 				return
 			}
 
-			if r.URL.Path == "/404" {
-				http.Error(w, http.StatusText(http.StatusNotFound), http.StatusNotFound)
-				return
-			}
+			c.Assert(int(ns.deps.Log.LoggCount(logg.LevelError)), qt.Equals, 0, msg)
+			c.Assert(got, qt.Not(qt.IsNil), msg)
+			c.Assert(got, qt.DeepEquals, test.expect)
 
-			w.Header().Add("Content-type", "application/json")
-
-			w.Write([]byte(test.content))
 		})
-		defer func() { srv.Close() }()
-
-		// Setup local test file for schema-less URLs
-		if !strings.Contains(test.url, ":") && !strings.HasPrefix(test.url, "fail/") {
-			f, err := ns.deps.Fs.Source.Create(filepath.Join(ns.deps.Cfg.GetString("workingDir"), test.url))
-			require.NoError(t, err, msg)
-			f.WriteString(test.content)
-			f.Close()
-		}
-
-		// Get on with it
-		got, _ := ns.GetJSON(test.url)
-
-		if _, ok := test.expect.(bool); ok {
-			require.Equal(t, 1, int(ns.deps.Log.ErrorCounter.Count()))
-			//require.Error(t, err, msg)
-			continue
-		}
-
-		require.Equal(t, 0, int(ns.deps.Log.ErrorCounter.Count()), msg)
-		require.NotNil(t, got, msg)
-
-		assert.EqualValues(t, test.expect, got, msg)
 	}
+}
+
+func TestHeaders(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+
+	for _, test := range []struct {
+		name    string
+		headers any
+		assert  func(c *qt.C, headers string)
+	}{
+		{
+			`Misc header variants`,
+			map[string]any{
+				"Accept-Charset": "utf-8",
+				"Max-forwards":   "10",
+				"X-Int":          32,
+				"X-Templ":        template.HTML("a"),
+				"X-Multiple":     []string{"a", "b"},
+				"X-MultipleInt":  []int{3, 4},
+			},
+			func(c *qt.C, headers string) {
+				c.Assert(headers, qt.Contains, "Accept-Charset: utf-8")
+				c.Assert(headers, qt.Contains, "Max-Forwards: 10")
+				c.Assert(headers, qt.Contains, "X-Int: 32")
+				c.Assert(headers, qt.Contains, "X-Templ: a")
+				c.Assert(headers, qt.Contains, "X-Multiple: a")
+				c.Assert(headers, qt.Contains, "X-Multiple: b")
+				c.Assert(headers, qt.Contains, "X-Multipleint: 3")
+				c.Assert(headers, qt.Contains, "X-Multipleint: 4")
+				c.Assert(headers, qt.Contains, "User-Agent: Hugo Static Site Generator")
+			},
+		},
+		{
+			`Params`,
+			maps.Params{
+				"Accept-Charset": "utf-8",
+			},
+			func(c *qt.C, headers string) {
+				c.Assert(headers, qt.Contains, "Accept-Charset: utf-8")
+			},
+		},
+		{
+			`Override User-Agent`,
+			map[string]any{
+				"User-Agent": "007",
+			},
+			func(c *qt.C, headers string) {
+				c.Assert(headers, qt.Contains, "User-Agent: 007")
+			},
+		},
+	} {
+
+		c.Run(test.name, func(c *qt.C) {
+
+			ns := newTestNs()
+
+			// Setup HTTP test server
+			var srv *httptest.Server
+			var headers bytes.Buffer
+			srv, ns.client = getTestServer(func(w http.ResponseWriter, r *http.Request) {
+				c.Assert(r.URL.String(), qt.Equals, "http://gohugo.io/api?foo")
+				w.Write([]byte("{}"))
+				r.Header.Write(&headers)
+
+			})
+			defer func() { srv.Close() }()
+
+			testFunc := func(fn func(args ...any) error) {
+				defer headers.Reset()
+				err := fn("http://example.org/api", "?foo", test.headers)
+
+				c.Assert(err, qt.IsNil)
+				c.Assert(int(ns.deps.Log.LoggCount(logg.LevelError)), qt.Equals, 0)
+				test.assert(c, headers.String())
+			}
+
+			testFunc(func(args ...any) error {
+				_, err := ns.GetJSON(args...)
+				return err
+			})
+			testFunc(func(args ...any) error {
+				_, err := ns.GetCSV(",", args...)
+				return err
+			})
+
+		})
+
+	}
+}
+
+func TestToURLAndHeaders(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+	url, headers := toURLAndHeaders([]any{"https://foo?id=", 32})
+	c.Assert(url, qt.Equals, "https://foo?id=32")
+	c.Assert(headers, qt.IsNil)
+
+	url, headers = toURLAndHeaders([]any{"https://foo?id=", 32, map[string]any{"a": "b"}})
+	c.Assert(url, qt.Equals, "https://foo?id=32")
+	c.Assert(headers, qt.DeepEquals, map[string]any{"a": "b"})
 }
 
 func TestParseCSV(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	for i, test := range []struct {
 		csv []byte
@@ -221,36 +331,20 @@ func TestParseCSV(t *testing.T) {
 		{[]byte("a|b|c\nd|e|f|g"), "|", "abcdefg", true},
 		{[]byte("z|y|c\nd|e|f"), "|", "zycdef", false},
 	} {
-		msg := fmt.Sprintf("Test %d: %v", i, test)
+		msg := qt.Commentf("Test %d: %v", i, test)
 
 		csv, err := parseCSV(test.csv, test.sep)
 		if test.err {
-			assert.Error(t, err, msg)
+			c.Assert(err, qt.Not(qt.IsNil), msg)
 			continue
 		}
-		require.NoError(t, err, msg)
+		c.Assert(err, qt.IsNil, msg)
 
 		act := ""
 		for _, v := range csv {
 			act = act + strings.Join(v, "")
 		}
 
-		assert.Equal(t, test.exp, act, msg)
+		c.Assert(act, qt.Equals, test.exp, msg)
 	}
-}
-
-func haveHeader(m http.Header, key, needle string) bool {
-	var s []string
-	var ok bool
-
-	if s, ok = m[key]; !ok {
-		return false
-	}
-
-	for _, v := range s {
-		if v == needle {
-			return true
-		}
-	}
-	return false
 }

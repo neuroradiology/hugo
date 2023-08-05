@@ -24,6 +24,8 @@ import (
 // Positioner represents a thing that knows its position in a text file or stream,
 // typically an error.
 type Positioner interface {
+	// Position returns the current position.
+	// Useful in error logging, e.g. {{ errorf "error in code block: %s" .Position }}.
 	Position() Position
 }
 
@@ -50,12 +52,11 @@ func (pos Position) IsValid() bool {
 var positionStringFormatfunc func(p Position) string
 
 func createPositionStringFormatter(formatStr string) func(p Position) string {
-
 	if formatStr == "" {
 		formatStr = "\":file::line::col\""
 	}
 
-	var identifiers = []string{":file", ":line", ":col"}
+	identifiers := []string{":file", ":line", ":col"}
 	var identifiersFound []string
 
 	for i := range formatStr {
@@ -70,7 +71,7 @@ func createPositionStringFormatter(formatStr string) func(p Position) string {
 	format := replacer.Replace(formatStr)
 
 	f := func(pos Position) string {
-		args := make([]interface{}, len(identifiersFound))
+		args := make([]any, len(identifiersFound))
 		for i, id := range identifiersFound {
 			switch id {
 			case ":file":
@@ -84,7 +85,7 @@ func createPositionStringFormatter(formatStr string) func(p Position) string {
 
 		msg := fmt.Sprintf(format, args...)
 
-		if terminal.IsTerminal(os.Stdout) {
+		if terminal.PrintANSIColors(os.Stdout) {
 			return terminal.Notice(msg)
 		}
 

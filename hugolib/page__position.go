@@ -14,6 +14,8 @@
 package hugolib
 
 import (
+	"context"
+
 	"github.com/gohugoio/hugo/lazy"
 	"github.com/gohugoio/hugo/resources/page"
 )
@@ -24,7 +26,6 @@ func newPagePosition(n *nextPrev) pagePosition {
 
 func newPagePositionInSection(n *nextPrev) pagePositionInSection {
 	return pagePositionInSection{nextPrev: n}
-
 }
 
 type nextPrev struct {
@@ -34,12 +35,12 @@ type nextPrev struct {
 }
 
 func (n *nextPrev) next() page.Page {
-	n.init.Do()
+	n.init.Do(context.Background())
 	return n.nextPage
 }
 
 func (n *nextPrev) prev() page.Page {
-	n.init.Do()
+	n.init.Do(context.Background())
 	return n.prevPage
 }
 

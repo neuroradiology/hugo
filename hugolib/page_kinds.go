@@ -13,28 +13,6 @@
 
 package hugolib
 
-import (
-	"github.com/gohugoio/hugo/resources/page"
-)
-
-var (
-
-	// This is all the kinds we can expect to find in .Site.Pages.
-	allKindsInPages = []string{page.KindPage, page.KindHome, page.KindSection, page.KindTaxonomy, page.KindTaxonomyTerm}
-	allKinds        = append(allKindsInPages, []string{kindRSS, kindSitemap, kindRobotsTXT, kind404}...)
-)
-
 const (
-
-	// Temporary state.
-	kindUnknown = "unknown"
-
-	// The following are (currently) temporary nodes,
-	// i.e. nodes we create just to render in isolation.
-	kindRSS       = "RSS"
-	kindSitemap   = "sitemap"
-	kindRobotsTXT = "robotsTXT"
-	kind404       = "404"
-
 	pageResourceType = "page"
 )

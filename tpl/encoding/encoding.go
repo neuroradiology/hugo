@@ -1,4 +1,4 @@
-// Copyright 2017 The Hugo Authors. All rights reserved.
+// Copyright 2020 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,8 +17,13 @@ package encoding
 import (
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"html/template"
 
+	bp "github.com/gohugoio/hugo/bufferpool"
+
+	"github.com/gohugoio/hugo/common/maps"
+	"github.com/mitchellh/mapstructure"
 	"github.com/spf13/cast"
 )
 
@@ -31,7 +36,7 @@ func New() *Namespace {
 type Namespace struct{}
 
 // Base64Decode returns the base64 decoding of the given content.
-func (ns *Namespace) Base64Decode(content interface{}) (string, error) {
+func (ns *Namespace) Base64Decode(content any) (string, error) {
 	conv, err := cast.ToStringE(content)
 	if err != nil {
 		return "", err
@@ -42,7 +47,7 @@ func (ns *Namespace) Base64Decode(content interface{}) (string, error) {
 }
 
 // Base64Encode returns the base64 encoding of the given content.
-func (ns *Namespace) Base64Encode(content interface{}) (string, error) {
+func (ns *Namespace) Base64Encode(content any) (string, error) {
 	conv, err := cast.ToStringE(content)
 	if err != nil {
 		return "", err
@@ -51,12 +56,61 @@ func (ns *Namespace) Base64Encode(content interface{}) (string, error) {
 	return base64.StdEncoding.EncodeToString([]byte(conv)), nil
 }
 
-// Jsonify encodes a given object to JSON.
-func (ns *Namespace) Jsonify(v interface{}) (template.HTML, error) {
-	b, err := json.Marshal(v)
+// Jsonify encodes a given object to JSON.  To pretty print the JSON, pass a map
+// or dictionary of options as the first value in args.  Supported options are
+// "prefix" and "indent".  Each JSON element in the output will begin on a new
+// line beginning with prefix followed by one or more copies of indent according
+// to the indentation nesting.
+func (ns *Namespace) Jsonify(args ...any) (template.HTML, error) {
+	var (
+		b    []byte
+		err  error
+		obj  any
+		opts jsonifyOpts
+	)
+
+	switch len(args) {
+	case 0:
+		return "", nil
+	case 1:
+		obj = args[0]
+	case 2:
+		var m map[string]any
+		m, err = maps.ToStringMapE(args[0])
+		if err != nil {
+			break
+		}
+		if err = mapstructure.WeakDecode(m, &opts); err != nil {
+			break
+		}
+		obj = args[1]
+	default:
+		err = errors.New("too many arguments to jsonify")
+	}
+
 	if err != nil {
 		return "", err
 	}
 
+	buff := bp.GetBuffer()
+	defer bp.PutBuffer(buff)
+	e := json.NewEncoder(buff)
+	e.SetEscapeHTML(!opts.NoHTMLEscape)
+	e.SetIndent(opts.Prefix, opts.Indent)
+	if err = e.Encode(obj); err != nil {
+		return "", err
+	}
+	b = buff.Bytes()
+	// See https://github.com/golang/go/issues/37083
+	// Hugo changed from MarshalIndent/Marshal. To make the output
+	// the same, we need to trim the trailing newline.
+	b = b[:len(b)-1]
+
 	return template.HTML(b), nil
+}
+
+type jsonifyOpts struct {
+	Prefix       string
+	Indent       string
+	NoHTMLEscape bool
 }

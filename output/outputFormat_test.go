@@ -14,92 +14,97 @@
 package output
 
 import (
-	"fmt"
 	"sort"
 	"testing"
 
+	qt "github.com/frankban/quicktest"
 	"github.com/gohugoio/hugo/media"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDefaultTypes(t *testing.T) {
-	require.Equal(t, "Calendar", CalendarFormat.Name)
-	require.Equal(t, media.CalendarType, CalendarFormat.MediaType)
-	require.Equal(t, "webcal://", CalendarFormat.Protocol)
-	require.Empty(t, CalendarFormat.Path)
-	require.True(t, CalendarFormat.IsPlainText)
-	require.False(t, CalendarFormat.IsHTML)
+	c := qt.New(t)
+	c.Assert(CalendarFormat.Name, qt.Equals, "calendar")
+	c.Assert(CalendarFormat.MediaType, qt.Equals, media.Builtin.CalendarType)
+	c.Assert(CalendarFormat.Protocol, qt.Equals, "webcal://")
+	c.Assert(CalendarFormat.Path, qt.HasLen, 0)
+	c.Assert(CalendarFormat.IsPlainText, qt.Equals, true)
+	c.Assert(CalendarFormat.IsHTML, qt.Equals, false)
 
-	require.Equal(t, "CSS", CSSFormat.Name)
-	require.Equal(t, media.CSSType, CSSFormat.MediaType)
-	require.Empty(t, CSSFormat.Path)
-	require.Empty(t, CSSFormat.Protocol) // Will inherit the BaseURL protocol.
-	require.True(t, CSSFormat.IsPlainText)
-	require.False(t, CSSFormat.IsHTML)
+	c.Assert(CSSFormat.Name, qt.Equals, "css")
+	c.Assert(CSSFormat.MediaType, qt.Equals, media.Builtin.CSSType)
+	c.Assert(CSSFormat.Path, qt.HasLen, 0)
+	c.Assert(CSSFormat.Protocol, qt.HasLen, 0) // Will inherit the BaseURL protocol.
+	c.Assert(CSSFormat.IsPlainText, qt.Equals, true)
+	c.Assert(CSSFormat.IsHTML, qt.Equals, false)
 
-	require.Equal(t, "CSV", CSVFormat.Name)
-	require.Equal(t, media.CSVType, CSVFormat.MediaType)
-	require.Empty(t, CSVFormat.Path)
-	require.Empty(t, CSVFormat.Protocol)
-	require.True(t, CSVFormat.IsPlainText)
-	require.False(t, CSVFormat.IsHTML)
-	require.False(t, CSVFormat.Permalinkable)
+	c.Assert(CSVFormat.Name, qt.Equals, "csv")
+	c.Assert(CSVFormat.MediaType, qt.Equals, media.Builtin.CSVType)
+	c.Assert(CSVFormat.Path, qt.HasLen, 0)
+	c.Assert(CSVFormat.Protocol, qt.HasLen, 0)
+	c.Assert(CSVFormat.IsPlainText, qt.Equals, true)
+	c.Assert(CSVFormat.IsHTML, qt.Equals, false)
+	c.Assert(CSVFormat.Permalinkable, qt.Equals, false)
 
-	require.Equal(t, "HTML", HTMLFormat.Name)
-	require.Equal(t, media.HTMLType, HTMLFormat.MediaType)
-	require.Empty(t, HTMLFormat.Path)
-	require.Empty(t, HTMLFormat.Protocol)
-	require.False(t, HTMLFormat.IsPlainText)
-	require.True(t, HTMLFormat.IsHTML)
-	require.True(t, AMPFormat.Permalinkable)
+	c.Assert(HTMLFormat.Name, qt.Equals, "html")
+	c.Assert(HTMLFormat.MediaType, qt.Equals, media.Builtin.HTMLType)
+	c.Assert(HTMLFormat.Path, qt.HasLen, 0)
+	c.Assert(HTMLFormat.Protocol, qt.HasLen, 0)
+	c.Assert(HTMLFormat.IsPlainText, qt.Equals, false)
+	c.Assert(HTMLFormat.IsHTML, qt.Equals, true)
+	c.Assert(AMPFormat.Permalinkable, qt.Equals, true)
 
-	require.Equal(t, "AMP", AMPFormat.Name)
-	require.Equal(t, media.HTMLType, AMPFormat.MediaType)
-	require.Equal(t, "amp", AMPFormat.Path)
-	require.Empty(t, AMPFormat.Protocol)
-	require.False(t, AMPFormat.IsPlainText)
-	require.True(t, AMPFormat.IsHTML)
-	require.True(t, AMPFormat.Permalinkable)
+	c.Assert(AMPFormat.Name, qt.Equals, "amp")
+	c.Assert(AMPFormat.MediaType, qt.Equals, media.Builtin.HTMLType)
+	c.Assert(AMPFormat.Path, qt.Equals, "amp")
+	c.Assert(AMPFormat.Protocol, qt.HasLen, 0)
+	c.Assert(AMPFormat.IsPlainText, qt.Equals, false)
+	c.Assert(AMPFormat.IsHTML, qt.Equals, true)
+	c.Assert(AMPFormat.Permalinkable, qt.Equals, true)
 
-	require.Equal(t, "RSS", RSSFormat.Name)
-	require.Equal(t, media.RSSType, RSSFormat.MediaType)
-	require.Empty(t, RSSFormat.Path)
-	require.False(t, RSSFormat.IsPlainText)
-	require.True(t, RSSFormat.NoUgly)
-	require.False(t, CalendarFormat.IsHTML)
+	c.Assert(RSSFormat.Name, qt.Equals, "rss")
+	c.Assert(RSSFormat.MediaType, qt.Equals, media.Builtin.RSSType)
+	c.Assert(RSSFormat.Path, qt.HasLen, 0)
+	c.Assert(RSSFormat.IsPlainText, qt.Equals, false)
+	c.Assert(RSSFormat.NoUgly, qt.Equals, true)
+	c.Assert(CalendarFormat.IsHTML, qt.Equals, false)
+
+	c.Assert(len(DefaultFormats), qt.Equals, 11)
 
 }
 
 func TestGetFormatByName(t *testing.T) {
+	c := qt.New(t)
 	formats := Formats{AMPFormat, CalendarFormat}
 	tp, _ := formats.GetByName("AMp")
-	require.Equal(t, AMPFormat, tp)
+	c.Assert(tp, qt.Equals, AMPFormat)
 	_, found := formats.GetByName("HTML")
-	require.False(t, found)
+	c.Assert(found, qt.Equals, false)
 	_, found = formats.GetByName("FOO")
-	require.False(t, found)
+	c.Assert(found, qt.Equals, false)
 }
 
 func TestGetFormatByExt(t *testing.T) {
+	c := qt.New(t)
 	formats1 := Formats{AMPFormat, CalendarFormat}
 	formats2 := Formats{AMPFormat, HTMLFormat, CalendarFormat}
 	tp, _ := formats1.GetBySuffix("html")
-	require.Equal(t, AMPFormat, tp)
+	c.Assert(tp, qt.Equals, AMPFormat)
 	tp, _ = formats1.GetBySuffix("ics")
-	require.Equal(t, CalendarFormat, tp)
+	c.Assert(tp, qt.Equals, CalendarFormat)
 	_, found := formats1.GetBySuffix("not")
-	require.False(t, found)
+	c.Assert(found, qt.Equals, false)
 
 	// ambiguous
 	_, found = formats2.GetBySuffix("html")
-	require.False(t, found)
+	c.Assert(found, qt.Equals, false)
 }
 
 func TestGetFormatByFilename(t *testing.T) {
-	noExtNoDelimMediaType := media.TextType
+	c := qt.New(t)
+	noExtNoDelimMediaType := media.Builtin.TextType
 	noExtNoDelimMediaType.Delimiter = ""
 
-	noExtMediaType := media.TextType
+	noExtMediaType := media.Builtin.TextType
 
 	var (
 		noExtDelimFormat = Format{
@@ -116,121 +121,27 @@ func TestGetFormatByFilename(t *testing.T) {
 
 	formats := Formats{AMPFormat, HTMLFormat, noExtDelimFormat, noExt, CalendarFormat}
 	f, found := formats.FromFilename("my.amp.html")
-	require.True(t, found)
-	require.Equal(t, AMPFormat, f)
-	f, found = formats.FromFilename("my.ics")
-	require.True(t, found)
+	c.Assert(found, qt.Equals, true)
+	c.Assert(f, qt.Equals, AMPFormat)
+	_, found = formats.FromFilename("my.ics")
+	c.Assert(found, qt.Equals, true)
 	f, found = formats.FromFilename("my.html")
-	require.True(t, found)
-	require.Equal(t, HTMLFormat, f)
+	c.Assert(found, qt.Equals, true)
+	c.Assert(f, qt.Equals, HTMLFormat)
 	f, found = formats.FromFilename("my.nem")
-	require.True(t, found)
-	require.Equal(t, noExtDelimFormat, f)
+	c.Assert(found, qt.Equals, true)
+	c.Assert(f, qt.Equals, noExtDelimFormat)
 	f, found = formats.FromFilename("my.nex")
-	require.True(t, found)
-	require.Equal(t, noExt, f)
+	c.Assert(found, qt.Equals, true)
+	c.Assert(f, qt.Equals, noExt)
 	_, found = formats.FromFilename("my.css")
-	require.False(t, found)
-
-}
-
-func TestDecodeFormats(t *testing.T) {
-
-	mediaTypes := media.Types{media.JSONType, media.XMLType}
-
-	var tests = []struct {
-		name        string
-		maps        []map[string]interface{}
-		shouldError bool
-		assert      func(t *testing.T, name string, f Formats)
-	}{
-		{
-			"Redefine JSON",
-			[]map[string]interface{}{
-				{
-					"JsON": map[string]interface{}{
-						"baseName":    "myindex",
-						"isPlainText": "false"}}},
-			false,
-			func(t *testing.T, name string, f Formats) {
-				require.Len(t, f, len(DefaultFormats), name)
-				json, _ := f.GetByName("JSON")
-				require.Equal(t, "myindex", json.BaseName)
-				require.Equal(t, media.JSONType, json.MediaType)
-				require.False(t, json.IsPlainText)
-
-			}},
-		{
-			"Add XML format with string as mediatype",
-			[]map[string]interface{}{
-				{
-					"MYXMLFORMAT": map[string]interface{}{
-						"baseName":  "myxml",
-						"mediaType": "application/xml",
-					}}},
-			false,
-			func(t *testing.T, name string, f Formats) {
-				require.Len(t, f, len(DefaultFormats)+1, name)
-				xml, found := f.GetByName("MYXMLFORMAT")
-				require.True(t, found)
-				require.Equal(t, "myxml", xml.BaseName, fmt.Sprint(xml))
-				require.Equal(t, media.XMLType, xml.MediaType)
-
-				// Verify that we haven't changed the DefaultFormats slice.
-				json, _ := f.GetByName("JSON")
-				require.Equal(t, "index", json.BaseName, name)
-
-			}},
-		{
-			"Add format unknown mediatype",
-			[]map[string]interface{}{
-				{
-					"MYINVALID": map[string]interface{}{
-						"baseName":  "mymy",
-						"mediaType": "application/hugo",
-					}}},
-			true,
-			func(t *testing.T, name string, f Formats) {
-
-			}},
-		{
-			"Add and redefine XML format",
-			[]map[string]interface{}{
-				{
-					"MYOTHERXMLFORMAT": map[string]interface{}{
-						"baseName":  "myotherxml",
-						"mediaType": media.XMLType,
-					}},
-				{
-					"MYOTHERXMLFORMAT": map[string]interface{}{
-						"baseName": "myredefined",
-					}},
-			},
-			false,
-			func(t *testing.T, name string, f Formats) {
-				require.Len(t, f, len(DefaultFormats)+1, name)
-				xml, found := f.GetByName("MYOTHERXMLFORMAT")
-				require.True(t, found)
-				require.Equal(t, "myredefined", xml.BaseName, fmt.Sprint(xml))
-				require.Equal(t, media.XMLType, xml.MediaType)
-			}},
-	}
-
-	for _, test := range tests {
-		result, err := DecodeFormats(mediaTypes, test.maps...)
-		if test.shouldError {
-			require.Error(t, err, test.name)
-		} else {
-			require.NoError(t, err, test.name)
-			test.assert(t, test.name, result)
-		}
-	}
+	c.Assert(found, qt.Equals, false)
 }
 
 func TestSort(t *testing.T) {
-	assert := require.New(t)
-	assert.Equal("HTML", DefaultFormats[0].Name)
-	assert.Equal("AMP", DefaultFormats[1].Name)
+	c := qt.New(t)
+	c.Assert(DefaultFormats[0].Name, qt.Equals, "html")
+	c.Assert(DefaultFormats[1].Name, qt.Equals, "amp")
 
 	json := JSONFormat
 	json.Weight = 1
@@ -243,8 +154,7 @@ func TestSort(t *testing.T) {
 
 	sort.Sort(formats)
 
-	assert.Equal("JSON", formats[0].Name)
-	assert.Equal("HTML", formats[1].Name)
-	assert.Equal("AMP", formats[2].Name)
-
+	c.Assert(formats[0].Name, qt.Equals, "json")
+	c.Assert(formats[1].Name, qt.Equals, "html")
+	c.Assert(formats[2].Name, qt.Equals, "amp")
 }

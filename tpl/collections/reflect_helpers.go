@@ -16,15 +16,15 @@ package collections
 import (
 	"fmt"
 	"reflect"
-	"time"
 
-	"github.com/pkg/errors"
+	"errors"
+
+	"github.com/mitchellh/hashstructure"
 )
 
 var (
 	zero      reflect.Value
 	errorType = reflect.TypeOf((*error)(nil)).Elem()
-	timeType  = reflect.TypeOf((*time.Time)(nil)).Elem()
 )
 
 func numberToFloat(v reflect.Value) (float64, error) {
@@ -42,25 +42,32 @@ func numberToFloat(v reflect.Value) (float64, error) {
 	}
 }
 
-// normalizes different numeric types to make them comparable.
-func normalize(v reflect.Value) interface{} {
+// normalizes different numeric types if isNumber
+// or get the hash values if not Comparable (such as map or struct)
+// to make them comparable
+func normalize(v reflect.Value) any {
 	k := v.Kind()
 
 	switch {
+	case !v.Type().Comparable():
+		h, err := hashstructure.Hash(v.Interface(), nil)
+		if err != nil {
+			panic(err)
+		}
+		return h
 	case isNumber(k):
 		f, err := numberToFloat(v)
 		if err == nil {
 			return f
 		}
 	}
-
 	return v.Interface()
 }
 
 // collects identities from the slices in seqs into a set. Numeric values are normalized,
 // pointers unwrapped.
-func collectIdentities(seqs ...interface{}) (map[interface{}]bool, error) {
-	seen := make(map[interface{}]bool)
+func collectIdentities(seqs ...any) (map[any]bool, error) {
+	seen := make(map[any]bool)
 	for _, seq := range seqs {
 		v := reflect.ValueOf(seq)
 		switch v.Kind() {
@@ -95,7 +102,7 @@ func convertValue(v reflect.Value, to reflect.Type) (reflect.Value, error) {
 	case isNumber(kind):
 		return convertNumber(v, kind)
 	default:
-		return reflect.Value{}, errors.Errorf("%s is not assignable to %s", v.Type(), to)
+		return reflect.Value{}, fmt.Errorf("%s is not assignable to %s", v.Type(), to)
 	}
 }
 
@@ -157,10 +164,9 @@ func convertNumber(v reflect.Value, to reflect.Kind) (reflect.Value, error) {
 	}
 
 	return n, nil
-
 }
 
-func newSliceElement(items interface{}) interface{} {
+func newSliceElement(items any) any {
 	tp := reflect.TypeOf(items)
 	if tp == nil {
 		return nil

@@ -15,21 +15,33 @@
 package resources
 
 import (
-	"errors"
+	"context"
 	"fmt"
-	"path/filepath"
+	"sync"
 
-	_errors "github.com/pkg/errors"
+	"errors"
+
+	"github.com/gohugoio/hugo/common/maps"
+
+	"github.com/gohugoio/hugo/tpl/internal/resourcehelpers"
+
+	"github.com/gohugoio/hugo/helpers"
+	"github.com/gohugoio/hugo/resources/postpub"
 
 	"github.com/gohugoio/hugo/deps"
+	"github.com/gohugoio/hugo/resources"
 	"github.com/gohugoio/hugo/resources/resource"
+
 	"github.com/gohugoio/hugo/resources/resource_factories/bundler"
 	"github.com/gohugoio/hugo/resources/resource_factories/create"
+	"github.com/gohugoio/hugo/resources/resource_transformers/babel"
 	"github.com/gohugoio/hugo/resources/resource_transformers/integrity"
 	"github.com/gohugoio/hugo/resources/resource_transformers/minifier"
 	"github.com/gohugoio/hugo/resources/resource_transformers/postcss"
 	"github.com/gohugoio/hugo/resources/resource_transformers/templates"
+	"github.com/gohugoio/hugo/resources/resource_transformers/tocss/dartsass"
 	"github.com/gohugoio/hugo/resources/resource_transformers/tocss/scss"
+
 	"github.com/spf13/cast"
 )
 
@@ -43,50 +55,197 @@ func New(deps *deps.Deps) (*Namespace, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	minifyClient, err := minifier.New(deps.ResourceSpec)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Namespace{
-		deps:            deps,
-		scssClient:      scssClient,
-		createClient:    create.New(deps.ResourceSpec),
-		bundlerClient:   bundler.New(deps.ResourceSpec),
-		integrityClient: integrity.New(deps.ResourceSpec),
-		minifyClient:    minifier.New(deps.ResourceSpec),
-		postcssClient:   postcss.New(deps.ResourceSpec),
-		templatesClient: templates.New(deps.ResourceSpec, deps.TextTmpl),
+		deps:              deps,
+		scssClientLibSass: scssClient,
+		createClient:      create.New(deps.ResourceSpec),
+		bundlerClient:     bundler.New(deps.ResourceSpec),
+		integrityClient:   integrity.New(deps.ResourceSpec),
+		minifyClient:      minifyClient,
+		postcssClient:     postcss.New(deps.ResourceSpec),
+		templatesClient:   templates.New(deps.ResourceSpec, deps),
+		babelClient:       babel.New(deps.ResourceSpec),
 	}, nil
 }
+
+var _ resource.ResourceFinder = (*Namespace)(nil)
 
 // Namespace provides template functions for the "resources" namespace.
 type Namespace struct {
 	deps *deps.Deps
 
-	createClient    *create.Client
-	bundlerClient   *bundler.Client
-	scssClient      *scss.Client
-	integrityClient *integrity.Client
-	minifyClient    *minifier.Client
-	postcssClient   *postcss.Client
-	templatesClient *templates.Client
+	createClient      *create.Client
+	bundlerClient     *bundler.Client
+	scssClientLibSass *scss.Client
+	integrityClient   *integrity.Client
+	minifyClient      *minifier.Client
+	postcssClient     *postcss.Client
+	babelClient       *babel.Client
+	templatesClient   *templates.Client
+
+	// The Dart Client requires a os/exec process, so  only
+	// create it if we really need it.
+	// This is mostly to avoid creating one per site build test.
+	scssClientDartSassInit sync.Once
+	scssClientDartSass     *dartsass.Client
 }
 
-// Get locates the filename given in Hugo's filesystems: static, assets and content (in that order)
+func (ns *Namespace) getscssClientDartSass() (*dartsass.Client, error) {
+	var err error
+	ns.scssClientDartSassInit.Do(func() {
+		ns.scssClientDartSass, err = dartsass.New(ns.deps.BaseFs.Assets, ns.deps.ResourceSpec)
+		if err != nil {
+			return
+		}
+		ns.deps.BuildClosers.Add(ns.scssClientDartSass)
+
+	})
+
+	return ns.scssClientDartSass, err
+}
+
+// Copy copies r to the new targetPath in s.
+func (ns *Namespace) Copy(s any, r resource.Resource) (resource.Resource, error) {
+	targetPath, err := cast.ToStringE(s)
+	if err != nil {
+		panic(err)
+	}
+	return ns.createClient.Copy(r, targetPath)
+}
+
+// Get locates the filename given in Hugo's assets filesystem
 // and creates a Resource object that can be used for further transformations.
-func (ns *Namespace) Get(filename interface{}) (resource.Resource, error) {
+func (ns *Namespace) Get(filename any) resource.Resource {
+
 	filenamestr, err := cast.ToStringE(filename)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
-	filenamestr = filepath.Clean(filenamestr)
+	if filenamestr == "" {
+		return nil
+	}
 
-	// Resource Get'ing is currently limited to /assets to make it simpler
-	// to control the behaviour of publishing and partial rebuilding.
-	return ns.createClient.Get(ns.deps.BaseFs.Assets.Fs, filenamestr)
+	r, err := ns.createClient.Get(filenamestr)
+	if err != nil {
+		panic(err)
+	}
 
+	return r
+}
+
+// GetRemote gets the URL (via HTTP(s)) in the first argument in args and creates Resource object that can be used for
+// further transformations.
+//
+// A second argument may be provided with an option map.
+//
+// Note: This method does not return any error as a second return value,
+// for any error situations the error can be checked in .Err.
+func (ns *Namespace) GetRemote(args ...any) resource.Resource {
+	get := func(args ...any) (resource.Resource, error) {
+		if len(args) < 1 {
+			return nil, errors.New("must provide an URL")
+		}
+
+		if len(args) > 2 {
+			return nil, errors.New("must not provide more arguments than URL and options")
+		}
+
+		urlstr, err := cast.ToStringE(args[0])
+		if err != nil {
+			return nil, err
+		}
+
+		var options map[string]any
+
+		if len(args) > 1 {
+			options, err = maps.ToStringMapE(args[1])
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		return ns.createClient.FromRemote(urlstr, options)
+
+	}
+
+	r, err := get(args...)
+	if err != nil {
+		switch v := err.(type) {
+		case *create.HTTPError:
+			return resources.NewErrorResource(resource.NewResourceError(v, v.Data))
+		default:
+			return resources.NewErrorResource(resource.NewResourceError(fmt.Errorf("error calling resources.GetRemote: %w", err), make(map[string]any)))
+		}
+
+	}
+	return r
+
+}
+
+// GetMatch finds the first Resource matching the given pattern, or nil if none found.
+//
+// It looks for files in the assets file system.
+//
+// See Match for a more complete explanation about the rules used.
+func (ns *Namespace) GetMatch(pattern any) resource.Resource {
+	patternStr, err := cast.ToStringE(pattern)
+	if err != nil {
+		panic(err)
+	}
+
+	r, err := ns.createClient.GetMatch(patternStr)
+	if err != nil {
+		panic(err)
+	}
+
+	return r
+}
+
+// ByType returns resources of a given resource type (e.g. "image").
+func (ns *Namespace) ByType(typ any) resource.Resources {
+	return ns.createClient.ByType(cast.ToString(typ))
+}
+
+// Match gets all resources matching the given base path prefix, e.g
+// "*.png" will match all png files. The "*" does not match path delimiters (/),
+// so if you organize your resources in sub-folders, you need to be explicit about it, e.g.:
+// "images/*.png". To match any PNG image anywhere in the bundle you can do "**.png", and
+// to match all PNG images below the images folder, use "images/**.jpg".
+//
+// The matching is case insensitive.
+//
+// Match matches by using the files name with path relative to the file system root
+// with Unix style slashes (/) and no leading slash, e.g. "images/logo.png".
+//
+// See https://github.com/gobwas/glob for the full rules set.
+//
+// It looks for files in the assets file system.
+//
+// See Match for a more complete explanation about the rules used.
+func (ns *Namespace) Match(pattern any) resource.Resources {
+	patternStr, err := cast.ToStringE(pattern)
+	if err != nil {
+		panic(err)
+	}
+
+	r, err := ns.createClient.Match(patternStr)
+	if err != nil {
+		panic(err)
+	}
+
+	return r
 }
 
 // Concat concatenates a slice of Resource objects. These resources must
 // (currently) be of the same Media Type.
-func (ns *Namespace) Concat(targetPathIn interface{}, r interface{}) (resource.Resource, error) {
+func (ns *Namespace) Concat(targetPathIn any, r any) (resource.Resource, error) {
 	targetPath, err := cast.ToStringE(targetPathIn)
 	if err != nil {
 		return nil, err
@@ -111,7 +270,7 @@ func (ns *Namespace) Concat(targetPathIn interface{}, r interface{}) (resource.R
 }
 
 // FromString creates a Resource from a string published to the relative target path.
-func (ns *Namespace) FromString(targetPathIn, contentIn interface{}) (resource.Resource, error) {
+func (ns *Namespace) FromString(targetPathIn, contentIn any) (resource.Resource, error) {
 	targetPath, err := cast.ToStringE(targetPathIn)
 	if err != nil {
 		return nil, err
@@ -126,7 +285,7 @@ func (ns *Namespace) FromString(targetPathIn, contentIn interface{}) (resource.R
 
 // ExecuteAsTemplate creates a Resource from a Go template, parsed and executed with
 // the given data, and published to the relative target path.
-func (ns *Namespace) ExecuteAsTemplate(args ...interface{}) (resource.Resource, error) {
+func (ns *Namespace) ExecuteAsTemplate(ctx context.Context, args ...any) (resource.Resource, error) {
 	if len(args) != 3 {
 		return nil, fmt.Errorf("must provide targetPath, the template data context and a Resource object")
 	}
@@ -136,19 +295,23 @@ func (ns *Namespace) ExecuteAsTemplate(args ...interface{}) (resource.Resource, 
 	}
 	data := args[1]
 
-	r, ok := args[2].(resource.Resource)
+	r, ok := args[2].(resources.ResourceTransformer)
 	if !ok {
 		return nil, fmt.Errorf("type %T not supported in Resource transformations", args[2])
 	}
 
-	return ns.templatesClient.ExecuteAsTemplate(r, targetPath, data)
+	return ns.templatesClient.ExecuteAsTemplate(ctx, r, targetPath, data)
 }
 
 // Fingerprint transforms the given Resource with a MD5 hash of the content in
 // the RelPermalink and Permalink.
-func (ns *Namespace) Fingerprint(args ...interface{}) (resource.Resource, error) {
-	if len(args) < 1 || len(args) > 2 {
-		return nil, errors.New("must provide a Resource and (optional) crypto algo")
+func (ns *Namespace) Fingerprint(args ...any) (resource.Resource, error) {
+	if len(args) < 1 {
+		return nil, errors.New("must provide a Resource object")
+	}
+
+	if len(args) > 2 {
+		return nil, errors.New("must not provide more arguments than Resource and hash algorithm")
 	}
 
 	var algo string
@@ -163,9 +326,9 @@ func (ns *Namespace) Fingerprint(args ...interface{}) (resource.Resource, error)
 		}
 	}
 
-	r, ok := args[resIdx].(resource.Resource)
+	r, ok := args[resIdx].(resources.ResourceTransformer)
 	if !ok {
-		return nil, fmt.Errorf("%T is not a Resource", args[resIdx])
+		return nil, fmt.Errorf("%T can not be transformed", args[resIdx])
 	}
 
 	return ns.integrityClient.Fingerprint(r, algo)
@@ -173,98 +336,125 @@ func (ns *Namespace) Fingerprint(args ...interface{}) (resource.Resource, error)
 
 // Minify minifies the given Resource using the MediaType to pick the correct
 // minifier.
-func (ns *Namespace) Minify(r resource.Resource) (resource.Resource, error) {
+func (ns *Namespace) Minify(r resources.ResourceTransformer) (resource.Resource, error) {
 	return ns.minifyClient.Minify(r)
 }
 
-// ToCSS converts the given Resource to CSS. You can optional provide an Options
-// object or a target path (string) as first argument.
-func (ns *Namespace) ToCSS(args ...interface{}) (resource.Resource, error) {
+// ToCSS converts the given Resource to CSS. You can optional provide an Options object
+// as second argument. As an option, you can e.g. specify e.g. the target path (string)
+// for the converted CSS resource.
+func (ns *Namespace) ToCSS(args ...any) (resource.Resource, error) {
+
+	if len(args) > 2 {
+		return nil, errors.New("must not provide more arguments than resource object and options")
+	}
+
+	const (
+		// Transpiler implementation can be controlled from the client by
+		// setting the 'transpiler' option.
+		// Default is currently 'libsass', but that may change.
+		transpilerDart    = "dartsass"
+		transpilerLibSass = "libsass"
+	)
+
 	var (
-		r          resource.Resource
-		m          map[string]interface{}
+		r          resources.ResourceTransformer
+		m          map[string]any
 		targetPath string
 		err        error
 		ok         bool
+		transpiler = transpilerLibSass
 	)
 
-	r, targetPath, ok = ns.resolveIfFirstArgIsString(args)
+	r, targetPath, ok = resourcehelpers.ResolveIfFirstArgIsString(args)
 
 	if !ok {
-		r, m, err = ns.resolveArgs(args)
+		r, m, err = resourcehelpers.ResolveArgs(args)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	var options scss.Options
+	if m != nil {
+		if t, found := maps.LookupEqualFold(m, "transpiler"); found {
+			switch t {
+			case transpilerDart, transpilerLibSass:
+				transpiler = cast.ToString(t)
+			default:
+				return nil, fmt.Errorf("unsupported transpiler %q; valid values are %q or %q", t, transpilerLibSass, transpilerDart)
+			}
+		}
+	}
+
+	if transpiler == transpilerLibSass {
+		var options scss.Options
+		if targetPath != "" {
+			options.TargetPath = helpers.ToSlashTrimLeading(targetPath)
+		} else if m != nil {
+			options, err = scss.DecodeOptions(m)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		return ns.scssClientLibSass.ToCSS(r, options)
+	}
+
+	if m == nil {
+		m = make(map[string]any)
+	}
 	if targetPath != "" {
-		options.TargetPath = targetPath
-	} else if m != nil {
-		options, err = scss.DecodeOptions(m)
-		if err != nil {
-			return nil, err
-		}
+		m["targetPath"] = targetPath
 	}
 
-	return ns.scssClient.ToCSS(r, options)
-}
-
-// PostCSS processes the given Resource with PostCSS
-func (ns *Namespace) PostCSS(args ...interface{}) (resource.Resource, error) {
-	r, m, err := ns.resolveArgs(args)
+	client, err := ns.getscssClientDartSass()
 	if err != nil {
 		return nil, err
 	}
-	var options postcss.Options
+
+	return client.ToCSS(r, m)
+
+}
+
+// PostCSS processes the given Resource with PostCSS
+func (ns *Namespace) PostCSS(args ...any) (resource.Resource, error) {
+
+	if len(args) > 2 {
+		return nil, errors.New("must not provide more arguments than resource object and options")
+	}
+
+	r, m, err := resourcehelpers.ResolveArgs(args)
+	if err != nil {
+		return nil, err
+	}
+
+	return ns.postcssClient.Process(r, m)
+}
+
+// PostProcess processes r after the build.
+func (ns *Namespace) PostProcess(r resource.Resource) (postpub.PostPublishedResource, error) {
+	return ns.deps.ResourceSpec.PostProcess(r)
+}
+
+// Babel processes the given Resource with Babel.
+func (ns *Namespace) Babel(args ...any) (resource.Resource, error) {
+
+	if len(args) > 2 {
+		return nil, errors.New("must not provide more arguments than resource object and options")
+	}
+
+	r, m, err := resourcehelpers.ResolveArgs(args)
+	if err != nil {
+		return nil, err
+	}
+	var options babel.Options
 	if m != nil {
-		options, err = postcss.DecodeOptions(m)
+		options, err = babel.DecodeOptions(m)
+
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return ns.postcssClient.Process(r, options)
-}
-
-// We allow string or a map as the first argument in some cases.
-func (ns *Namespace) resolveIfFirstArgIsString(args []interface{}) (resource.Resource, string, bool) {
-	if len(args) != 2 {
-		return nil, "", false
-	}
-
-	v1, ok1 := args[0].(string)
-	if !ok1 {
-		return nil, "", false
-	}
-	v2, ok2 := args[1].(resource.Resource)
-
-	return v2, v1, ok2
-}
-
-// This roundabout way of doing it is needed to get both pipeline behaviour and options as arguments.
-func (ns *Namespace) resolveArgs(args []interface{}) (resource.Resource, map[string]interface{}, error) {
-	if len(args) == 0 {
-		return nil, nil, errors.New("no Resource provided in transformation")
-	}
-
-	if len(args) == 1 {
-		r, ok := args[0].(resource.Resource)
-		if !ok {
-			return nil, nil, fmt.Errorf("type %T not supported in Resource transformations", args[0])
-		}
-		return r, nil, nil
-	}
-
-	r, ok := args[1].(resource.Resource)
-	if !ok {
-		return nil, nil, fmt.Errorf("type %T not supported in Resource transformations", args[0])
-	}
-
-	m, err := cast.ToStringMapE(args[0])
-	if err != nil {
-		return nil, nil, _errors.Wrap(err, "invalid options type")
-	}
-
-	return r, m, nil
+	return ns.babelClient.Process(r, options)
 }

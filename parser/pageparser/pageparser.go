@@ -11,18 +11,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package pageparser provides a parser for Hugo content files (Markdown, HTML etc.) in Hugo.
-// This implementation is highly inspired by the great talk given by Rob Pike called "Lexical Scanning in Go"
-// It's on YouTube, Google it!.
-// See slides here: http://cuddle.googlecode.com/hg/talk/lex.html
 package pageparser
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"io"
-	"io/ioutil"
+	"regexp"
+	"strings"
 
-	"github.com/pkg/errors"
+	"github.com/gohugoio/hugo/parser/metadecoders"
 )
 
 // Result holds the parse result.
@@ -36,11 +35,62 @@ type Result interface {
 var _ Result = (*pageLexer)(nil)
 
 // Parse parses the page in the given reader according to the given Config.
-// TODO(bep) now that we have improved the "lazy order" init, it *may* be
-// some potential saving in doing a buffered approach where the first pass does
-// the frontmatter only.
 func Parse(r io.Reader, cfg Config) (Result, error) {
 	return parseSection(r, cfg, lexIntroSection)
+}
+
+type ContentFrontMatter struct {
+	Content           []byte
+	FrontMatter       map[string]any
+	FrontMatterFormat metadecoders.Format
+}
+
+// ParseFrontMatterAndContent is a convenience method to extract front matter
+// and content from a content page.
+func ParseFrontMatterAndContent(r io.Reader) (ContentFrontMatter, error) {
+	var cf ContentFrontMatter
+
+	psr, err := Parse(r, Config{})
+	if err != nil {
+		return cf, err
+	}
+
+	var frontMatterSource []byte
+
+	iter := psr.Iterator()
+
+	walkFn := func(item Item) bool {
+		if frontMatterSource != nil {
+			// The rest is content.
+			cf.Content = psr.Input()[item.low:]
+			// Done
+			return false
+		} else if item.IsFrontMatter() {
+			cf.FrontMatterFormat = FormatFromFrontMatterType(item.Type)
+			frontMatterSource = item.Val(psr.Input())
+		}
+		return true
+	}
+
+	iter.PeekWalk(walkFn)
+
+	cf.FrontMatter, err = metadecoders.Default.UnmarshalToMap(frontMatterSource, cf.FrontMatterFormat)
+	return cf, err
+}
+
+func FormatFromFrontMatterType(typ ItemType) metadecoders.Format {
+	switch typ {
+	case TypeFrontMatterJSON:
+		return metadecoders.JSON
+	case TypeFrontMatterORG:
+		return metadecoders.ORG
+	case TypeFrontMatterTOML:
+		return metadecoders.TOML
+	case TypeFrontMatterYAML:
+		return metadecoders.YAML
+	default:
+		return ""
+	}
 }
 
 // ParseMain parses starting with the main section. Used in tests.
@@ -49,9 +99,9 @@ func ParseMain(r io.Reader, cfg Config) (Result, error) {
 }
 
 func parseSection(r io.Reader, cfg Config, start stateFunc) (Result, error) {
-	b, err := ioutil.ReadAll(r)
+	b, err := io.ReadAll(r)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read page content")
+		return nil, fmt.Errorf("failed to read page content: %w", err)
 	}
 	return parseBytes(b, cfg, start)
 }
@@ -62,10 +112,15 @@ func parseBytes(b []byte, cfg Config, start stateFunc) (Result, error) {
 	return lexer, nil
 }
 
+// NewIterator creates a new Iterator.
+func NewIterator(items Items) *Iterator {
+	return &Iterator{items: items, lastPos: -1}
+}
+
 // An Iterator has methods to iterate a parsed page with support going back
 // if needed.
 type Iterator struct {
-	l       *pageLexer
+	items   Items
 	lastPos int // position of the last item returned by nextItem
 }
 
@@ -75,19 +130,14 @@ func (t *Iterator) Next() Item {
 	return t.Current()
 }
 
-// Input returns the input source.
-func (t *Iterator) Input() []byte {
-	return t.l.Input()
-}
-
-var errIndexOutOfBounds = Item{tError, 0, []byte("no more tokens")}
+var errIndexOutOfBounds = Item{Type: tError, Err: errors.New("no more tokens")}
 
 // Current will repeatably return the current item.
 func (t *Iterator) Current() Item {
-	if t.lastPos >= len(t.l.items) {
+	if t.lastPos >= len(t.items) {
 		return errIndexOutOfBounds
 	}
-	return t.l.items[t.lastPos]
+	return t.items[t.lastPos]
 }
 
 // backs up one token.
@@ -96,6 +146,11 @@ func (t *Iterator) Backup() {
 		panic("need to go forward before going back")
 	}
 	t.lastPos--
+}
+
+// Pos returns the current position in the input.
+func (t *Iterator) Pos() int {
+	return t.lastPos
 }
 
 // check for non-error and non-EOF types coming next
@@ -107,21 +162,21 @@ func (t *Iterator) IsValueNext() bool {
 // look at, but do not consume, the next item
 // repeated, sequential calls will return the same item
 func (t *Iterator) Peek() Item {
-	return t.l.items[t.lastPos+1]
+	return t.items[t.lastPos+1]
 }
 
 // PeekWalk will feed the next items in the iterator to walkFn
 // until it returns false.
 func (t *Iterator) PeekWalk(walkFn func(item Item) bool) {
-	for i := t.lastPos + 1; i < len(t.l.items); i++ {
-		item := t.l.items[i]
+	for i := t.lastPos + 1; i < len(t.items); i++ {
+		item := t.items[i]
 		if !walkFn(item) {
 			break
 		}
 	}
 }
 
-// Consume is a convencience method to consume the next n tokens,
+// Consume is a convenience method to consume the next n tokens,
 // but back off Errors and EOF.
 func (t *Iterator) Consume(cnt int) {
 	for i := 0; i < cnt; i++ {
@@ -134,6 +189,60 @@ func (t *Iterator) Consume(cnt int) {
 }
 
 // LineNumber returns the current line number. Used for logging.
-func (t *Iterator) LineNumber() int {
-	return bytes.Count(t.l.input[:t.Current().Pos], lf) + 1
+func (t *Iterator) LineNumber(source []byte) int {
+	return bytes.Count(source[:t.Current().low], lf) + 1
+}
+
+// IsProbablySourceOfItems returns true if the given source looks like original
+// source of the items.
+// There may be some false positives, but that is highly unlikely and good enough
+// for the planned purpose.
+// It will also return false if the last item is not EOF (error situations) and
+// true if both source and items are empty.
+func IsProbablySourceOfItems(source []byte, items Items) bool {
+	if len(source) == 0 && len(items) == 0 {
+		return false
+	}
+	if len(items) == 0 {
+		return false
+	}
+
+	last := items[len(items)-1]
+	if last.Type != tEOF {
+		return false
+	}
+
+	if last.Pos() != len(source) {
+		return false
+	}
+
+	for _, item := range items {
+		if item.Type == tError {
+			return false
+		}
+		if item.Type == tEOF {
+			return true
+		}
+
+		if item.Pos() >= len(source) {
+			return false
+		}
+
+		if item.firstByte != source[item.Pos()] {
+			return false
+		}
+	}
+
+	return true
+}
+
+var hasShortcodeRe = regexp.MustCompile(`{{[%,<][^\/]`)
+
+// HasShortcode returns true if the given string contains a shortcode.
+func HasShortcode(s string) bool {
+	// Fast path for the common case.
+	if !strings.Contains(s, "{{") {
+		return false
+	}
+	return hasShortcodeRe.MatchString(s)
 }

@@ -22,14 +22,11 @@ import (
 	"github.com/gohugoio/hugo/resources/resource"
 )
 
-var (
-	_ resource.ResourcesConverter = Pages{}
-	_ compare.ProbablyEqer        = Pages{}
-)
-
-// Pages is a slice of pages. This is the most common list type in Hugo.
+// Pages is a slice of Page objects. This is the most common list type in Hugo.
 type Pages []Page
 
+// String returns a string representation of the list.
+// For internal use.
 func (ps Pages) String() string {
 	return fmt.Sprintf("Pages(%d)", len(ps))
 }
@@ -42,7 +39,8 @@ func (ps Pages) shuffle() {
 	}
 }
 
-// ToResources wraps resource.ResourcesConverter
+// ToResources wraps resource.ResourcesConverter.
+// For internal use.
 func (pages Pages) ToResources() resource.Resources {
 	r := make(resource.Resources, len(pages))
 	for i, p := range pages {
@@ -52,7 +50,7 @@ func (pages Pages) ToResources() resource.Resources {
 }
 
 // ToPages tries to convert seq into Pages.
-func ToPages(seq interface{}) (Pages, error) {
+func ToPages(seq any) (Pages, error) {
 	if seq == nil {
 		return Pages{}, nil
 	}
@@ -66,7 +64,13 @@ func ToPages(seq interface{}) (Pages, error) {
 		return v.Pages(), nil
 	case PageGroup:
 		return v.Pages, nil
-	case []interface{}:
+	case []Page:
+		pages := make(Pages, len(v))
+		for i, vv := range v {
+			pages[i] = vv
+		}
+		return pages, nil
+	case []any:
 		pages := make(Pages, len(v))
 		success := true
 		for i, vv := range v {
@@ -85,10 +89,12 @@ func ToPages(seq interface{}) (Pages, error) {
 	return nil, fmt.Errorf("cannot convert type %T to Pages", seq)
 }
 
-func (p Pages) Group(key interface{}, in interface{}) (interface{}, error) {
+// Group groups the pages in in by key.
+// This implements collections.Grouper.
+func (p Pages) Group(key any, in any) (any, error) {
 	pages, err := ToPages(in)
 	if err != nil {
-		return nil, err
+		return PageGroup{}, err
 	}
 	return PageGroup{Key: key, Pages: pages}, nil
 }
@@ -98,8 +104,9 @@ func (p Pages) Len() int {
 	return len(p)
 }
 
-// ProbablyEq wraps comare.ProbablyEqer
-func (pages Pages) ProbablyEq(other interface{}) bool {
+// ProbablyEq wraps compare.ProbablyEqer
+// For internal use.
+func (pages Pages) ProbablyEq(other any) bool {
 	otherPages, ok := other.(Pages)
 	if !ok {
 		return false
@@ -125,21 +132,11 @@ func (pages Pages) ProbablyEq(other interface{}) bool {
 	return true
 }
 
-func (ps Pages) removeFirstIfFound(p Page) Pages {
-	ii := -1
-	for i, pp := range ps {
-		if p.Eq(pp) {
-			ii = i
-			break
-		}
-	}
-
-	if ii != -1 {
-		ps = append(ps[:ii], ps[ii+1:]...)
-	}
-	return ps
-}
-
 // PagesFactory somehow creates some Pages.
 // We do a lot of lazy Pages initialization in Hugo, so we need a type.
 type PagesFactory func() Pages
+
+var (
+	_ resource.ResourcesConverter = Pages{}
+	_ compare.ProbablyEqer        = Pages{}
+)

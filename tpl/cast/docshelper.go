@@ -14,24 +14,23 @@
 package cast
 
 import (
-	"github.com/gohugoio/hugo/common/loggers"
+	"github.com/gohugoio/hugo/config"
+	"github.com/gohugoio/hugo/config/testconfig"
 	"github.com/gohugoio/hugo/deps"
 	"github.com/gohugoio/hugo/docshelper"
-	"github.com/gohugoio/hugo/htesting"
+	"github.com/gohugoio/hugo/resources/page"
 	"github.com/gohugoio/hugo/tpl/internal"
-	"github.com/spf13/viper"
 )
 
 // This file provides documentation support and is randomly put into this package.
 func init() {
-	docsProvider := func() map[string]interface{} {
-		docs := make(map[string]interface{})
-		d := &deps.Deps{
-			Cfg:                 viper.New(),
-			Log:                 loggers.NewErrorLogger(),
-			BuildStartListeners: &deps.Listeners{},
-			Site:                htesting.NewTestHugoSite(),
+	docsProvider := func() docshelper.DocProvider {
+		d := &deps.Deps{Conf: testconfig.GetTestConfig(nil, nil)}
+		if err := d.Init(); err != nil {
+			panic(err)
 		}
+		conf := testconfig.GetTestConfig(nil, newTestConfig())
+		d.Site = page.NewDummyHugoSite(conf)
 
 		var namespaces internal.TemplateFuncsNamespaces
 
@@ -41,9 +40,14 @@ func init() {
 
 		}
 
-		docs["funcs"] = namespaces
-		return docs
+		return docshelper.DocProvider{"tpl": map[string]any{"funcs": namespaces}}
 	}
 
-	docshelper.AddDocProvider("tpl", docsProvider)
+	docshelper.AddDocProviderFunc(docsProvider)
+}
+
+func newTestConfig() config.Provider {
+	v := config.New()
+	v.Set("contentDir", "content")
+	return v
 }

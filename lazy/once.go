@@ -23,7 +23,7 @@ import (
 // Additional features are:
 // * it can be reset, so the action can be repeated if needed
 // * it has methods to check if it's done or in progress
-//
+
 type onceMore struct {
 	mu   sync.Mutex
 	lock uint32
@@ -51,7 +51,6 @@ func (t *onceMore) Do(f func()) {
 	}
 	defer atomic.StoreUint32(&t.done, 1)
 	f()
-
 }
 
 func (t *onceMore) InProgress() bool {

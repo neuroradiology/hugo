@@ -1,34 +1,22 @@
 ---
-title: Frontend Interfaces with Hugo
-linktitle: Frontends
+title: Frontend interfaces with Hugo
+linkTitle: Frontends
 description: Do you prefer a graphical user interface over a text editor? Give these frontends a try.
-date: 2017-02-01
-publishdate: 2017-02-01
-lastmod: 2017-02-01
 categories: [developer tools]
-keywords: [frontend,gui]
+keywords: [frontend, gui]
 menu:
   docs:
-    parent: "tools"
-    weight: 40
-weight: 40
-sections_weight: 40
-draft: false
-aliases: []
-toc: false
+    parent: developer-tools
+    weight: 30
+weight: 30
 ---
 
-* [enwrite](https://github.com/zzamboni/enwrite). Enwrite enables evernote-powered, statically generated blogs and websites. Now posting to your blog or updating your website is as easy as writing a new note in Evernote!
-* [Lipi](https://github.com/SohanChy/Lipi). Lipi is a native GUI frontend written in Java to manage your Hugo websites.
-* [Netlify CMS](https://netlifycms.org). Netlify CMS is an open source, serverless solution for managing Git based content in static sites, and it works on any platform that can host static sites. A [Hugo/Netlify CMS starter](https://github.com/netlify-templates/one-click-hugo-cms) is available to get new projects running quickly.
-* [Hokus CMS](https://github.com/julianoappelklein/hokus). Hokus CMS is an open source, multiplatform, easy to use, desktop application for Hugo. Build from simple to complex user interfaces for Hugo websites by choosing from a dozen ready-to-use components — all for free, with no vendor lock-in.
+- [enwrite](https://github.com/zzamboni/enwrite). Enwrite enables evernote-powered, statically generated blogs and websites. Now posting to your blog or updating your website is as easy as writing a new note in Evernote!
+- [Lipi](https://github.com/SohanChy/Lipi). Lipi is a native GUI frontend written in Java to manage your Hugo websites.
+- [Decap CMS (formerly Netlify CMS)](https://decapcms.org/). Decap CMS is an open source, serverless solution for managing Git based content in static sites, and it works on any platform that can host static sites. A [Hugo/Decap CMS starter](https://github.com/decaporg/one-click-hugo-cms) is available to get new projects running quickly.
+- [Hokus CMS](https://github.com/julianoappelklein/hokus). Hokus CMS is an open source, multi-platform, easy to use, desktop application for Hugo. Build from simple to complex user interfaces for Hugo websites by choosing from a dozen ready-to-use components — all for free, with no vendor lock-in.
 
+## Commercial services
 
-## Commercial Services
-
-* [Appernetic.io](https://appernetic.io) is a Hugo Static Site Generator as a Service that is easy to use for non-technical users.
-    * **Features:** inline PageDown editor, visual tree view, image upload and digital asset management with Cloudinary, site preview, continuous integration with GitHub, atomic deploy and hosting, Git and Hugo integration, autosave, custom domain, project syncing, theme cloning and management. Developers have complete control over the source code and can manage it with GitHub’s deceptively simple workflow.
-* [DATOCMS](https://www.datocms.com) DatoCMS is a fully customizable administrative area for your static websites. Use your favorite website generator, let your clients publish new content independently, and the host the site anywhere you like.
-* [Forestry.io](https://forestry.io/). Forestry is a simple CMS for Jekyll and Hugo websites with support for GitHub, GitLab, and Bitbucket. Every time an update is made via the CMS, Forestry will commit changes back to your repo and will compile/deploy your website to S3, GitHub Pages, FTP, etc.
-* [Netlify.com](https://www.netlify.com). Netlify builds, deploys, and hosts your static website or app (Hugo, Jekyll, etc). Netlify offers a drag-and-drop interface and automatic deployments from GitHub or Bitbucket.
-    * **Features:** global CDN, atomic deploys, ultra-fast DNS, instant cache invalidation, high availability, automated hosting, Git integration, form submission hooks, authentication providers, and custom domains. Developers have complete control over the source code and can manage it with GitHub or Bitbucket's deceptively simple workflow.
+- [DATOCMS](https://www.datocms.com) DatoCMS is a fully customizable administrative area for your static websites. Use your favorite website generator, let your clients publish new content independently, and the host the site anywhere you like.
+- [CloudCannon](https://cloudcannon.com/hugo-cms/). The intuitive Git-based CMS for your Hugo website. CloudCannon syncs changes from your Git repository and pushes content changes back, so your development and content teams are always in sync. Edit all of your content on the page with visual editing, build entire pages with reusable custom components and then publish confidently.

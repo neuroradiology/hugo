@@ -17,14 +17,11 @@ package urls
 import (
 	"errors"
 	"fmt"
-
 	"html/template"
 	"net/url"
 
 	"github.com/gohugoio/hugo/common/urls"
 	"github.com/gohugoio/hugo/deps"
-	_errors "github.com/pkg/errors"
-	"github.com/russross/blackfriday"
 	"github.com/spf13/cast"
 )
 
@@ -32,7 +29,7 @@ import (
 func New(deps *deps.Deps) *Namespace {
 	return &Namespace{
 		deps:      deps,
-		multihost: deps.Cfg.GetBool("multihost"),
+		multihost: deps.Conf.IsMultihost(),
 	}
 }
 
@@ -42,59 +39,60 @@ type Namespace struct {
 	multihost bool
 }
 
-// AbsURL takes a given string and converts it to an absolute URL.
-func (ns *Namespace) AbsURL(a interface{}) (template.HTML, error) {
-	s, err := cast.ToStringE(a)
+// AbsURL takes the string s and converts it to an absolute URL.
+func (ns *Namespace) AbsURL(s any) (template.HTML, error) {
+	ss, err := cast.ToStringE(s)
 	if err != nil {
 		return "", nil
 	}
 
-	return template.HTML(ns.deps.PathSpec.AbsURL(s, false)), nil
+	return template.HTML(ns.deps.PathSpec.AbsURL(ss, false)), nil
 }
 
 // Parse parses rawurl into a URL structure. The rawurl may be relative or
 // absolute.
-func (ns *Namespace) Parse(rawurl interface{}) (*url.URL, error) {
+func (ns *Namespace) Parse(rawurl any) (*url.URL, error) {
 	s, err := cast.ToStringE(rawurl)
 	if err != nil {
-		return nil, _errors.Wrap(err, "Error in Parse")
+		return nil, fmt.Errorf("Error in Parse: %w", err)
 	}
 
 	return url.Parse(s)
 }
 
-// RelURL takes a given string and prepends the relative path according to a
+// RelURL takes the string s and prepends the relative path according to a
 // page's position in the project directory structure.
-func (ns *Namespace) RelURL(a interface{}) (template.HTML, error) {
-	s, err := cast.ToStringE(a)
+func (ns *Namespace) RelURL(s any) (template.HTML, error) {
+	ss, err := cast.ToStringE(s)
 	if err != nil {
 		return "", nil
 	}
 
-	return template.HTML(ns.deps.PathSpec.RelURL(s, false)), nil
+	return template.HTML(ns.deps.PathSpec.RelURL(ss, false)), nil
 }
 
-// URLize returns the given argument formatted as URL.
-func (ns *Namespace) URLize(a interface{}) (string, error) {
-	s, err := cast.ToStringE(a)
+// URLize returns the the strings s formatted as an URL.
+func (ns *Namespace) URLize(s any) (string, error) {
+	ss, err := cast.ToStringE(s)
 	if err != nil {
 		return "", nil
 	}
-	return ns.deps.PathSpec.URLize(s), nil
+	return ns.deps.PathSpec.URLize(ss), nil
 }
 
-// Anchorize creates sanitized anchor names that are compatible with Blackfriday.
-func (ns *Namespace) Anchorize(a interface{}) (string, error) {
-	s, err := cast.ToStringE(a)
+// Anchorize creates sanitized anchor name version of the string s that is compatible
+// with how your configured markdown renderer does it.
+func (ns *Namespace) Anchorize(s any) (string, error) {
+	ss, err := cast.ToStringE(s)
 	if err != nil {
 		return "", nil
 	}
-	return blackfriday.SanitizedAnchorName(s), nil
+	return ns.deps.ContentSpec.SanitizeAnchorName(ss), nil
 }
 
-// Ref returns the absolute URL path to a given content item.
-func (ns *Namespace) Ref(in interface{}, args interface{}) (template.HTML, error) {
-	p, ok := in.(urls.RefLinker)
+// Ref returns the absolute URL path to a given content item from Page p.
+func (ns *Namespace) Ref(p any, args any) (template.HTML, error) {
+	pp, ok := p.(urls.RefLinker)
 	if !ok {
 		return "", errors.New("invalid Page received in Ref")
 	}
@@ -102,13 +100,13 @@ func (ns *Namespace) Ref(in interface{}, args interface{}) (template.HTML, error
 	if err != nil {
 		return "", err
 	}
-	s, err := p.Ref(argsm)
+	s, err := pp.Ref(argsm)
 	return template.HTML(s), err
 }
 
-// RelRef returns the relative URL path to a given content item.
-func (ns *Namespace) RelRef(in interface{}, args interface{}) (template.HTML, error) {
-	p, ok := in.(urls.RefLinker)
+// RelRef returns the relative URL path to a given content item from Page p.
+func (ns *Namespace) RelRef(p any, args any) (template.HTML, error) {
+	pp, ok := p.(urls.RefLinker)
 	if !ok {
 		return "", errors.New("invalid Page received in RelRef")
 	}
@@ -117,27 +115,33 @@ func (ns *Namespace) RelRef(in interface{}, args interface{}) (template.HTML, er
 		return "", err
 	}
 
-	s, err := p.RelRef(argsm)
+	s, err := pp.RelRef(argsm)
 	return template.HTML(s), err
 }
 
-func (ns *Namespace) refArgsToMap(args interface{}) (map[string]interface{}, error) {
+func (ns *Namespace) refArgsToMap(args any) (map[string]any, error) {
 	var (
 		s  string
 		of string
 	)
-	switch v := args.(type) {
-	case map[string]interface{}:
+
+	v := args
+	if _, ok := v.([]any); ok {
+		v = cast.ToStringSlice(v)
+	}
+
+	switch v := v.(type) {
+	case map[string]any:
 		return v, nil
 	case map[string]string:
-		m := make(map[string]interface{})
+		m := make(map[string]any)
 		for k, v := range v {
 			m[k] = v
 		}
 		return m, nil
 	case []string:
 		if len(v) == 0 || len(v) > 2 {
-			return nil, fmt.Errorf("invalid numer of arguments to ref")
+			return nil, fmt.Errorf("invalid number of arguments to ref")
 		}
 		// These where the options before we introduced the map type:
 		s = v[0]
@@ -152,31 +156,70 @@ func (ns *Namespace) refArgsToMap(args interface{}) (map[string]interface{}, err
 		}
 
 	}
-	return map[string]interface{}{
+
+	return map[string]any{
 		"path":         s,
 		"outputFormat": of,
 	}, nil
 }
 
-// RelLangURL takes a given string and prepends the relative path according to a
+// RelLangURL takes the string s and prepends the relative path according to a
 // page's position in the project directory structure and the current language.
-func (ns *Namespace) RelLangURL(a interface{}) (template.HTML, error) {
-	s, err := cast.ToStringE(a)
+func (ns *Namespace) RelLangURL(s any) (template.HTML, error) {
+	ss, err := cast.ToStringE(s)
 	if err != nil {
 		return "", err
 	}
 
-	return template.HTML(ns.deps.PathSpec.RelURL(s, !ns.multihost)), nil
+	return template.HTML(ns.deps.PathSpec.RelURL(ss, !ns.multihost)), nil
 }
 
-// AbsLangURL takes a given string and converts it to an absolute URL according
+// AbsLangURL the string s and converts it to an absolute URL according
 // to a page's position in the project directory structure and the current
 // language.
-func (ns *Namespace) AbsLangURL(a interface{}) (template.HTML, error) {
-	s, err := cast.ToStringE(a)
+func (ns *Namespace) AbsLangURL(s any) (template.HTML, error) {
+	ss, err := cast.ToStringE(s)
 	if err != nil {
 		return "", err
 	}
 
-	return template.HTML(ns.deps.PathSpec.AbsURL(s, !ns.multihost)), nil
+	return template.HTML(ns.deps.PathSpec.AbsURL(ss, !ns.multihost)), nil
+}
+
+// JoinPath joins the provided elements into a URL string and cleans the result
+// of any ./ or ../ elements. If the argument list is empty, JoinPath returns
+// an empty string.
+func (ns *Namespace) JoinPath(elements ...any) (string, error) {
+
+	if len(elements) == 0 {
+		return "", nil
+	}
+
+	var selements []string
+	for _, e := range elements {
+		switch v := e.(type) {
+		case []string:
+			selements = append(selements, v...)
+		case []any:
+			for _, e := range v {
+				se, err := cast.ToStringE(e)
+				if err != nil {
+					return "", err
+				}
+				selements = append(selements, se)
+			}
+		default:
+			se, err := cast.ToStringE(e)
+			if err != nil {
+				return "", err
+			}
+			selements = append(selements, se)
+		}
+	}
+
+	result, err := url.JoinPath(selements[0], selements[1:]...)
+	if err != nil {
+		return "", err
+	}
+	return result, nil
 }

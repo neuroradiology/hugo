@@ -17,7 +17,7 @@ import (
 	"bytes"
 	"sync"
 
-	"github.com/kyokomi/emoji"
+	"github.com/kyokomi/emoji/v2"
 )
 
 var (
@@ -30,7 +30,7 @@ var (
 	emojiMaxSize   int
 )
 
-// Emoji returns the emojy given a key, e.g. ":smile:", nil if not found.
+// Emoji returns the emoji given a key, e.g. ":smile:", nil if not found.
 func Emoji(key string) []byte {
 	emojiInit.Do(initEmoji)
 	return emojis[key]
@@ -93,5 +93,4 @@ func initEmoji() {
 			emojiMaxSize = len(k)
 		}
 	}
-
 }

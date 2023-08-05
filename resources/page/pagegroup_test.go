@@ -14,12 +14,13 @@
 package page
 
 import (
+	"context"
 	"reflect"
 	"strings"
 	"testing"
 
+	qt "github.com/frankban/quicktest"
 	"github.com/spf13/cast"
-	"github.com/stretchr/testify/require"
 )
 
 type pageGroupTestObject struct {
@@ -34,7 +35,8 @@ var pageGroupTestSources = []pageGroupTestObject{
 	{"/section1/testpage2.md", 3, "2012-01-01", "bar"},
 	{"/section1/testpage3.md", 2, "2012-04-06", "foo"},
 	{"/section2/testpage4.md", 1, "2012-03-02", "bar"},
-	{"/section2/testpage5.md", 1, "2012-04-06", "baz"},
+	// date might also be a full datetime:
+	{"/section2/testpage5.md", 1, "2012-04-06T00:00:00Z", "baz"},
 }
 
 func preparePageGroupTestPages(t *testing.T) Pages {
@@ -49,8 +51,10 @@ func preparePageGroupTestPages(t *testing.T) Pages {
 		p.date = cast.ToTime(src.date)
 		p.pubDate = cast.ToTime(src.date)
 		p.expiryDate = cast.ToTime(src.date)
+		p.lastMod = cast.ToTime(src.date).AddDate(3, 0, 0)
 		p.params["custom_param"] = src.param
 		p.params["custom_date"] = cast.ToTime(src.date)
+		p.params["custom_string_date"] = src.date
 		pages = append(pages, p)
 	}
 	return pages
@@ -65,7 +69,7 @@ func TestGroupByWithFieldNameArg(t *testing.T) {
 		{Key: 3, Pages: Pages{pages[0], pages[1]}},
 	}
 
-	groups, err := pages.GroupBy("Weight")
+	groups, err := pages.GroupBy(context.Background(), "Weight")
 	if err != nil {
 		t.Fatalf("Unable to make PagesGroup array: %s", err)
 	}
@@ -82,7 +86,7 @@ func TestGroupByWithMethodNameArg(t *testing.T) {
 		{Key: "section2", Pages: Pages{pages[3], pages[4]}},
 	}
 
-	groups, err := pages.GroupBy("Type")
+	groups, err := pages.GroupBy(context.Background(), "Type")
 	if err != nil {
 		t.Fatalf("Unable to make PagesGroup array: %s", err)
 	}
@@ -99,7 +103,7 @@ func TestGroupByWithSectionArg(t *testing.T) {
 		{Key: "section2", Pages: Pages{pages[3], pages[4]}},
 	}
 
-	groups, err := pages.GroupBy("Section")
+	groups, err := pages.GroupBy(context.Background(), "Section")
 	if err != nil {
 		t.Fatalf("Unable to make PagesGroup array: %s", err)
 	}
@@ -117,7 +121,7 @@ func TestGroupByInReverseOrder(t *testing.T) {
 		{Key: 1, Pages: Pages{pages[3], pages[4]}},
 	}
 
-	groups, err := pages.GroupBy("Weight", "desc")
+	groups, err := pages.GroupBy(context.Background(), "Weight", "desc")
 	if err != nil {
 		t.Fatalf("Unable to make PagesGroup array: %s", err)
 	}
@@ -129,7 +133,7 @@ func TestGroupByInReverseOrder(t *testing.T) {
 func TestGroupByCalledWithEmptyPages(t *testing.T) {
 	t.Parallel()
 	var pages Pages
-	groups, err := pages.GroupBy("Weight")
+	groups, err := pages.GroupBy(context.Background(), "Weight")
 	if err != nil {
 		t.Fatalf("Unable to make PagesGroup array: %s", err)
 	}
@@ -151,12 +155,12 @@ func TestReverse(t *testing.T) {
 	t.Parallel()
 	pages := preparePageGroupTestPages(t)
 
-	groups1, err := pages.GroupBy("Weight", "desc")
+	groups1, err := pages.GroupBy(context.Background(), "Weight", "desc")
 	if err != nil {
 		t.Fatalf("Unable to make PagesGroup array: %s", err)
 	}
 
-	groups2, err := pages.GroupBy("Weight")
+	groups2, err := pages.GroupBy(context.Background(), "Weight")
 	if err != nil {
 		t.Fatalf("Unable to make PagesGroup array: %s", err)
 	}
@@ -204,7 +208,7 @@ func TestGroupByParamInReverseOrder(t *testing.T) {
 }
 
 func TestGroupByParamCalledWithCapitalLetterString(t *testing.T) {
-	assert := require.New(t)
+	c := qt.New(t)
 	testStr := "TestString"
 	p := newTestPage()
 	p.params["custom_param"] = testStr
@@ -212,9 +216,8 @@ func TestGroupByParamCalledWithCapitalLetterString(t *testing.T) {
 
 	groups, err := pages.GroupByParam("custom_param")
 
-	assert.NoError(err)
-	assert.Equal(testStr, groups[0].Key)
-
+	c.Assert(err, qt.IsNil)
+	c.Assert(groups[0].Key, qt.Equals, testStr)
 }
 
 func TestGroupByParamCalledWithSomeUnavailableParams(t *testing.T) {
@@ -375,6 +378,61 @@ func TestGroupByParamDate(t *testing.T) {
 	}
 	if !reflect.DeepEqual(groups, expect) {
 		t.Errorf("PagesGroup has unexpected groups. It should be %#v, got %#v", expect, groups)
+	}
+}
+
+// https://github.com/gohugoio/hugo/issues/3983
+func TestGroupByParamDateWithStringParams(t *testing.T) {
+	t.Parallel()
+	pages := preparePageGroupTestPages(t)
+	expect := PagesGroup{
+		{Key: "2012-04", Pages: Pages{pages[4], pages[2], pages[0]}},
+		{Key: "2012-03", Pages: Pages{pages[3]}},
+		{Key: "2012-01", Pages: Pages{pages[1]}},
+	}
+
+	groups, err := pages.GroupByParamDate("custom_string_date", "2006-01")
+	if err != nil {
+		t.Fatalf("Unable to make PagesGroup array: %s", err)
+	}
+	if !reflect.DeepEqual(groups, expect) {
+		t.Errorf("PagesGroup has unexpected groups. It should be %#v, got %#v", expect, groups)
+	}
+}
+
+func TestGroupByLastmod(t *testing.T) {
+	t.Parallel()
+	pages := preparePageGroupTestPages(t)
+	expect := PagesGroup{
+		{Key: "2015-04", Pages: Pages{pages[4], pages[2], pages[0]}},
+		{Key: "2015-03", Pages: Pages{pages[3]}},
+		{Key: "2015-01", Pages: Pages{pages[1]}},
+	}
+
+	groups, err := pages.GroupByLastmod("2006-01")
+	if err != nil {
+		t.Fatalf("Unable to make PagesGroup array: %s", err)
+	}
+	if !reflect.DeepEqual(groups, expect) {
+		t.Errorf("PagesGroup has unexpected groups. It should be %#v, got %#v", expect, groups)
+	}
+}
+
+func TestGroupByLastmodInReverseOrder(t *testing.T) {
+	t.Parallel()
+	pages := preparePageGroupTestPages(t)
+	expect := PagesGroup{
+		{Key: "2015-01", Pages: Pages{pages[1]}},
+		{Key: "2015-03", Pages: Pages{pages[3]}},
+		{Key: "2015-04", Pages: Pages{pages[0], pages[2], pages[4]}},
+	}
+
+	groups, err := pages.GroupByLastmod("2006-01", "asc")
+	if err != nil {
+		t.Fatalf("Unable to make PagesGroup array: %s", err)
+	}
+	if !reflect.DeepEqual(groups, expect) {
+		t.Errorf("PagesGroup has unexpected groups. It should be\n%#v, got\n%#v", expect, groups)
 	}
 }
 

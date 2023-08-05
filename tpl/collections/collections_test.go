@@ -14,6 +14,7 @@
 package collections
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"html/template"
@@ -22,34 +23,32 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gohugoio/hugo/common/loggers"
-	"github.com/gohugoio/hugo/config"
-	"github.com/gohugoio/hugo/deps"
-	"github.com/gohugoio/hugo/helpers"
-	"github.com/gohugoio/hugo/hugofs"
-	"github.com/gohugoio/hugo/langs"
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/gohugoio/hugo/common/maps"
+	"github.com/gohugoio/hugo/config/testconfig"
+
+	qt "github.com/frankban/quicktest"
 )
 
 type tstNoStringer struct{}
 
 func TestAfter(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	ns := New(&deps.Deps{})
+	ns := newNs()
 
 	for i, test := range []struct {
-		index  interface{}
-		seq    interface{}
-		expect interface{}
+		index  any
+		seq    any
+		expect any
 	}{
 		{int(2), []string{"a", "b", "c", "d"}, []string{"c", "d"}},
 		{int32(3), []string{"a", "b"}, []string{}},
 		{int64(2), []int{100, 200, 300}, []int{300}},
 		{100, []int{100, 200}, []int{}},
 		{"1", []int{100, 200, 300}, []int{200, 300}},
+		{0, []int{100, 200, 300, 400, 500}, []int{100, 200, 300, 400, 500}},
+		{0, []string{"a", "b", "c", "d", "e"}, []string{"a", "b", "c", "d", "e"}},
 		{int64(-1), []int{100, 200, 300}, false},
 		{"noint", []int{100, 200, 300}, false},
 		{2, []string{}, []string{}},
@@ -58,17 +57,17 @@ func TestAfter(t *testing.T) {
 		{1, t, false},
 		{1, (*string)(nil), false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.After(test.index, test.seq)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		require.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.DeepEquals, test.expect, errMsg)
 	}
 }
 
@@ -77,7 +76,7 @@ type tstGrouper struct {
 
 type tstGroupers []*tstGrouper
 
-func (g tstGrouper) Group(key interface{}, items interface{}) (interface{}, error) {
+func (g tstGrouper) Group(key any, items any) (any, error) {
 	ilen := reflect.ValueOf(items).Len()
 	return fmt.Sprintf("%v(%d)", key, ilen), nil
 }
@@ -85,20 +84,20 @@ func (g tstGrouper) Group(key interface{}, items interface{}) (interface{}, erro
 type tstGrouper2 struct {
 }
 
-func (g *tstGrouper2) Group(key interface{}, items interface{}) (interface{}, error) {
+func (g *tstGrouper2) Group(key any, items any) (any, error) {
 	ilen := reflect.ValueOf(items).Len()
 	return fmt.Sprintf("%v(%d)", key, ilen), nil
 }
 
 func TestGroup(t *testing.T) {
 	t.Parallel()
-
-	ns := New(&deps.Deps{})
+	c := qt.New(t)
+	ns := newNs()
 
 	for i, test := range []struct {
-		key    interface{}
-		items  interface{}
-		expect interface{}
+		key    any
+		items  any
+		expect any
 	}{
 		{"a", []*tstGrouper{{}, {}}, "a(2)"},
 		{"b", tstGroupers{&tstGrouper{}, &tstGrouper{}}, "b(2)"},
@@ -111,29 +110,30 @@ func TestGroup(t *testing.T) {
 		{"a", nil, false},
 		{nil, []*tstGrouper{{}, {}}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.Group(test.key, test.items)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		require.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.Equals, test.expect, errMsg)
 	}
 }
 
 func TestDelimit(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	ns := New(&deps.Deps{})
+	ns := newNs()
 
 	for i, test := range []struct {
-		seq       interface{}
-		delimiter interface{}
-		last      interface{}
+		seq       any
+		delimiter any
+		last      any
 		expect    template.HTML
 	}{
 		{[]string{"class1", "class2", "class3"}, " ", nil, "class1 class2 class3"},
@@ -161,60 +161,89 @@ func TestDelimit(t *testing.T) {
 		{map[int]string{3: "10", 2: "20", 1: "30", 4: "40", 5: "50"}, "--", "--and--", "30--20--10--40--and--50"},
 		{map[float64]string{3.5: "10", 2.5: "20", 1.5: "30", 4.5: "40", 5.5: "50"}, "--", "--and--", "30--20--10--40--and--50"},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		var result template.HTML
 		var err error
 
 		if test.last == nil {
-			result, err = ns.Delimit(test.seq, test.delimiter)
+			result, err = ns.Delimit(context.Background(), test.seq, test.delimiter)
 		} else {
-			result, err = ns.Delimit(test.seq, test.delimiter, test.last)
+			result, err = ns.Delimit(context.Background(), test.seq, test.delimiter, test.last)
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.Equals, test.expect, errMsg)
 	}
 }
 
 func TestDictionary(t *testing.T) {
-	t.Parallel()
+	c := qt.New(t)
 
-	ns := New(&deps.Deps{})
+	ns := newNs()
 
 	for i, test := range []struct {
-		values []interface{}
-		expect interface{}
+		values []any
+		expect any
 	}{
-		{[]interface{}{"a", "b"}, map[string]interface{}{"a": "b"}},
-		{[]interface{}{"a", 12, "b", []int{4}}, map[string]interface{}{"a": 12, "b": []int{4}}},
+		{[]any{"a", "b"}, map[string]any{"a": "b"}},
+		{[]any{[]string{"a", "b"}, "c"}, map[string]any{"a": map[string]any{"b": "c"}}},
+		{
+			[]any{[]string{"a", "b"}, "c", []string{"a", "b2"}, "c2", "b", "c"},
+			map[string]any{"a": map[string]any{"b": "c", "b2": "c2"}, "b": "c"},
+		},
+		{[]any{"a", 12, "b", []int{4}}, map[string]any{"a": 12, "b": []int{4}}},
 		// errors
-		{[]interface{}{5, "b"}, false},
-		{[]interface{}{"a", "b", "c"}, false},
+		{[]any{5, "b"}, false},
+		{[]any{"a", "b", "c"}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test.values)
+		i := i
+		test := test
+		c.Run(fmt.Sprint(i), func(c *qt.C) {
+			c.Parallel()
+			errMsg := qt.Commentf("[%d] %v", i, test.values)
 
-		result, err := ns.Dictionary(test.values...)
+			result, err := ns.Dictionary(test.values...)
 
-		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
-			continue
-		}
+			if b, ok := test.expect.(bool); ok && !b {
+				c.Assert(err, qt.Not(qt.IsNil), errMsg)
+				return
+			}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+			c.Assert(err, qt.IsNil, errMsg)
+			c.Assert(result, qt.DeepEquals, test.expect, qt.Commentf(fmt.Sprint(result)))
+		})
 	}
+}
+
+func TestReverse(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+	ns := newNs()
+
+	s := []string{"a", "b", "c"}
+	reversed, err := ns.Reverse(s)
+	c.Assert(err, qt.IsNil)
+	c.Assert(reversed, qt.DeepEquals, []string{"c", "b", "a"}, qt.Commentf(fmt.Sprint(reversed)))
+	c.Assert(s, qt.DeepEquals, []string{"a", "b", "c"})
+
+	reversed, err = ns.Reverse(nil)
+	c.Assert(err, qt.IsNil)
+	c.Assert(reversed, qt.IsNil)
+	_, err = ns.Reverse(43)
+	c.Assert(err, qt.Not(qt.IsNil))
 }
 
 func TestEchoParam(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	ns := New(&deps.Deps{})
+	ns := newNs()
 
 	for i, test := range []struct {
-		a      interface{}
-		key    interface{}
-		expect interface{}
+		a      any
+		key    any
+		expect any
 	}{
 		{[]int{1, 2, 3}, 1, int64(2)},
 		{[]uint{1, 2, 3}, 1, uint64(2)},
@@ -226,26 +255,27 @@ func TestEchoParam(t *testing.T) {
 		{map[string]float64{"foo": 1.1, "bar": 2.2, "baz": 3.3}, "bar", float64(2.2)},
 		{map[string]string{"foo": "FOO", "bar": "BAR", "baz": "BAZ"}, "bar", "BAR"},
 		{map[string]TstX{"foo": {A: "a", B: "b"}, "bar": {A: "c", B: "d"}, "baz": {A: "e", B: "f"}}, "bar", ""},
-		{map[string]interface{}{"foo": nil}, "foo", ""},
+		{map[string]any{"foo": nil}, "foo", ""},
 		{(*[]string)(nil), "bar", ""},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result := ns.EchoParam(test.a, test.key)
 
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(result, qt.Equals, test.expect, errMsg)
 	}
 }
 
 func TestFirst(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	ns := New(&deps.Deps{})
+	ns := newNs()
 
 	for i, test := range []struct {
-		limit  interface{}
-		seq    interface{}
-		expect interface{}
+		limit  any
+		seq    any
+		expect any
 	}{
 		{int(2), []string{"a", "b", "c"}, []string{"a", "b"}},
 		{int32(3), []string{"a", "b"}, []string{"a", "b"}},
@@ -260,41 +290,40 @@ func TestFirst(t *testing.T) {
 		{1, t, false},
 		{1, (*string)(nil), false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.First(test.limit, test.seq)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.DeepEquals, test.expect, errMsg)
 	}
 }
 
 func TestIn(t *testing.T) {
 	t.Parallel()
-	assert := require.New(t)
-
-	ns := New(&deps.Deps{})
+	c := qt.New(t)
+	ns := newNs()
 
 	for i, test := range []struct {
-		l1     interface{}
-		l2     interface{}
+		l1     any
+		l2     any
 		expect bool
 	}{
 		{[]string{"a", "b", "c"}, "b", true},
-		{[]interface{}{"a", "b", "c"}, "b", true},
-		{[]interface{}{"a", "b", "c"}, "d", false},
+		{[]any{"a", "b", "c"}, "b", true},
+		{[]any{"a", "b", "c"}, "d", false},
 		{[]string{"a", "b", "c"}, "d", false},
 		{[]string{"a", "12", "c"}, 12, false},
 		{[]string{"a", "b", "c"}, nil, false},
 		{[]int{1, 2, 4}, 2, true},
-		{[]interface{}{1, 2, 4}, 2, true},
-		{[]interface{}{1, 2, 4}, nil, false},
-		{[]interface{}{nil}, nil, false},
+		{[]any{1, 2, 4}, 2, true},
+		{[]any{1, 2, 4}, nil, false},
+		{[]any{nil}, nil, false},
 		{[]int{1, 2, 4}, 3, false},
 		{[]float64{1.23, 2.45, 4.67}, 1.23, true},
 		{[]float64{1.234567, 2.45, 4.67}, 1.234568, false},
@@ -309,18 +338,20 @@ func TestIn(t *testing.T) {
 		// Structs
 		{pagesVals{p3v, p2v, p3v, p2v}, p2v, true},
 		{pagesVals{p3v, p2v, p3v, p2v}, p4v, false},
+		// template.HTML
+		{template.HTML("this substring should be found"), "substring", true},
+		{template.HTML("this substring should not be found"), "subseastring", false},
+		// Uncomparable, use hashstructure
+		{[]string{"a", "b"}, []string{"a", "b"}, false},
+		{[][]string{{"a", "b"}}, []string{"a", "b"}, true},
 	} {
 
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.In(test.l1, test.l2)
-		assert.NoError(err)
-		assert.Equal(test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect, errMsg)
 	}
-
-	// Slices are not comparable
-	_, err := ns.In([]string{"a", "b"}, []string{"a", "b"})
-	assert.Error(err)
 }
 
 type testPage struct {
@@ -331,8 +362,10 @@ func (p testPage) String() string {
 	return "p-" + p.Title
 }
 
-type pagesPtr []*testPage
-type pagesVals []testPage
+type (
+	pagesPtr  []*testPage
+	pagesVals []testPage
+)
 
 var (
 	p1 = &testPage{"A"}
@@ -348,20 +381,21 @@ var (
 
 func TestIntersect(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	ns := New(&deps.Deps{})
+	ns := newNs()
 
 	for i, test := range []struct {
-		l1, l2 interface{}
-		expect interface{}
+		l1, l2 any
+		expect any
 	}{
 		{[]string{"a", "b", "c", "c"}, []string{"a", "b", "b"}, []string{"a", "b"}},
 		{[]string{"a", "b"}, []string{"a", "b", "c"}, []string{"a", "b"}},
 		{[]string{"a", "b", "c"}, []string{"d", "e"}, []string{}},
 		{[]string{}, []string{}, []string{}},
-		{[]string{"a", "b"}, nil, []interface{}{}},
-		{nil, []string{"a", "b"}, []interface{}{}},
-		{nil, nil, []interface{}{}},
+		{[]string{"a", "b"}, nil, []any{}},
+		{nil, []string{"a", "b"}, []any{}},
+		{nil, nil, []any{}},
 		{[]string{"1", "2"}, []int{1, 2}, []string{}},
 		{[]int{1, 2}, []string{"1", "2"}, []int{}},
 		{[]int{1, 2, 4}, []int{2, 4}, []int{2, 4}},
@@ -370,45 +404,45 @@ func TestIntersect(t *testing.T) {
 		{[]float64{2.2, 4.4}, []float64{1.1, 2.2, 4.4}, []float64{2.2, 4.4}},
 
 		// []interface{} ∩ []interface{}
-		{[]interface{}{"a", "b", "c"}, []interface{}{"a", "b", "b"}, []interface{}{"a", "b"}},
-		{[]interface{}{1, 2, 3}, []interface{}{1, 2, 2}, []interface{}{1, 2}},
-		{[]interface{}{int8(1), int8(2), int8(3)}, []interface{}{int8(1), int8(2), int8(2)}, []interface{}{int8(1), int8(2)}},
-		{[]interface{}{int16(1), int16(2), int16(3)}, []interface{}{int16(1), int16(2), int16(2)}, []interface{}{int16(1), int16(2)}},
-		{[]interface{}{int32(1), int32(2), int32(3)}, []interface{}{int32(1), int32(2), int32(2)}, []interface{}{int32(1), int32(2)}},
-		{[]interface{}{int64(1), int64(2), int64(3)}, []interface{}{int64(1), int64(2), int64(2)}, []interface{}{int64(1), int64(2)}},
-		{[]interface{}{float32(1), float32(2), float32(3)}, []interface{}{float32(1), float32(2), float32(2)}, []interface{}{float32(1), float32(2)}},
-		{[]interface{}{float64(1), float64(2), float64(3)}, []interface{}{float64(1), float64(2), float64(2)}, []interface{}{float64(1), float64(2)}},
+		{[]any{"a", "b", "c"}, []any{"a", "b", "b"}, []any{"a", "b"}},
+		{[]any{1, 2, 3}, []any{1, 2, 2}, []any{1, 2}},
+		{[]any{int8(1), int8(2), int8(3)}, []any{int8(1), int8(2), int8(2)}, []any{int8(1), int8(2)}},
+		{[]any{int16(1), int16(2), int16(3)}, []any{int16(1), int16(2), int16(2)}, []any{int16(1), int16(2)}},
+		{[]any{int32(1), int32(2), int32(3)}, []any{int32(1), int32(2), int32(2)}, []any{int32(1), int32(2)}},
+		{[]any{int64(1), int64(2), int64(3)}, []any{int64(1), int64(2), int64(2)}, []any{int64(1), int64(2)}},
+		{[]any{float32(1), float32(2), float32(3)}, []any{float32(1), float32(2), float32(2)}, []any{float32(1), float32(2)}},
+		{[]any{float64(1), float64(2), float64(3)}, []any{float64(1), float64(2), float64(2)}, []any{float64(1), float64(2)}},
 
 		// []interface{} ∩ []T
-		{[]interface{}{"a", "b", "c"}, []string{"a", "b", "b"}, []interface{}{"a", "b"}},
-		{[]interface{}{1, 2, 3}, []int{1, 2, 2}, []interface{}{1, 2}},
-		{[]interface{}{int8(1), int8(2), int8(3)}, []int8{1, 2, 2}, []interface{}{int8(1), int8(2)}},
-		{[]interface{}{int16(1), int16(2), int16(3)}, []int16{1, 2, 2}, []interface{}{int16(1), int16(2)}},
-		{[]interface{}{int32(1), int32(2), int32(3)}, []int32{1, 2, 2}, []interface{}{int32(1), int32(2)}},
-		{[]interface{}{int64(1), int64(2), int64(3)}, []int64{1, 2, 2}, []interface{}{int64(1), int64(2)}},
-		{[]interface{}{uint(1), uint(2), uint(3)}, []uint{1, 2, 2}, []interface{}{uint(1), uint(2)}},
-		{[]interface{}{float32(1), float32(2), float32(3)}, []float32{1, 2, 2}, []interface{}{float32(1), float32(2)}},
-		{[]interface{}{float64(1), float64(2), float64(3)}, []float64{1, 2, 2}, []interface{}{float64(1), float64(2)}},
+		{[]any{"a", "b", "c"}, []string{"a", "b", "b"}, []any{"a", "b"}},
+		{[]any{1, 2, 3}, []int{1, 2, 2}, []any{1, 2}},
+		{[]any{int8(1), int8(2), int8(3)}, []int8{1, 2, 2}, []any{int8(1), int8(2)}},
+		{[]any{int16(1), int16(2), int16(3)}, []int16{1, 2, 2}, []any{int16(1), int16(2)}},
+		{[]any{int32(1), int32(2), int32(3)}, []int32{1, 2, 2}, []any{int32(1), int32(2)}},
+		{[]any{int64(1), int64(2), int64(3)}, []int64{1, 2, 2}, []any{int64(1), int64(2)}},
+		{[]any{uint(1), uint(2), uint(3)}, []uint{1, 2, 2}, []any{uint(1), uint(2)}},
+		{[]any{float32(1), float32(2), float32(3)}, []float32{1, 2, 2}, []any{float32(1), float32(2)}},
+		{[]any{float64(1), float64(2), float64(3)}, []float64{1, 2, 2}, []any{float64(1), float64(2)}},
 
 		// []T ∩ []interface{}
-		{[]string{"a", "b", "c"}, []interface{}{"a", "b", "b"}, []string{"a", "b"}},
-		{[]int{1, 2, 3}, []interface{}{1, 2, 2}, []int{1, 2}},
-		{[]int8{1, 2, 3}, []interface{}{int8(1), int8(2), int8(2)}, []int8{1, 2}},
-		{[]int16{1, 2, 3}, []interface{}{int16(1), int16(2), int16(2)}, []int16{1, 2}},
-		{[]int32{1, 2, 3}, []interface{}{int32(1), int32(2), int32(2)}, []int32{1, 2}},
-		{[]int64{1, 2, 3}, []interface{}{int64(1), int64(2), int64(2)}, []int64{1, 2}},
-		{[]float32{1, 2, 3}, []interface{}{float32(1), float32(2), float32(2)}, []float32{1, 2}},
-		{[]float64{1, 2, 3}, []interface{}{float64(1), float64(2), float64(2)}, []float64{1, 2}},
+		{[]string{"a", "b", "c"}, []any{"a", "b", "b"}, []string{"a", "b"}},
+		{[]int{1, 2, 3}, []any{1, 2, 2}, []int{1, 2}},
+		{[]int8{1, 2, 3}, []any{int8(1), int8(2), int8(2)}, []int8{1, 2}},
+		{[]int16{1, 2, 3}, []any{int16(1), int16(2), int16(2)}, []int16{1, 2}},
+		{[]int32{1, 2, 3}, []any{int32(1), int32(2), int32(2)}, []int32{1, 2}},
+		{[]int64{1, 2, 3}, []any{int64(1), int64(2), int64(2)}, []int64{1, 2}},
+		{[]float32{1, 2, 3}, []any{float32(1), float32(2), float32(2)}, []float32{1, 2}},
+		{[]float64{1, 2, 3}, []any{float64(1), float64(2), float64(2)}, []float64{1, 2}},
 
 		// Structs
 		{pagesPtr{p1, p4, p2, p3}, pagesPtr{p4, p2, p2}, pagesPtr{p4, p2}},
 		{pagesVals{p1v, p4v, p2v, p3v}, pagesVals{p1v, p3v, p3v}, pagesVals{p1v, p3v}},
-		{[]interface{}{p1, p4, p2, p3}, []interface{}{p4, p2, p2}, []interface{}{p4, p2}},
-		{[]interface{}{p1v, p4v, p2v, p3v}, []interface{}{p1v, p3v, p3v}, []interface{}{p1v, p3v}},
+		{[]any{p1, p4, p2, p3}, []any{p4, p2, p2}, []any{p4, p2}},
+		{[]any{p1v, p4v, p2v, p3v}, []any{p1v, p3v, p3v}, []any{p1v, p3v}},
 		{pagesPtr{p1, p4, p2, p3}, pagesPtr{}, pagesPtr{}},
 		{pagesVals{}, pagesVals{p1v, p3v, p3v}, pagesVals{}},
-		{[]interface{}{p1, p4, p2, p3}, []interface{}{}, []interface{}{}},
-		{[]interface{}{}, []interface{}{p1v, p3v, p3v}, []interface{}{}},
+		{[]any{p1, p4, p2, p3}, []any{}, []any{}},
+		{[]any{}, []any{p1v, p3v, p3v}, []any{}},
 
 		// errors
 		{"not array or slice", []string{"a"}, false},
@@ -420,16 +454,16 @@ func TestIntersect(t *testing.T) {
 		{[]int{1, 1}, [][]int{{1, 2}, {1, 2}, {1, 3}}, false},
 	} {
 
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.Intersect(test.l1, test.l2)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		assert.NoError(t, err, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
 		if !reflect.DeepEqual(result, test.expect) {
 			t.Fatalf("[%d] Got\n%v expected\n%v", i, result, test.expect)
 		}
@@ -438,55 +472,58 @@ func TestIntersect(t *testing.T) {
 
 func TestIsSet(t *testing.T) {
 	t.Parallel()
-
-	ns := newTestNs()
+	c := qt.New(t)
+	ns := newNs()
 
 	for i, test := range []struct {
-		a      interface{}
-		key    interface{}
+		a      any
+		key    any
 		expect bool
 		isErr  bool
 	}{
-		{[]interface{}{1, 2, 3, 5}, 2, true, false},
-		{[]interface{}{1, 2, 3, 5}, "2", true, false},
-		{[]interface{}{1, 2, 3, 5}, 2.0, true, false},
+		{[]any{1, 2, 3, 5}, 2, true, false},
+		{[]any{1, 2, 3, 5}, "2", true, false},
+		{[]any{1, 2, 3, 5}, 2.0, true, false},
 
-		{[]interface{}{1, 2, 3, 5}, 22, false, false},
+		{[]any{1, 2, 3, 5}, 22, false, false},
 
-		{map[string]interface{}{"a": 1, "b": 2}, "b", true, false},
-		{map[string]interface{}{"a": 1, "b": 2}, "bc", false, false},
+		{map[string]any{"a": 1, "b": 2}, "b", true, false},
+		{map[string]any{"a": 1, "b": 2}, "bc", false, false},
 
 		{time.Now(), "Day", false, false},
 		{nil, "nil", false, false},
-		{[]interface{}{1, 2, 3, 5}, TstX{}, false, true},
+		{[]any{1, 2, 3, 5}, TstX{}, false, true},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.IsSet(test.a, test.key)
 		if test.isErr {
 			continue
 		}
 
-		assert.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.Equals, test.expect, errMsg)
 	}
 }
 
 func TestLast(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	ns := New(&deps.Deps{})
+	ns := newNs()
 
 	for i, test := range []struct {
-		limit  interface{}
-		seq    interface{}
-		expect interface{}
+		limit  any
+		seq    any
+		expect any
 	}{
 		{int(2), []string{"a", "b", "c"}, []string{"b", "c"}},
 		{int32(3), []string{"a", "b"}, []string{"a", "b"}},
 		{int64(2), []int{100, 200, 300}, []int{200, 300}},
 		{100, []int{100, 200}, []int{100, 200}},
 		{"1", []int{100, 200, 300}, []int{300}},
+		{"0", []int{100, 200, 300}, []int{}},
+		{"0", []string{"a", "b", "c"}, []string{}},
 		// errors
 		{int64(-1), []int{100, 200, 300}, false},
 		{"noint", []int{100, 200, 300}, false},
@@ -495,100 +532,133 @@ func TestLast(t *testing.T) {
 		{1, t, false},
 		{1, (*string)(nil), false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.Last(test.limit, test.seq)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.DeepEquals, test.expect, errMsg)
 	}
 }
 
 func TestQuerify(t *testing.T) {
 	t.Parallel()
-
-	ns := New(&deps.Deps{})
+	c := qt.New(t)
+	ns := newNs()
 
 	for i, test := range []struct {
-		params []interface{}
-		expect interface{}
+		params []any
+		expect any
 	}{
-		{[]interface{}{"a", "b"}, "a=b"},
-		{[]interface{}{"a", "b", "c", "d", "f", " &"}, `a=b&c=d&f=+%26`},
+		{[]any{"a", "b"}, "a=b"},
+		{[]any{"a", "b", "c", "d", "f", " &"}, `a=b&c=d&f=+%26`},
+		{[]any{[]string{"a", "b"}}, "a=b"},
+		{[]any{[]string{"a", "b", "c", "d", "f", " &"}}, `a=b&c=d&f=+%26`},
+		{[]any{[]any{"x", "y"}}, `x=y`},
+		{[]any{[]any{"x", 5}}, `x=5`},
 		// errors
-		{[]interface{}{5, "b"}, false},
-		{[]interface{}{"a", "b", "c"}, false},
+		{[]any{5, "b"}, false},
+		{[]any{"a", "b", "c"}, false},
+		{[]any{[]string{"a", "b", "c"}}, false},
+		{[]any{[]string{"a", "b"}, "c"}, false},
+		{[]any{[]any{"c", "d", "e"}}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test.params)
+		errMsg := qt.Commentf("[%d] %v", i, test.params)
 
 		result, err := ns.Querify(test.params...)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.Equals, test.expect, errMsg)
+	}
+}
+
+func BenchmarkQuerify(b *testing.B) {
+	ns := newNs()
+	params := []any{"a", "b", "c", "d", "f", " &"}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := ns.Querify(params...)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkQuerifySlice(b *testing.B) {
+	ns := newNs()
+	params := []string{"a", "b", "c", "d", "f", " &"}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := ns.Querify(params)
+		if err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 
 func TestSeq(t *testing.T) {
 	t.Parallel()
-
-	ns := New(&deps.Deps{})
+	c := qt.New(t)
+	ns := newNs()
 
 	for i, test := range []struct {
-		args   []interface{}
-		expect interface{}
+		args   []any
+		expect any
 	}{
-		{[]interface{}{-2, 5}, []int{-2, -1, 0, 1, 2, 3, 4, 5}},
-		{[]interface{}{1, 2, 4}, []int{1, 3}},
-		{[]interface{}{1}, []int{1}},
-		{[]interface{}{3}, []int{1, 2, 3}},
-		{[]interface{}{3.2}, []int{1, 2, 3}},
-		{[]interface{}{0}, []int{}},
-		{[]interface{}{-1}, []int{-1}},
-		{[]interface{}{-3}, []int{-1, -2, -3}},
-		{[]interface{}{3, -2}, []int{3, 2, 1, 0, -1, -2}},
-		{[]interface{}{6, -2, 2}, []int{6, 4, 2}},
+		{[]any{-2, 5}, []int{-2, -1, 0, 1, 2, 3, 4, 5}},
+		{[]any{1, 2, 4}, []int{1, 3}},
+		{[]any{1}, []int{1}},
+		{[]any{3}, []int{1, 2, 3}},
+		{[]any{3.2}, []int{1, 2, 3}},
+		{[]any{0}, []int{}},
+		{[]any{-1}, []int{-1}},
+		{[]any{-3}, []int{-1, -2, -3}},
+		{[]any{3, -2}, []int{3, 2, 1, 0, -1, -2}},
+		{[]any{6, -2, 2}, []int{6, 4, 2}},
 		// errors
-		{[]interface{}{1, 0, 2}, false},
-		{[]interface{}{1, -1, 2}, false},
-		{[]interface{}{2, 1, 1}, false},
-		{[]interface{}{2, 1, 1, 1}, false},
-		{[]interface{}{2001}, false},
-		{[]interface{}{}, false},
-		{[]interface{}{0, -1000000}, false},
-		{[]interface{}{tstNoStringer{}}, false},
+		{[]any{1, 0, 2}, false},
+		{[]any{1, -1, 2}, false},
+		{[]any{2, 1, 1}, false},
+		{[]any{2, 1, 1, 1}, false},
+		{[]any{2001}, false},
+		{[]any{}, false},
+		{[]any{0, -1000000}, false},
+		{[]any{tstNoStringer{}}, false},
 		{nil, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.Seq(test.args...)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.DeepEquals, test.expect, errMsg)
 	}
 }
 
 func TestShuffle(t *testing.T) {
 	t.Parallel()
-
-	ns := New(&deps.Deps{})
+	c := qt.New(t)
+	ns := newNs()
 
 	for i, test := range []struct {
-		seq     interface{}
+		seq     any
 		success bool
 	}{
 		{[]string{"a", "b", "c", "d"}, true},
@@ -604,32 +674,32 @@ func TestShuffle(t *testing.T) {
 		{t, false},
 		{(*string)(nil), false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.Shuffle(test.seq)
 
 		if !test.success {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
 
 		resultv := reflect.ValueOf(result)
 		seqv := reflect.ValueOf(test.seq)
 
-		assert.Equal(t, resultv.Len(), seqv.Len(), errMsg)
+		c.Assert(seqv.Len(), qt.Equals, resultv.Len(), errMsg)
 	}
 }
 
 func TestShuffleRandomising(t *testing.T) {
 	t.Parallel()
-
-	ns := New(&deps.Deps{})
+	c := qt.New(t)
+	ns := newNs()
 
 	// Note that this test can fail with false negative result if the shuffle
 	// of the sequence happens to be the same as the original sequence. However
-	// the propability of the event is 10^-158 which is negligible.
+	// the probability of the event is 10^-158 which is negligible.
 	seqLen := 100
 	rand.Seed(time.Now().UTC().UnixNano())
 
@@ -641,55 +711,54 @@ func TestShuffleRandomising(t *testing.T) {
 		result, err := ns.Shuffle(test.seq)
 		resultv := reflect.ValueOf(result)
 
-		require.NoError(t, err)
+		c.Assert(err, qt.IsNil)
 
 		allSame := true
 		for i, v := range test.seq {
 			allSame = allSame && (resultv.Index(i).Interface() == v)
 		}
 
-		assert.False(t, allSame, "Expected sequence to be shuffled but was in the same order")
+		c.Assert(allSame, qt.Equals, false)
 	}
 }
 
 // Also see tests in commons/collection.
 func TestSlice(t *testing.T) {
 	t.Parallel()
-
-	ns := New(&deps.Deps{})
+	c := qt.New(t)
+	ns := newNs()
 
 	for i, test := range []struct {
-		args     []interface{}
-		expected interface{}
+		args     []any
+		expected any
 	}{
-		{[]interface{}{"a", "b"}, []string{"a", "b"}},
-		{[]interface{}{}, []interface{}{}},
-		{[]interface{}{nil}, []interface{}{nil}},
-		{[]interface{}{5, "b"}, []interface{}{5, "b"}},
-		{[]interface{}{tstNoStringer{}}, []tstNoStringer{{}}},
+		{[]any{"a", "b"}, []string{"a", "b"}},
+		{[]any{}, []any{}},
+		{[]any{nil}, []any{nil}},
+		{[]any{5, "b"}, []any{5, "b"}},
+		{[]any{tstNoStringer{}}, []tstNoStringer{{}}},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test.args)
+		errMsg := qt.Commentf("[%d] %v", i, test.args)
 
 		result := ns.Slice(test.args...)
 
-		assert.Equal(t, test.expected, result, errMsg)
+		c.Assert(result, qt.DeepEquals, test.expected, errMsg)
 	}
-
-	assert.Len(t, ns.Slice(), 0)
 }
 
 func TestUnion(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	ns := New(&deps.Deps{})
+	ns := newNs()
 
 	for i, test := range []struct {
-		l1     interface{}
-		l2     interface{}
-		expect interface{}
+		l1     any
+		l2     any
+		expect any
 		isErr  bool
 	}{
-		{nil, nil, []interface{}{}, false},
+		{nil, nil, []any{}, false},
 		{nil, []string{"a", "b"}, []string{"a", "b"}, false},
 		{[]string{"a", "b"}, nil, []string{"a", "b"}, false},
 
@@ -708,36 +777,36 @@ func TestUnion(t *testing.T) {
 		{[]int{2, 4}, []int{1, 2, 4}, []int{2, 4, 1}, false},
 		{[]int{1, 2, 4}, []int{3, 6}, []int{1, 2, 4, 3, 6}, false},
 		{[]float64{2.2, 4.4}, []float64{1.1, 2.2, 4.4}, []float64{2.2, 4.4, 1.1}, false},
-		{[]interface{}{"a", "b", "c", "c"}, []interface{}{"a", "b", "b"}, []interface{}{"a", "b", "c"}, false},
+		{[]any{"a", "b", "c", "c"}, []any{"a", "b", "b"}, []any{"a", "b", "c"}, false},
 
 		// []T ∪ []interface{}
-		{[]string{"1", "2"}, []interface{}{"9"}, []string{"1", "2", "9"}, false},
-		{[]int{2, 4}, []interface{}{1, 2, 4}, []int{2, 4, 1}, false},
-		{[]int8{2, 4}, []interface{}{int8(1), int8(2), int8(4)}, []int8{2, 4, 1}, false},
-		{[]int8{2, 4}, []interface{}{1, 2, 4}, []int8{2, 4, 1}, false},
-		{[]int16{2, 4}, []interface{}{1, 2, 4}, []int16{2, 4, 1}, false},
-		{[]int32{2, 4}, []interface{}{1, 2, 4}, []int32{2, 4, 1}, false},
-		{[]int64{2, 4}, []interface{}{1, 2, 4}, []int64{2, 4, 1}, false},
+		{[]string{"1", "2"}, []any{"9"}, []string{"1", "2", "9"}, false},
+		{[]int{2, 4}, []any{1, 2, 4}, []int{2, 4, 1}, false},
+		{[]int8{2, 4}, []any{int8(1), int8(2), int8(4)}, []int8{2, 4, 1}, false},
+		{[]int8{2, 4}, []any{1, 2, 4}, []int8{2, 4, 1}, false},
+		{[]int16{2, 4}, []any{1, 2, 4}, []int16{2, 4, 1}, false},
+		{[]int32{2, 4}, []any{1, 2, 4}, []int32{2, 4, 1}, false},
+		{[]int64{2, 4}, []any{1, 2, 4}, []int64{2, 4, 1}, false},
 
-		{[]float64{2.2, 4.4}, []interface{}{1.1, 2.2, 4.4}, []float64{2.2, 4.4, 1.1}, false},
-		{[]float32{2.2, 4.4}, []interface{}{1.1, 2.2, 4.4}, []float32{2.2, 4.4, 1.1}, false},
+		{[]float64{2.2, 4.4}, []any{1.1, 2.2, 4.4}, []float64{2.2, 4.4, 1.1}, false},
+		{[]float32{2.2, 4.4}, []any{1.1, 2.2, 4.4}, []float32{2.2, 4.4, 1.1}, false},
 
 		// []interface{} ∪ []T
-		{[]interface{}{"a", "b", "c", "c"}, []string{"a", "b", "d"}, []interface{}{"a", "b", "c", "d"}, false},
-		{[]interface{}{}, []string{}, []interface{}{}, false},
-		{[]interface{}{1, 2}, []int{2, 3}, []interface{}{1, 2, 3}, false},
-		{[]interface{}{1, 2}, []int8{2, 3}, []interface{}{1, 2, 3}, false}, // 28
-		{[]interface{}{uint(1), uint(2)}, []uint{2, 3}, []interface{}{uint(1), uint(2), uint(3)}, false},
-		{[]interface{}{1.1, 2.2}, []float64{2.2, 3.3}, []interface{}{1.1, 2.2, 3.3}, false},
+		{[]any{"a", "b", "c", "c"}, []string{"a", "b", "d"}, []any{"a", "b", "c", "d"}, false},
+		{[]any{}, []string{}, []any{}, false},
+		{[]any{1, 2}, []int{2, 3}, []any{1, 2, 3}, false},
+		{[]any{1, 2}, []int8{2, 3}, []any{1, 2, 3}, false}, // 28
+		{[]any{uint(1), uint(2)}, []uint{2, 3}, []any{uint(1), uint(2), uint(3)}, false},
+		{[]any{1.1, 2.2}, []float64{2.2, 3.3}, []any{1.1, 2.2, 3.3}, false},
 
 		// Structs
 		{pagesPtr{p1, p4}, pagesPtr{p4, p2, p2}, pagesPtr{p1, p4, p2}, false},
 		{pagesVals{p1v}, pagesVals{p3v, p3v}, pagesVals{p1v, p3v}, false},
-		{[]interface{}{p1, p4}, []interface{}{p4, p2, p2}, []interface{}{p1, p4, p2}, false},
-		{[]interface{}{p1v}, []interface{}{p3v, p3v}, []interface{}{p1v, p3v}, false},
+		{[]any{p1, p4}, []any{p4, p2, p2}, []any{p1, p4, p2}, false},
+		{[]any{p1v}, []any{p3v, p3v}, []any{p1v, p3v}, false},
 		// #3686
-		{[]interface{}{p1v}, []interface{}{}, []interface{}{p1v}, false},
-		{[]interface{}{}, []interface{}{p1v}, []interface{}{p1v}, false},
+		{[]any{p1v}, []any{}, []any{p1v}, false},
+		{[]any{}, []any{p1v}, []any{p1v}, false},
 		{pagesPtr{p1}, pagesPtr{}, pagesPtr{p1}, false},
 		{pagesVals{p1v}, pagesVals{}, pagesVals{p1v}, false},
 		{pagesPtr{}, pagesPtr{p1}, pagesPtr{p1}, false},
@@ -752,15 +821,15 @@ func TestUnion(t *testing.T) {
 		{[][]int{{1, 1}, {1, 2}}, [][]int{{2, 1}, {2, 2}}, false, true},
 	} {
 
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.Union(test.l1, test.l2)
 		if test.isErr {
-			assert.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		assert.NoError(t, err, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
 		if !reflect.DeepEqual(result, test.expect) {
 			t.Fatalf("[%d] Got\n%v expected\n%v", i, result, test.expect)
 		}
@@ -769,11 +838,11 @@ func TestUnion(t *testing.T) {
 
 func TestUniq(t *testing.T) {
 	t.Parallel()
-
-	ns := New(&deps.Deps{})
+	c := qt.New(t)
+	ns := newNs()
 	for i, test := range []struct {
-		l      interface{}
-		expect interface{}
+		l      any
+		expect any
 		isErr  bool
 	}{
 		{[]string{"a", "b", "c"}, []string{"a", "b", "c"}, false},
@@ -785,29 +854,34 @@ func TestUniq(t *testing.T) {
 		{[]int{1, 2, 2, 3}, []int{1, 2, 3}, false},
 		{[]int{1, 2, 3, 2}, []int{1, 2, 3}, false},
 		{[4]int{1, 2, 3, 2}, []int{1, 2, 3}, false},
-		{nil, make([]interface{}, 0), false},
+		{nil, make([]any, 0), false},
 		// Pointers
 		{pagesPtr{p1, p2, p3, p2}, pagesPtr{p1, p2, p3}, false},
 		{pagesPtr{}, pagesPtr{}, false},
 		// Structs
 		{pagesVals{p3v, p2v, p3v, p2v}, pagesVals{p3v, p2v}, false},
 
+		// not Comparable(), use hashstructure
+		{[]map[string]int{
+			{"K1": 1}, {"K2": 2}, {"K1": 1}, {"K2": 1},
+		}, []map[string]int{
+			{"K1": 1}, {"K2": 2}, {"K2": 1},
+		}, false},
+
 		// should fail
-		// uncomparable types
-		{[]map[string]int{{"K1": 1}}, []map[string]int{{"K2": 2}, {"K2": 2}}, true},
 		{1, 1, true},
 		{"foo", "fo", true},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+		errMsg := qt.Commentf("[%d] %v", i, test)
 
 		result, err := ns.Uniq(test.l)
 		if test.isErr {
-			assert.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil), errMsg)
 			continue
 		}
 
-		assert.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, errMsg)
+		c.Assert(result, qt.DeepEquals, test.expect, errMsg)
 	}
 }
 
@@ -816,6 +890,10 @@ func (x *TstX) TstRp() string {
 }
 
 func (x TstX) TstRv() string {
+	return "r" + x.B
+}
+
+func (x TstX) TstRv2() string {
 	return "r" + x.B
 }
 
@@ -850,23 +928,41 @@ type TstX struct {
 	unexported string
 }
 
-func newDeps(cfg config.Provider) *deps.Deps {
-	l := langs.NewLanguage("en", cfg)
-	l.Set("i18nDir", "i18n")
-	cs, err := helpers.NewContentSpec(l)
-	if err != nil {
-		panic(err)
-	}
-	return &deps.Deps{
-		Cfg:         cfg,
-		Fs:          hugofs.NewMem(l),
-		ContentSpec: cs,
-		Log:         loggers.NewErrorLogger(),
-	}
+type TstParams struct {
+	params maps.Params
 }
 
-func newTestNs() *Namespace {
-	v := viper.New()
-	v.Set("contentDir", "content")
-	return New(newDeps(v))
+func (x TstParams) Params() maps.Params {
+	return x.params
+}
+
+type TstXIHolder struct {
+	XI TstXI
+}
+
+// Partially implemented by the TstX struct.
+type TstXI interface {
+	TstRv2() string
+}
+
+func ToTstXIs(slice any) []TstXI {
+	s := reflect.ValueOf(slice)
+	if s.Kind() != reflect.Slice {
+		return nil
+	}
+	tis := make([]TstXI, s.Len())
+
+	for i := 0; i < s.Len(); i++ {
+		tsti, ok := s.Index(i).Interface().(TstXI)
+		if !ok {
+			return nil
+		}
+		tis[i] = tsti
+	}
+
+	return tis
+}
+
+func newNs() *Namespace {
+	return New(testconfig.GetTestDeps(nil, nil))
 }

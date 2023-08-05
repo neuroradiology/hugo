@@ -1,81 +1,146 @@
 ---
-title: Links and Cross References
+title: Links and cross references
 description: Shortcodes for creating links to documents.
-date: 2017-02-01
-publishdate: 2017-02-01
-lastmod: 2017-03-31
 categories: [content management]
 keywords: ["cross references","references", "anchors", "urls"]
 menu:
   docs:
-    parent: "content-management"
-    weight: 100
-weight: 100	#rem
-aliases: [/extras/crossreferences/]
+    parent: content-management
+    weight: 170
 toc: true
+weight: 170
+aliases: [/extras/crossreferences/]
 ---
 
+The `ref` and `relref` shortcodes display the absolute and relative permalinks to a document, respectively.
 
-The `ref` and `relref` shortcode resolves the absolute or relative permalink given a path to a document.
+## Use of `ref` and `relref`
 
-## Use `ref` and `relref`
+The `ref` and `relref` shortcodes require a single parameter: the path to a content document, with or without a file extension, with or without an anchor. Paths without a leading `/` are first resolved relative to the current page, then to the remainder of the site.
 
-```go-html-template
-{{</* ref "document.md" */>}}
-{{</* ref "#anchor" */>}}
-{{</* ref "document.md#anchor" */>}}
-{{</* ref "/blog/my-post" */>}}
-{{</* ref "/blog/my-post.md" */>}}
-{{</* relref "document.md" */>}}
-{{</* relref "#anchor" */>}}
-{{</* relref "document.md#anchor" */>}}
+```text
+.
+└── content
+    ├── about
+    |   ├── _index.md
+    |   └── credits.md
+    ├── pages
+    |   ├── document1.md
+    |   └── document2.md    // has anchor #anchor
+    ├── products
+    |   └── index.md
+    └── blog
+        └── my-post.md
 ```
 
-The single parameter to `ref` is a string with a content `documentname` (e.g., `about.md`) with or without an appended in-document `anchor` (`#who`) without spaces. Hugo is flexible in how we search for documents, so the file suffix may be omitted.
+The pages can be referenced as follows:
 
-**Paths without a leading `/` will first  be tried resolved relative to the current page.**
 
-You will get an error if your document could not be uniquely resolved. The error behaviour can be configured, see below.
+```text
+{{</* ref "document2" */>}}             // <- From pages/document1.md, relative path
+{{</* ref "document2#anchor" */>}}      
+{{</* ref "document2.md" */>}}          
+{{</* ref "document2.md#anchor" */>}}   
+{{</* ref "#anchor" */>}}               // <- From pages/document2.md
+{{</* ref "/blog/my-post" */>}}         // <- From anywhere, absolute path
+{{</* ref "/blog/my-post.md" */>}}
+{{</* relref "document" */>}}
+{{</* relref "document.md" */>}}
+{{</* relref "#anchor" */>}}
+{{</* relref "/blog/my-post.md" */>}}
+```
+
+index.md can be reference either by its path or by its containing folder without the ending `/`. \_index.md can be referenced only by its containing folder:
+
+```text
+{{</* ref "/about" */>}}             // <- References /about/_index.md
+{{</* ref "/about/_index" */>}}      //    Raises REF_NOT_FOUND error
+{{</* ref "/about/credits.md" */>}}  // <- References /about/credits.md
+
+{{</* ref "/products" */>}}          // <- References /products/index.md
+{{</* ref "/products/index" */>}}    // <- References /products/index.md
+```
+
+To generate a hyperlink using `ref` or `relref` in markdown:
+
+```text
+[About]({{</* ref "/about" */>}} "About Us")
+```
+
+Hugo emits an error or warning if a document cannot be uniquely resolved. The error behavior is configurable; see below.
 
 ### Link to another language version
 
-Link to another language version of a document, you need to use this syntax:
+To link to another language version of a document, use this syntax:
 
 ```go-html-template
 {{</* relref path="document.md" lang="ja" */>}}
 ```
 
-### Get another Output Format
+### Get another output format
 
-To link to a given Output Format of a document, you can use this syntax:
+To link to another Output Format of a document, use this syntax:
 
 ```go-html-template
 {{</* relref path="document.md" outputFormat="rss" */>}}
 ```
 
-### Anchors
+### Heading IDs
 
-When an `anchor` is provided by itself, the current page’s unique identifier will be appended; when an `anchor` is provided appended to `documentname`, the found page's unique identifier will be appended:
+When using Markdown document types, Hugo generates element IDs for every heading on a page. For example:
 
-```go-html-template
-{{</* relref "#anchors" */>}} => #anchors:9decaf7
+```md
+## Reference
 ```
 
-The above examples render as follows for this very page as well as a reference to the "Content" heading in the Hugo docs features pageyoursite
+produces this HTML:
 
-```go-html-template
-{{</* relref "#who" */>}} => #who:9decaf7
-{{</* relref "/blog/post.md#who" */>}} => /blog/post/#who:badcafe
+```html
+<h2 id="reference">Reference</h2>
 ```
 
-More information about document unique identifiers and headings can be found [below]({{< ref "#hugo-heading-anchors" >}}).
+Get the permalink to a heading by appending the ID to the path when using the `ref` or `relref` shortcodes:
 
+```go-html-template
+{{</* ref "document.md#reference" */>}}
+{{</* relref "document.md#reference" */>}}
+```
+
+Generate a custom heading ID by including an attribute. For example:
+
+```md
+## Reference A {#foo}
+## Reference B {id="bar"}
+```
+
+produces this HTML:
+
+```html
+<h2 id="foo">Reference A</h2>
+<h2 id="bar">Reference B</h2>
+```
+
+Hugo will generate unique element IDs if the same heading appears more than once on a page. For example:
+
+```md
+## Reference
+## Reference
+## Reference
+```
+
+produces this HTML:
+
+```html
+<h2 id="reference">Reference</h2>
+<h2 id="reference-1">Reference</h2>
+<h2 id="reference-2">Reference</h2>
+```
 
 ## Ref and RelRef Configuration
 
-The behaviour can, since Hugo 0.45, be configured in `config.toml`:
+The behavior can, since Hugo 0.45, be configured in `hugo.toml`:
 
-refLinksErrorLevel ("ERROR") 
+refLinksErrorLevel ("ERROR")
 : When using `ref` or `relref` to resolve page links and a link cannot resolved, it will be logged with this log level. Valid values are `ERROR` (default) or `WARNING`. Any `ERROR` will fail the build (`exit -1`).
 
 refLinksNotFoundURL
@@ -85,4 +150,3 @@ refLinksNotFoundURL
 [lists]: /templates/lists/
 [output formats]: /templates/output-formats/
 [shortcode]: /content-management/shortcodes/
-[bfext]: /content-management/formats/#blackfriday-extensions

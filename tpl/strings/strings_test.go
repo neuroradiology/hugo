@@ -14,27 +14,29 @@
 package strings
 
 import (
-	"fmt"
 	"html/template"
 	"testing"
 
+	"github.com/gohugoio/hugo/config/testconfig"
 	"github.com/gohugoio/hugo/deps"
+
+	qt "github.com/frankban/quicktest"
 	"github.com/spf13/cast"
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-var ns = New(&deps.Deps{Cfg: viper.New()})
+var ns = New(&deps.Deps{
+	Conf: testconfig.GetTestConfig(nil, nil),
+})
 
 type tstNoStringer struct{}
 
 func TestChomp(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		expect any
 	}{
 		{"\n a\n", "\n a"},
 		{"\n a\n\n", "\n a"},
@@ -45,31 +47,31 @@ func TestChomp(t *testing.T) {
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.Chomp(test.s)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 
 		// repeat the check with template.HTML input
 		result, err = ns.Chomp(template.HTML(cast.ToString(test.s)))
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, template.HTML(cast.ToString(test.expect)), result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, template.HTML(cast.ToString(test.expect)))
 	}
 }
 
 func TestContains(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		substr interface{}
+	for _, test := range []struct {
+		s      any
+		substr any
 		expect bool
 		isErr  bool
 	}{
@@ -88,26 +90,26 @@ func TestContains(t *testing.T) {
 		{"", tstNoStringer{}, false, true},
 		{tstNoStringer{}, "", false, true},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.Contains(test.s, test.substr)
 
 		if test.isErr {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestContainsAny(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		substr interface{}
+	for _, test := range []struct {
+		s      any
+		substr any
 		expect bool
 		isErr  bool
 	}{
@@ -132,26 +134,47 @@ func TestContainsAny(t *testing.T) {
 		{"", tstNoStringer{}, false, true},
 		{tstNoStringer{}, "", false, true},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.ContainsAny(test.s, test.substr)
 
 		if test.isErr {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
+	}
+}
+
+func TestContainsNonSpace(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+
+	for _, test := range []struct {
+		s      any
+		expect bool
+	}{
+		{"", false},
+		{" ", false},
+		{"        ", false},
+		{"\t", false},
+		{"\r", false},
+		{"a", true},
+		{"    a", true},
+		{"a\n", true},
+	} {
+		c.Assert(ns.ContainsNonSpace(test.s), qt.Equals, test.expect)
 	}
 }
 
 func TestCountRunes(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		expect any
 	}{
 		{"foo bar", 6},
 		{"旁边", 2},
@@ -159,26 +182,26 @@ func TestCountRunes(t *testing.T) {
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test.s)
 
 		result, err := ns.CountRunes(test.s)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestRuneCount(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		expect any
 	}{
 		{"foo bar", 7},
 		{"旁边", 2},
@@ -186,54 +209,57 @@ func TestRuneCount(t *testing.T) {
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test.s)
 
 		result, err := ns.RuneCount(test.s)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestCountWords(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		expect any
 	}{
 		{"Do Be Do Be Do", 5},
 		{"旁边", 2},
 		{`<div class="test">旁边</div>`, 2},
+		{"Here's to you...", 3},
+		{"Here’s to you...", 3},
+		{"Here’s to you…", 3},
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test.s)
 
 		result, err := ns.CountWords(test.s)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestHasPrefix(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		prefix interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		prefix any
+		expect any
 		isErr  bool
 	}{
 		{"abcd", "ab", true, false},
@@ -247,27 +273,27 @@ func TestHasPrefix(t *testing.T) {
 		{"", tstNoStringer{}, false, true},
 		{tstNoStringer{}, "", false, true},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.HasPrefix(test.s, test.prefix)
 
 		if test.isErr {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestHasSuffix(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		suffix interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		suffix any
+		expect any
 		isErr  bool
 	}{
 		{"abcd", "cd", true, false},
@@ -281,60 +307,72 @@ func TestHasSuffix(t *testing.T) {
 		{"", tstNoStringer{}, false, true},
 		{tstNoStringer{}, "", false, true},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.HasSuffix(test.s, test.suffix)
 
 		if test.isErr {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestReplace(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		old    interface{}
-		new    interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		old    any
+		new    any
+		limit  any
+		expect any
 	}{
-		{"aab", "a", "b", "bbb"},
-		{"11a11", 1, 2, "22a22"},
-		{12345, 1, 2, "22345"},
+		{"aab", "a", "b", nil, "bbb"},
+		{"11a11", 1, 2, nil, "22a22"},
+		{12345, 1, 2, nil, "22345"},
+		{"aab", "a", "b", 1, "bab"},
+		{"11a11", 1, 2, 2, "22a11"},
 		// errors
-		{tstNoStringer{}, "a", "b", false},
-		{"a", tstNoStringer{}, "b", false},
-		{"a", "b", tstNoStringer{}, false},
+		{tstNoStringer{}, "a", "b", nil, false},
+		{"a", tstNoStringer{}, "b", nil, false},
+		{"a", "b", tstNoStringer{}, nil, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
-		result, err := ns.Replace(test.s, test.old, test.new)
+		var (
+			result string
+			err    error
+		)
+
+		if test.limit != nil {
+			result, err = ns.Replace(test.s, test.old, test.new, test.limit)
+		} else {
+			result, err = ns.Replace(test.s, test.old, test.new)
+		}
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestSliceString(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	var err error
-	for i, test := range []struct {
-		v1     interface{}
-		v2     interface{}
-		v3     interface{}
-		expect interface{}
+	for _, test := range []struct {
+		v1     any
+		v2     any
+		v3     any
+		expect any
 	}{
 		{"abc", 1, 2, "b"},
 		{"abc", 1, 3, "bc"},
@@ -362,7 +400,6 @@ func TestSliceString(t *testing.T) {
 		{"a", t, nil, false},
 		{"a", 1, t, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		var result string
 		if test.v2 == nil {
@@ -374,12 +411,12 @@ func TestSliceString(t *testing.T) {
 		}
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 
 	// Too many arguments
@@ -391,11 +428,12 @@ func TestSliceString(t *testing.T) {
 
 func TestSplit(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		v1     interface{}
+	for _, test := range []struct {
+		v1     any
 		v2     string
-		expect interface{}
+		expect any
 	}{
 		{"a, b", ", ", []string{"a", "b"}},
 		{"a & b & c", " & ", []string{"a", "b", "c"}},
@@ -403,39 +441,45 @@ func TestSplit(t *testing.T) {
 		{123, "2", []string{"1", "3"}},
 		{tstNoStringer{}, ",", false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.Split(test.v1, test.v2)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.DeepEquals, test.expect)
 	}
 }
 
 func TestSubstr(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	var err error
-	var n int
-	for i, test := range []struct {
-		v1     interface{}
-		v2     interface{}
-		v3     interface{}
-		expect interface{}
+	for _, test := range []struct {
+		v1     any
+		v2     any
+		v3     any
+		expect any
 	}{
 		{"abc", 1, 2, "bc"},
 		{"abc", 0, 1, "a"},
-		{"abcdef", -1, 2, "ef"},
-		{"abcdef", -3, 3, "bcd"},
+		{"abcdef", 0, 0, ""},
+		{"abcdef", 1, 0, ""},
+		{"abcdef", -1, 0, ""},
+		{"abcdef", -1, 2, "f"},
+		{"abcdef", -3, 3, "def"},
+		{"abcdef", -1, nil, "f"},
+		{"abcdef", -2, nil, "ef"},
+		{"abcdef", -3, 1, "d"},
 		{"abcdef", 0, -1, "abcde"},
 		{"abcdef", 2, -1, "cde"},
-		{"abcdef", 4, -4, false},
-		{"abcdef", 7, 1, false},
+		{"abcdef", 4, -4, ""},
+		{"abcdef", 7, 1, ""},
+		{"abcdef", 6, nil, ""},
 		{"abcdef", 1, 100, "bcdef"},
 		{"abcdef", -100, 3, "abc"},
 		{"abcdef", -3, -1, "de"},
@@ -458,11 +502,10 @@ func TestSubstr(t *testing.T) {
 		{"abcdef", "doo", nil, false},
 		{"abcdef", "doo", "doo", false},
 		{"abcdef", 1, "doo", false},
+		{"", 0, nil, ""},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		var result string
-		n = i
 
 		if test.v3 == nil {
 			result, err = ns.Substr(test.v1, test.v2)
@@ -471,33 +514,28 @@ func TestSubstr(t *testing.T) {
 		}
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Check(err, qt.Not(qt.IsNil), qt.Commentf("%v", test))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil, qt.Commentf("%v", test))
+		c.Check(result, qt.Equals, test.expect, qt.Commentf("%v", test))
 	}
 
-	n++
 	_, err = ns.Substr("abcdef")
-	if err == nil {
-		t.Errorf("[%d] Substr didn't return an expected error", n)
-	}
+	c.Assert(err, qt.Not(qt.IsNil))
 
-	n++
 	_, err = ns.Substr("abcdef", 1, 2, 3)
-	if err == nil {
-		t.Errorf("[%d] Substr didn't return an expected error", n)
-	}
+	c.Assert(err, qt.Not(qt.IsNil))
 }
 
 func TestTitle(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		expect any
 	}{
 		{"test", "Test"},
 		{template.HTML("hypertext"), "Hypertext"},
@@ -505,26 +543,26 @@ func TestTitle(t *testing.T) {
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.Title(test.s)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestToLower(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		expect any
 	}{
 		{"TEST", "test"},
 		{template.HTML("LoWeR"), "lower"},
@@ -532,26 +570,26 @@ func TestToLower(t *testing.T) {
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.ToLower(test.s)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestToUpper(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		expect any
 	}{
 		{"test", "TEST"},
 		{template.HTML("UpPeR"), "UPPER"},
@@ -559,27 +597,27 @@ func TestToUpper(t *testing.T) {
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.ToUpper(test.s)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestTrim(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		cutset interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		cutset any
+		expect any
 	}{
 		{"abba", "a", "bb"},
 		{"abba", "ab", ""},
@@ -593,27 +631,27 @@ func TestTrim(t *testing.T) {
 		{"", tstNoStringer{}, false},
 		{tstNoStringer{}, "", false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.Trim(test.s, test.cutset)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestTrimLeft(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		cutset interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		cutset any
+		expect any
 	}{
 		{"abba", "a", "bba"},
 		{"abba", "ab", ""},
@@ -628,27 +666,27 @@ func TestTrimLeft(t *testing.T) {
 		{"", tstNoStringer{}, false},
 		{tstNoStringer{}, "", false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.TrimLeft(test.cutset, test.s)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestTrimPrefix(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		prefix interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		prefix any
+		expect any
 	}{
 		{"aabbaa", "a", "abbaa"},
 		{"aabb", "b", "aabb"},
@@ -658,27 +696,27 @@ func TestTrimPrefix(t *testing.T) {
 		{"", tstNoStringer{}, false},
 		{tstNoStringer{}, "", false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.TrimPrefix(test.prefix, test.s)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestTrimRight(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		cutset interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		cutset any
+		expect any
 	}{
 		{"abba", "a", "abb"},
 		{"abba", "ab", ""},
@@ -693,27 +731,27 @@ func TestTrimRight(t *testing.T) {
 		{"", tstNoStringer{}, false},
 		{tstNoStringer{}, "", false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.TrimRight(test.cutset, test.s)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestTrimSuffix(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		suffix interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		suffix any
+		expect any
 	}{
 		{"aabbaa", "a", "aabba"},
 		{"aabb", "b", "aab"},
@@ -723,27 +761,27 @@ func TestTrimSuffix(t *testing.T) {
 		{"", tstNoStringer{}, false},
 		{tstNoStringer{}, "", false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.TrimSuffix(test.suffix, test.s)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestRepeat(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
-	for i, test := range []struct {
-		s      interface{}
-		n      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		s      any
+		n      any
+		expect any
 	}{
 		{"yo", "2", "yoyo"},
 		{"~", "16", "~~~~~~~~~~~~~~~~"},
@@ -758,16 +796,15 @@ func TestRepeat(t *testing.T) {
 		{tstNoStringer{}, "", false},
 		{"ab", -1, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.Repeat(test.n, test.s)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }

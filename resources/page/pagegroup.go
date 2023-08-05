@@ -14,6 +14,7 @@
 package page
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"reflect"
@@ -21,8 +22,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/spf13/cast"
+
 	"github.com/gohugoio/hugo/common/collections"
+	"github.com/gohugoio/hugo/common/hreflect"
 	"github.com/gohugoio/hugo/compare"
+	"github.com/gohugoio/hugo/langs"
 
 	"github.com/gohugoio/hugo/resources/resource"
 )
@@ -36,7 +41,10 @@ var (
 // PageGroup represents a group of pages, grouped by the key.
 // The key is typically a year or similar.
 type PageGroup struct {
-	Key interface{}
+	// The key, typically a year or similar.
+	Key any
+
+	// The Pages in this group.
 	Pages
 }
 
@@ -49,13 +57,16 @@ type mapKeyByInt struct{ mapKeyValues }
 
 func (s mapKeyByInt) Less(i, j int) bool { return s.mapKeyValues[i].Int() < s.mapKeyValues[j].Int() }
 
-type mapKeyByStr struct{ mapKeyValues }
-
-func (s mapKeyByStr) Less(i, j int) bool {
-	return s.mapKeyValues[i].String() < s.mapKeyValues[j].String()
+type mapKeyByStr struct {
+	less func(a, b string) bool
+	mapKeyValues
 }
 
-func sortKeys(v []reflect.Value, order string) []reflect.Value {
+func (s mapKeyByStr) Less(i, j int) bool {
+	return s.less(s.mapKeyValues[i].String(), s.mapKeyValues[j].String())
+}
+
+func sortKeys(examplePage Page, v []reflect.Value, order string) []reflect.Value {
 	if len(v) <= 1 {
 		return v
 	}
@@ -68,10 +79,12 @@ func sortKeys(v []reflect.Value, order string) []reflect.Value {
 			sort.Sort(mapKeyByInt{v})
 		}
 	case reflect.String:
+		stringLess, close := collatorStringLess(examplePage)
+		defer close()
 		if order == "desc" {
-			sort.Sort(sort.Reverse(mapKeyByStr{v}))
+			sort.Sort(sort.Reverse(mapKeyByStr{stringLess, v}))
 		} else {
-			sort.Sort(mapKeyByStr{v})
+			sort.Sort(mapKeyByStr{stringLess, v})
 		}
 	}
 	return v
@@ -98,7 +111,7 @@ var (
 
 // GroupBy groups by the value in the given field or method name and with the given order.
 // Valid values for order is asc, desc, rev and reverse.
-func (p Pages) GroupBy(key string, order ...string) (PagesGroup, error) {
+func (p Pages) GroupBy(ctx context.Context, key string, order ...string) (PagesGroup, error) {
 	if len(p) < 1 {
 		return nil, nil
 	}
@@ -109,9 +122,10 @@ func (p Pages) GroupBy(key string, order ...string) (PagesGroup, error) {
 		direction = "desc"
 	}
 
-	var ft interface{}
-	m, ok := pagePtrType.MethodByName(key)
-	if ok {
+	var ft any
+	index := hreflect.GetMethodIndexByName(pagePtrType, key)
+	if index != -1 {
+		m := pagePtrType.Method(index)
 		if m.Type.NumOut() == 0 || m.Type.NumOut() > 2 {
 			return nil, errors.New(key + " is a Page method but you can't use it with GroupBy")
 		}
@@ -123,6 +137,7 @@ func (p Pages) GroupBy(key string, order ...string) (PagesGroup, error) {
 		}
 		ft = m
 	} else {
+		var ok bool
 		ft, ok = pagePtrType.Elem().FieldByName(key)
 		if !ok {
 			return nil, errors.New(key + " is neither a field nor a method of Page")
@@ -144,7 +159,7 @@ func (p Pages) GroupBy(key string, order ...string) (PagesGroup, error) {
 		case reflect.StructField:
 			fv = ppv.Elem().FieldByName(key)
 		case reflect.Method:
-			fv = ppv.MethodByName(key).Call([]reflect.Value{})[0]
+			fv = hreflect.CallMethodByName(ctx, key, ppv)[0]
 		}
 		if !fv.IsValid() {
 			continue
@@ -155,7 +170,7 @@ func (p Pages) GroupBy(key string, order ...string) (PagesGroup, error) {
 		tmp.SetMapIndex(fv, reflect.Append(tmp.MapIndex(fv), ppv))
 	}
 
-	sortedKeys := sortKeys(tmp.MapKeys(), direction)
+	sortedKeys := sortKeys(p[0], tmp.MapKeys(), direction)
 	r := make([]PageGroup, len(sortedKeys))
 	for i, k := range sortedKeys {
 		r[i] = PageGroup{Key: k.Interface(), Pages: tmp.MapIndex(k).Interface().(Pages)}
@@ -207,14 +222,14 @@ func (p Pages) GroupByParam(key string, order ...string) (PagesGroup, error) {
 	}
 
 	var r []PageGroup
-	for _, k := range sortKeys(tmp.MapKeys(), direction) {
+	for _, k := range sortKeys(p[0], tmp.MapKeys(), direction) {
 		r = append(r, PageGroup{Key: k.Interface(), Pages: tmp.MapIndex(k).Interface().(Pages)})
 	}
 
 	return r, nil
 }
 
-func (p Pages) groupByDateField(sorter func(p Pages) Pages, formatter func(p Page) string, order ...string) (PagesGroup, error) {
+func (p Pages) groupByDateField(format string, sorter func(p Pages) Pages, getDate func(p Page) time.Time, order ...string) (PagesGroup, error) {
 	if len(p) < 1 {
 		return nil, nil
 	}
@@ -225,16 +240,28 @@ func (p Pages) groupByDateField(sorter func(p Pages) Pages, formatter func(p Pag
 		sp = sp.Reverse()
 	}
 
-	date := formatter(sp[0].(Page))
+	if sp == nil {
+		return nil, nil
+	}
+
+	firstPage := sp[0].(Page)
+	date := getDate(firstPage)
+
+	// Pages may be a mix of multiple languages, so we need to use the language
+	// for the currently rendered Site.
+	currentSite := firstPage.Site().Current()
+	formatter := langs.GetTimeFormatter(currentSite.Language())
+	formatted := formatter.Format(date, format)
 	var r []PageGroup
-	r = append(r, PageGroup{Key: date, Pages: make(Pages, 0)})
+	r = append(r, PageGroup{Key: formatted, Pages: make(Pages, 0)})
 	r[0].Pages = append(r[0].Pages, sp[0])
 
 	i := 0
 	for _, e := range sp[1:] {
-		date = formatter(e.(Page))
-		if r[i].Key.(string) != date {
-			r = append(r, PageGroup{Key: date})
+		date = getDate(e.(Page))
+		formatted := formatter.Format(date, format)
+		if r[i].Key.(string) != formatted {
+			r = append(r, PageGroup{Key: formatted})
 			i++
 		}
 		r[i].Pages = append(r[i].Pages, e)
@@ -250,10 +277,10 @@ func (p Pages) GroupByDate(format string, order ...string) (PagesGroup, error) {
 	sorter := func(p Pages) Pages {
 		return p.ByDate()
 	}
-	formatter := func(p Page) string {
-		return p.Date().Format(format)
+	getDate := func(p Page) time.Time {
+		return p.Date()
 	}
-	return p.groupByDateField(sorter, formatter, order...)
+	return p.groupByDateField(format, sorter, getDate, order...)
 }
 
 // GroupByPublishDate groups by the given page's PublishDate value in
@@ -264,10 +291,10 @@ func (p Pages) GroupByPublishDate(format string, order ...string) (PagesGroup, e
 	sorter := func(p Pages) Pages {
 		return p.ByPublishDate()
 	}
-	formatter := func(p Page) string {
-		return p.PublishDate().Format(format)
+	getDate := func(p Page) time.Time {
+		return p.PublishDate()
 	}
-	return p.groupByDateField(sorter, formatter, order...)
+	return p.groupByDateField(format, sorter, getDate, order...)
 }
 
 // GroupByExpiryDate groups by the given page's ExpireDate value in
@@ -278,10 +305,24 @@ func (p Pages) GroupByExpiryDate(format string, order ...string) (PagesGroup, er
 	sorter := func(p Pages) Pages {
 		return p.ByExpiryDate()
 	}
-	formatter := func(p Page) string {
-		return p.ExpiryDate().Format(format)
+	getDate := func(p Page) time.Time {
+		return p.ExpiryDate()
 	}
-	return p.groupByDateField(sorter, formatter, order...)
+	return p.groupByDateField(format, sorter, getDate, order...)
+}
+
+// GroupByLastmod groups by the given page's Lastmod value in
+// the given format and with the given order.
+// Valid values for order is asc, desc, rev and reverse.
+// For valid format strings, see https://golang.org/pkg/time/#Time.Format
+func (p Pages) GroupByLastmod(format string, order ...string) (PagesGroup, error) {
+	sorter := func(p Pages) Pages {
+		return p.ByLastmod()
+	}
+	getDate := func(p Page) time.Time {
+		return p.Lastmod()
+	}
+	return p.groupByDateField(format, sorter, getDate, order...)
 }
 
 // GroupByParamDate groups by a date set as a param on the page in
@@ -289,29 +330,43 @@ func (p Pages) GroupByExpiryDate(format string, order ...string) (PagesGroup, er
 // Valid values for order is asc, desc, rev and reverse.
 // For valid format strings, see https://golang.org/pkg/time/#Time.Format
 func (p Pages) GroupByParamDate(key string, format string, order ...string) (PagesGroup, error) {
-	sorter := func(p Pages) Pages {
+	// Cache the dates.
+	dates := make(map[Page]time.Time)
+
+	sorter := func(pages Pages) Pages {
 		var r Pages
-		for _, e := range p {
-			param := resource.GetParamToLower(e, key)
-			if _, ok := param.(time.Time); ok {
-				r = append(r, e)
+
+		for _, p := range pages {
+			param := resource.GetParam(p, key)
+			var t time.Time
+
+			if param != nil {
+				var ok bool
+				if t, ok = param.(time.Time); !ok {
+					// Probably a string. Try to convert it to time.Time.
+					t = cast.ToTime(param)
+				}
 			}
+
+			dates[p] = t
+			r = append(r, p)
 		}
+
 		pdate := func(p1, p2 Page) bool {
-			p1p, p2p := p1.(Page), p2.(Page)
-			return resource.GetParamToLower(p1p, key).(time.Time).Unix() < resource.GetParamToLower(p2p, key).(time.Time).Unix()
+			return dates[p1].Unix() < dates[p2].Unix()
 		}
 		pageBy(pdate).Sort(r)
 		return r
 	}
-	formatter := func(p Page) string {
-		return resource.GetParamToLower(p, key).(time.Time).Format(format)
+	getDate := func(p Page) time.Time {
+		return dates[p]
 	}
-	return p.groupByDateField(sorter, formatter, order...)
+	return p.groupByDateField(format, sorter, getDate, order...)
 }
 
-// ProbablyEq wraps comare.ProbablyEqer
-func (p PageGroup) ProbablyEq(other interface{}) bool {
+// ProbablyEq wraps compare.ProbablyEqer
+// For internal use.
+func (p PageGroup) ProbablyEq(other any) bool {
 	otherP, ok := other.(PageGroup)
 	if !ok {
 		return false
@@ -322,16 +377,15 @@ func (p PageGroup) ProbablyEq(other interface{}) bool {
 	}
 
 	return p.Pages.ProbablyEq(otherP.Pages)
-
 }
 
-// Slice is not meant to be used externally. It's a bridge function
+// Slice is for internal use.
 // for the template functions. See collections.Slice.
-func (p PageGroup) Slice(in interface{}) (interface{}, error) {
+func (p PageGroup) Slice(in any) (any, error) {
 	switch items := in.(type) {
 	case PageGroup:
 		return items, nil
-	case []interface{}:
+	case []any:
 		groups := make(PagesGroup, len(items))
 		for i, v := range items {
 			g, ok := v.(PageGroup)
@@ -355,8 +409,8 @@ func (psg PagesGroup) Len() int {
 	return l
 }
 
-// ProbablyEq wraps comare.ProbablyEqer
-func (psg PagesGroup) ProbablyEq(other interface{}) bool {
+// ProbablyEq wraps compare.ProbablyEqer
+func (psg PagesGroup) ProbablyEq(other any) bool {
 	otherPsg, ok := other.(PagesGroup)
 	if !ok {
 		return false
@@ -373,19 +427,18 @@ func (psg PagesGroup) ProbablyEq(other interface{}) bool {
 	}
 
 	return true
-
 }
 
 // ToPagesGroup tries to convert seq into a PagesGroup.
-func ToPagesGroup(seq interface{}) (PagesGroup, error) {
+func ToPagesGroup(seq any) (PagesGroup, bool, error) {
 	switch v := seq.(type) {
 	case nil:
-		return nil, nil
+		return nil, true, nil
 	case PagesGroup:
-		return v, nil
+		return v, true, nil
 	case []PageGroup:
-		return PagesGroup(v), nil
-	case []interface{}:
+		return PagesGroup(v), true, nil
+	case []any:
 		l := len(v)
 		if l == 0 {
 			break
@@ -397,12 +450,12 @@ func ToPagesGroup(seq interface{}) (PagesGroup, error) {
 				if pg, ok := ipg.(PageGroup); ok {
 					pagesGroup[i] = pg
 				} else {
-					return nil, fmt.Errorf("unsupported type in paginate from slice, got %T instead of PageGroup", ipg)
+					return nil, false, fmt.Errorf("unsupported type in paginate from slice, got %T instead of PageGroup", ipg)
 				}
 			}
-			return pagesGroup, nil
+			return pagesGroup, true, nil
 		}
 	}
 
-	return nil, nil
+	return nil, false, nil
 }

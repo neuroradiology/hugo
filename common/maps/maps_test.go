@@ -14,95 +14,146 @@
 package maps
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	qt "github.com/frankban/quicktest"
 )
 
-func TestToLower(t *testing.T) {
-
+func TestPrepareParams(t *testing.T) {
 	tests := []struct {
-		input    map[string]interface{}
-		expected map[string]interface{}
+		input    Params
+		expected Params
 	}{
 		{
-			map[string]interface{}{
+			map[string]any{
 				"abC": 32,
 			},
-			map[string]interface{}{
+			Params{
 				"abc": 32,
 			},
 		},
 		{
-			map[string]interface{}{
+			map[string]any{
 				"abC": 32,
-				"deF": map[interface{}]interface{}{
+				"deF": map[any]any{
 					23: "A value",
-					24: map[string]interface{}{
+					24: map[string]any{
 						"AbCDe": "A value",
 						"eFgHi": "Another value",
 					},
 				},
-				"gHi": map[string]interface{}{
+				"gHi": map[string]any{
 					"J": 25,
 				},
+				"jKl": map[string]string{
+					"M": "26",
+				},
 			},
-			map[string]interface{}{
+			Params{
 				"abc": 32,
-				"def": map[string]interface{}{
+				"def": Params{
 					"23": "A value",
-					"24": map[string]interface{}{
+					"24": Params{
 						"abcde": "A value",
 						"efghi": "Another value",
 					},
 				},
-				"ghi": map[string]interface{}{
+				"ghi": Params{
 					"j": 25,
+				},
+				"jkl": Params{
+					"m": "26",
 				},
 			},
 		},
 	}
 
 	for i, test := range tests {
-		// ToLower modifies input.
-		ToLower(test.input)
-		if !reflect.DeepEqual(test.expected, test.input) {
-			t.Errorf("[%d] Expected\n%#v, got\n%#v\n", i, test.expected, test.input)
-		}
+		t.Run(fmt.Sprint(i), func(t *testing.T) {
+			// PrepareParams modifies input.
+			PrepareParams(test.input)
+			if !reflect.DeepEqual(test.expected, test.input) {
+				t.Errorf("[%d] Expected\n%#v, got\n%#v\n", i, test.expected, test.input)
+			}
+		})
 	}
 }
 
-func TestRenameKeys(t *testing.T) {
-	assert := require.New(t)
+func TestToSliceStringMap(t *testing.T) {
+	c := qt.New(t)
 
-	m := map[string]interface{}{
+	tests := []struct {
+		input    any
+		expected []map[string]any
+	}{
+		{
+			input: []map[string]any{
+				{"abc": 123},
+			},
+			expected: []map[string]any{
+				{"abc": 123},
+			},
+		}, {
+			input: []any{
+				map[string]any{
+					"def": 456,
+				},
+			},
+			expected: []map[string]any{
+				{"def": 456},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		v, err := ToSliceStringMap(test.input)
+		c.Assert(err, qt.IsNil)
+		c.Assert(v, qt.DeepEquals, test.expected)
+	}
+}
+
+func TestToParamsAndPrepare(t *testing.T) {
+	c := qt.New(t)
+	_, err := ToParamsAndPrepare(map[string]any{"A": "av"})
+	c.Assert(err, qt.IsNil)
+
+	params, err := ToParamsAndPrepare(nil)
+	c.Assert(err, qt.IsNil)
+	c.Assert(params, qt.DeepEquals, Params{})
+}
+
+func TestRenameKeys(t *testing.T) {
+	c := qt.New(t)
+
+	m := map[string]any{
 		"a":    32,
 		"ren1": "m1",
 		"ren2": "m1_2",
-		"sub": map[string]interface{}{
-			"subsub": map[string]interface{}{
+		"sub": map[string]any{
+			"subsub": map[string]any{
 				"REN1": "m2",
 				"ren2": "m2_2",
 			},
 		},
-		"no": map[string]interface{}{
+		"no": map[string]any{
 			"ren1": "m2",
 			"ren2": "m2_2",
 		},
 	}
 
-	expected := map[string]interface{}{
+	expected := map[string]any{
 		"a":    32,
 		"new1": "m1",
 		"new2": "m1_2",
-		"sub": map[string]interface{}{
-			"subsub": map[string]interface{}{
+		"sub": map[string]any{
+			"subsub": map[string]any{
 				"new1": "m2",
 				"ren2": "m2_2",
 			},
 		},
-		"no": map[string]interface{}{
+		"no": map[string]any{
 			"ren1": "m2",
 			"ren2": "m2_2",
 		},
@@ -112,12 +163,34 @@ func TestRenameKeys(t *testing.T) {
 		"{ren1,sub/*/ren1}", "new1",
 		"{Ren2,sub/ren2}", "new2",
 	)
-	assert.NoError(err)
+	c.Assert(err, qt.IsNil)
 
 	renamer.Rename(m)
 
 	if !reflect.DeepEqual(expected, m) {
 		t.Errorf("Expected\n%#v, got\n%#v\n", expected, m)
 	}
+}
+
+func TestLookupEqualFold(t *testing.T) {
+	c := qt.New(t)
+
+	m1 := map[string]any{
+		"a": "av",
+		"B": "bv",
+	}
+
+	v, found := LookupEqualFold(m1, "b")
+	c.Assert(found, qt.IsTrue)
+	c.Assert(v, qt.Equals, "bv")
+
+	m2 := map[string]string{
+		"a": "av",
+		"B": "bv",
+	}
+
+	v, found = LookupEqualFold(m2, "b")
+	c.Assert(found, qt.IsTrue)
+	c.Assert(v, qt.Equals, "bv")
 
 }

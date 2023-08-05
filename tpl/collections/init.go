@@ -14,6 +14,8 @@
 package collections
 
 import (
+	"context"
+
 	"github.com/gohugoio/hugo/deps"
 	"github.com/gohugoio/hugo/tpl/internal"
 )
@@ -26,7 +28,7 @@ func init() {
 
 		ns := &internal.TemplateFuncsNamespace{
 			Name:    name,
-			Context: func(args ...interface{}) interface{} { return ctx },
+			Context: func(cctx context.Context, args ...any) (any, error) { return ctx, nil },
 		}
 
 		ns.AddMethodMapping(ctx.After,
@@ -42,7 +44,7 @@ func init() {
 		ns.AddMethodMapping(ctx.Complement,
 			[]string{"complement"},
 			[][2]string{
-				{`{{ slice "a" "b" "c" "d" "e" "f" | complement (slice "b" "c") (slice "d" "e")  }}`, `[a f]`},
+				{`{{ slice "a" "b" "c" "d" "e" "f" | complement (slice "b" "c") (slice "d" "e") }}`, `[a f]`},
 			},
 		)
 
@@ -116,10 +118,16 @@ func init() {
 			[][2]string{
 				{
 					`{{ (querify "foo" 1 "bar" 2 "baz" "with spaces" "qux" "this&that=those") | safeHTML }}`,
-					`bar=2&baz=with+spaces&foo=1&qux=this%26that%3Dthose`},
+					`bar=2&baz=with+spaces&foo=1&qux=this%26that%3Dthose`,
+				},
 				{
 					`<a href="https://www.google.com?{{ (querify "q" "test" "page" 3) | safeURL }}">Search</a>`,
-					`<a href="https://www.google.com?page=3&amp;q=test">Search</a>`},
+					`<a href="https://www.google.com?page=3&amp;q=test">Search</a>`,
+				},
+				{
+					`{{ slice "foo" 1 "bar" 2 | querify | safeHTML }}`,
+					`bar=2&foo=1`,
+				},
 			},
 		)
 
@@ -183,8 +191,25 @@ func init() {
 			},
 		)
 
-		return ns
+		ns.AddMethodMapping(ctx.Merge,
+			[]string{"merge"},
+			[][2]string{
+				{
+					`{{ dict "title" "Hugo Rocks!" | collections.Merge (dict "title" "Default Title" "description" "Yes, Hugo Rocks!") | sort }}`,
+					`[Yes, Hugo Rocks! Hugo Rocks!]`,
+				},
+				{
+					`{{ merge (dict "title" "Default Title" "description" "Yes, Hugo Rocks!") (dict "title" "Hugo Rocks!") | sort }}`,
+					`[Yes, Hugo Rocks! Hugo Rocks!]`,
+				},
+				{
+					`{{ merge (dict "title" "Default Title" "description" "Yes, Hugo Rocks!") (dict "title" "Hugo Rocks!") (dict "extra" "For reals!") | sort }}`,
+					`[Yes, Hugo Rocks! For reals! Hugo Rocks!]`,
+				},
+			},
+		)
 
+		return ns
 	}
 
 	internal.AddTemplateFuncsNamespace(f)

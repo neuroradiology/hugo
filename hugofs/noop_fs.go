@@ -34,15 +34,15 @@ type noOpFs struct {
 }
 
 func (fs noOpFs) Create(name string) (afero.File, error) {
-	return nil, errNoOp
+	panic(errNoOp)
 }
 
 func (fs noOpFs) Mkdir(name string, perm os.FileMode) error {
-	return errNoOp
+	return nil
 }
 
 func (fs noOpFs) MkdirAll(path string, perm os.FileMode) error {
-	return errNoOp
+	return nil
 }
 
 func (fs noOpFs) Open(name string) (afero.File, error) {
@@ -54,15 +54,15 @@ func (fs noOpFs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, 
 }
 
 func (fs noOpFs) Remove(name string) error {
-	return errNoOp
+	return nil
 }
 
 func (fs noOpFs) RemoveAll(path string) error {
-	return errNoOp
+	return nil
 }
 
 func (fs noOpFs) Rename(oldname string, newname string) error {
-	return errNoOp
+	panic(errNoOp)
 }
 
 func (fs noOpFs) Stat(name string) (os.FileInfo, error) {
@@ -74,9 +74,13 @@ func (fs noOpFs) Name() string {
 }
 
 func (fs noOpFs) Chmod(name string, mode os.FileMode) error {
-	return errNoOp
+	panic(errNoOp)
 }
 
 func (fs noOpFs) Chtimes(name string, atime time.Time, mtime time.Time) error {
-	return errNoOp
+	panic(errNoOp)
+}
+
+func (fs *noOpFs) Chown(name string, uid int, gid int) error {
+	panic(errNoOp)
 }

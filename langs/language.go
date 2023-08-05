@@ -1,4 +1,4 @@
-// Copyright 2018 The Hugo Authors. All rights reserved.
+// Copyright 2023 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,219 +11,187 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package langs contains the language related types and function.
 package langs
 
 import (
-	"sort"
-	"strings"
+	"fmt"
+	"sync"
+	"time"
 
+	"golang.org/x/text/collate"
+	"golang.org/x/text/language"
+
+	"github.com/gohugoio/hugo/common/htime"
 	"github.com/gohugoio/hugo/common/maps"
-	"github.com/gohugoio/hugo/config"
-	"github.com/spf13/cast"
+	"github.com/gohugoio/locales"
+	translators "github.com/gohugoio/localescompressed"
 )
 
-// These are the settings that should only be looked up in the global Viper
-// config and not per language.
-// This list may not be complete, but contains only settings that we know
-// will be looked up in both.
-// This isn't perfect, but it is ultimately the user who shoots him/herself in
-// the foot.
-// See the pathSpec.
-var globalOnlySettings = map[string]bool{
-	strings.ToLower("defaultContentLanguageInSubdir"): true,
-	strings.ToLower("defaultContentLanguage"):         true,
-	strings.ToLower("multilingual"):                   true,
-	strings.ToLower("assetDir"):                       true,
-	strings.ToLower("resourceDir"):                    true,
+type Language struct {
+	// The language code, e.g. "en" or "no".
+	// This is currently only settable as the key in the language map in the config.
+	Lang string
+
+	// Fields from the language config.
+	LanguageConfig
+
+	// Used for date formatting etc. We don't want these exported to the
+	// templates.
+	translator    locales.Translator
+	timeFormatter htime.TimeFormatter
+	tag           language.Tag
+	// collator1 and collator2 are the same, we have 2 to prevent deadlocks.
+	collator1 *Collator
+	collator2 *Collator
+
+	location *time.Location
+
+	// This is just an alias of Site.Params.
+	params maps.Params
 }
 
-// Language manages specific-language configuration.
-type Language struct {
-	Lang         string
-	LanguageName string
-	Title        string
-	Weight       int
+// NewLanguage creates a new language.
+func NewLanguage(lang, defaultContentLanguage, timeZone string, languageConfig LanguageConfig) (*Language, error) {
+	translator := translators.GetTranslator(lang)
+	if translator == nil {
+		translator = translators.GetTranslator(defaultContentLanguage)
+		if translator == nil {
+			translator = translators.GetTranslator("en")
+		}
+	}
 
-	Disabled bool
+	var coll1, coll2 *Collator
+	tag, err := language.Parse(lang)
+	if err == nil {
+		coll1 = &Collator{
+			c: collate.New(tag),
+		}
+		coll2 = &Collator{
+			c: collate.New(tag),
+		}
+	} else {
+		coll1 = &Collator{
+			c: collate.New(language.English),
+		}
+		coll2 = &Collator{
+			c: collate.New(language.English),
+		}
+	}
 
-	// If set per language, this tells Hugo that all content files without any
-	// language indicator (e.g. my-page.en.md) is in this language.
-	// This is usually a path relative to the working dir, but it can be an
-	// absolute directory reference. It is what we get.
-	ContentDir string
+	l := &Language{
+		Lang:           lang,
+		LanguageConfig: languageConfig,
+		translator:     translator,
+		timeFormatter:  htime.NewTimeFormatter(translator),
+		tag:            tag,
+		collator1:      coll1,
+		collator2:      coll2,
+	}
 
-	Cfg config.Provider
+	return l, l.loadLocation(timeZone)
+}
 
-	// These are params declared in the [params] section of the language merged with the
-	// site's params, the most specific (language) wins on duplicate keys.
-	params map[string]interface{}
+// This is injected from hugolib to avoid circular dependencies.
+var DeprecationFunc = func(item, alternative string, err bool) {}
 
-	// These are config values, i.e. the settings declared outside of the [params] section of the language.
-	// This is the map Hugo looks in when looking for configuration values (baseURL etc.).
-	// Values in this map can also be fetched from the params map above.
-	settings map[string]interface{}
+const paramsDeprecationWarning = `.Language.Params is deprecated and will be removed in a future release. Use site.Params instead.
+
+- For all but custom parameters, you need to use the built in Hugo variables, e.g. site.Title, site.LanguageCode; site.Language.Params.Title will not work.
+- All custom parameters needs to be placed below params, e.g. [languages.en.params] in TOML.
+
+See https://gohugo.io/content-management/multilingual/#changes-in-hugo-01120
+
+`
+
+// Params returns the language params.
+// Note that this is the same as the Site.Params, but we keep it here for legacy reasons.
+// Deprecated: Use the site.Params instead.
+func (l *Language) Params() maps.Params {
+	// TODO(bep) Remove this for now as it created a little too much noise. Need to think about this.
+	// See https://github.com/gohugoio/hugo/issues/11025
+	//DeprecationFunc(".Language.Params", paramsDeprecationWarning, false)
+	return l.params
+}
+
+func (l *Language) LanguageCode() string {
+	if l.LanguageConfig.LanguageCode != "" {
+		return l.LanguageConfig.LanguageCode
+	}
+	return l.Lang
+}
+
+func (l *Language) loadLocation(tzStr string) error {
+	location, err := time.LoadLocation(tzStr)
+	if err != nil {
+		return fmt.Errorf("invalid timeZone for language %q: %w", l.Lang, err)
+	}
+	l.location = location
+
+	return nil
 }
 
 func (l *Language) String() string {
 	return l.Lang
 }
 
-// NewLanguage creates a new language.
-func NewLanguage(lang string, cfg config.Provider) *Language {
-	// Note that language specific params will be overridden later.
-	// We should improve that, but we need to make a copy:
-	params := make(map[string]interface{})
-	for k, v := range cfg.GetStringMap("params") {
-		params[k] = v
-	}
-	maps.ToLower(params)
-
-	defaultContentDir := cfg.GetString("contentDir")
-	if defaultContentDir == "" {
-		panic("contentDir not set")
-	}
-
-	l := &Language{Lang: lang, ContentDir: defaultContentDir, Cfg: cfg, params: params, settings: make(map[string]interface{})}
-	return l
-}
-
-// NewDefaultLanguage creates the default language for a config.Provider.
-// If not otherwise specified the default is "en".
-func NewDefaultLanguage(cfg config.Provider) *Language {
-	defaultLang := cfg.GetString("defaultContentLanguage")
-
-	if defaultLang == "" {
-		defaultLang = "en"
-	}
-
-	return NewLanguage(defaultLang, cfg)
-}
-
 // Languages is a sortable list of languages.
 type Languages []*Language
 
-// NewLanguages creates a sorted list of languages.
-// NOTE: function is currently unused.
-func NewLanguages(l ...*Language) Languages {
-	languages := make(Languages, len(l))
-	for i := 0; i < len(l); i++ {
-		languages[i] = l[i]
-	}
-	sort.Sort(languages)
-	return languages
-}
-
-func (l Languages) Len() int { return len(l) }
-func (l Languages) Less(i, j int) bool {
-	wi, wj := l[i].Weight, l[j].Weight
-
-	if wi == wj {
-		return l[i].Lang < l[j].Lang
-	}
-
-	return wj == 0 || wi < wj
-
-}
-
-func (l Languages) Swap(i, j int) { l[i], l[j] = l[j], l[i] }
-
-// Params retunrs language-specific params merged with the global params.
-func (l *Language) Params() map[string]interface{} {
-	return l.params
-}
-
-// IsMultihost returns whether there are more than one language and at least one of
-// the languages has baseURL specificed on the language level.
-func (l Languages) IsMultihost() bool {
-	if len(l) <= 1 {
-		return false
-	}
-
+func (l Languages) AsSet() map[string]bool {
+	m := make(map[string]bool)
 	for _, lang := range l {
-		if lang.GetLocal("baseURL") != nil {
-			return true
-		}
+		m[lang.Lang] = true
 	}
-	return false
+
+	return m
 }
 
-// SetParam sets a param with the given key and value.
-// SetParam is case-insensitive.
-func (l *Language) SetParam(k string, v interface{}) {
-	l.params[strings.ToLower(k)] = v
-}
-
-// GetBool returns the value associated with the key as a boolean.
-func (l *Language) GetBool(key string) bool { return cast.ToBool(l.Get(key)) }
-
-// GetString returns the value associated with the key as a string.
-func (l *Language) GetString(key string) string { return cast.ToString(l.Get(key)) }
-
-// GetInt returns the value associated with the key as an int.
-func (l *Language) GetInt(key string) int { return cast.ToInt(l.Get(key)) }
-
-// GetStringMap returns the value associated with the key as a map of interfaces.
-func (l *Language) GetStringMap(key string) map[string]interface{} {
-	return cast.ToStringMap(l.Get(key))
-}
-
-// GetStringMapString returns the value associated with the key as a map of strings.
-func (l *Language) GetStringMapString(key string) map[string]string {
-	return cast.ToStringMapString(l.Get(key))
-}
-
-// GetStringSlice returns the value associated with the key as a slice of strings.
-func (l *Language) GetStringSlice(key string) []string {
-	return cast.ToStringSlice(l.Get(key))
-}
-
-// Get returns a value associated with the key relying on specified language.
-// Get is case-insensitive for a key.
-//
-// Get returns an interface. For a specific value use one of the Get____ methods.
-func (l *Language) Get(key string) interface{} {
-	local := l.GetLocal(key)
-	if local != nil {
-		return local
+func (l Languages) AsOrdinalSet() map[string]int {
+	m := make(map[string]int)
+	for i, lang := range l {
+		m[lang.Lang] = i
 	}
-	return l.Cfg.Get(key)
+
+	return m
 }
 
-// GetLocal gets a configuration value set on language level. It will
-// not fall back to any global value.
-// It will return nil if a value with the given key cannot be found.
-func (l *Language) GetLocal(key string) interface{} {
-	if l == nil {
-		panic("language not set")
-	}
-	key = strings.ToLower(key)
-	if !globalOnlySettings[key] {
-		if v, ok := l.settings[key]; ok {
-			return v
-		}
-	}
-	return nil
+// Internal access to unexported Language fields.
+// This construct is to prevent them from leaking to the templates.
+
+func SetParams(l *Language, params maps.Params) {
+	l.params = params
 }
 
-// Set sets the value for the key in the language's params.
-func (l *Language) Set(key string, value interface{}) {
-	if l == nil {
-		panic("language not set")
-	}
-	key = strings.ToLower(key)
-	l.settings[key] = value
+func GetTimeFormatter(l *Language) htime.TimeFormatter {
+	return l.timeFormatter
 }
 
-// IsSet checks whether the key is set in the language or the related config store.
-func (l *Language) IsSet(key string) bool {
-	key = strings.ToLower(key)
+func GetTranslator(l *Language) locales.Translator {
+	return l.translator
+}
 
-	key = strings.ToLower(key)
-	if !globalOnlySettings[key] {
-		if _, ok := l.settings[key]; ok {
-			return true
-		}
-	}
-	return l.Cfg.IsSet(key)
+func GetLocation(l *Language) *time.Location {
+	return l.location
+}
 
+func GetCollator1(l *Language) *Collator {
+	return l.collator1
+}
+
+func GetCollator2(l *Language) *Collator {
+	return l.collator2
+}
+
+type Collator struct {
+	sync.Mutex
+	c *collate.Collator
+}
+
+// CompareStrings compares a and b.
+// It returns -1 if a < b, 1 if a > b and 0 if a == b.
+// Note that the Collator is not thread safe, so you may want
+// to acquire a lock on it before calling this method.
+func (c *Collator) CompareStrings(a, b string) int {
+	return c.c.CompareString(a, b)
 }

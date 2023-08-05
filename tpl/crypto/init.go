@@ -14,6 +14,8 @@
 package crypto
 
 import (
+	"context"
+
 	"github.com/gohugoio/hugo/deps"
 	"github.com/gohugoio/hugo/tpl/internal"
 )
@@ -26,7 +28,7 @@ func init() {
 
 		ns := &internal.TemplateFuncsNamespace{
 			Name:    name,
-			Context: func(args ...interface{}) interface{} { return ctx },
+			Context: func(cctx context.Context, args ...any) (any, error) { return ctx, nil },
 		}
 
 		ns.AddMethodMapping(ctx.MD5,
@@ -51,8 +53,21 @@ func init() {
 			},
 		)
 
-		return ns
+		ns.AddMethodMapping(ctx.FNV32a,
+			nil,
+			[][2]string{
+				{`{{ crypto.FNV32a "Hugo Rocks!!" }}`, `1515779328`},
+			},
+		)
 
+		ns.AddMethodMapping(ctx.HMAC,
+			[]string{"hmac"},
+			[][2]string{
+				{`{{ hmac "sha256" "Secret key" "Hello world, gophers!" }}`, `b6d11b6c53830b9d87036272ca9fe9d19306b8f9d8aa07b15da27d89e6e34f40`},
+			},
+		)
+
+		return ns
 	}
 
 	internal.AddTemplateFuncsNamespace(f)

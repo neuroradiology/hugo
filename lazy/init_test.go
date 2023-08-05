@@ -22,7 +22,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
+	qt "github.com/frankban/quicktest"
 )
 
 var (
@@ -44,20 +44,20 @@ func doWorkOfSize(size int) {
 }
 
 func TestInit(t *testing.T) {
-	assert := require.New(t)
+	c := qt.New(t)
 
 	var result string
 
-	f1 := func(name string) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	f1 := func(name string) func(context.Context) (any, error) {
+		return func(context.Context) (any, error) {
 			result += name + "|"
 			doWork()
 			return name, nil
 		}
 	}
 
-	f2 := func() func() (interface{}, error) {
-		return func() (interface{}, error) {
+	f2 := func() func(context.Context) (any, error) {
+		return func(context.Context) (any, error) {
 			doWork()
 			return nil, nil
 		}
@@ -75,6 +75,8 @@ func TestInit(t *testing.T) {
 
 	var wg sync.WaitGroup
 
+	ctx := context.Background()
+
 	// Add some concurrency and randomness to verify thread safety and
 	// init order.
 	for i := 0; i < 100; i++ {
@@ -83,78 +85,69 @@ func TestInit(t *testing.T) {
 			defer wg.Done()
 			var err error
 			if rnd.Intn(10) < 5 {
-				_, err = root.Do()
-				assert.NoError(err)
+				_, err = root.Do(ctx)
+				c.Assert(err, qt.IsNil)
 			}
 
 			// Add a new branch on the fly.
 			if rnd.Intn(10) > 5 {
 				branch := branch1_2.Branch(f2())
-				_, err = branch.Do()
-				assert.NoError(err)
+				_, err = branch.Do(ctx)
+				c.Assert(err, qt.IsNil)
 			} else {
-				_, err = branch1_2_1.Do()
-				assert.NoError(err)
+				_, err = branch1_2_1.Do(ctx)
+				c.Assert(err, qt.IsNil)
 			}
-			_, err = branch1_2.Do()
-			assert.NoError(err)
-
+			_, err = branch1_2.Do(ctx)
+			c.Assert(err, qt.IsNil)
 		}(i)
 
 		wg.Wait()
 
-		assert.Equal("root(1)|root(2)|branch_1|branch_1_1|branch_1_2|branch_1_2_1|", result)
+		c.Assert(result, qt.Equals, "root(1)|root(2)|branch_1|branch_1_1|branch_1_2|branch_1_2_1|")
 
 	}
-
 }
 
 func TestInitAddWithTimeout(t *testing.T) {
-	assert := require.New(t)
+	c := qt.New(t)
 
-	init := New().AddWithTimeout(100*time.Millisecond, func(ctx context.Context) (interface{}, error) {
+	init := New().AddWithTimeout(100*time.Millisecond, func(ctx context.Context) (any, error) {
 		return nil, nil
 	})
 
-	_, err := init.Do()
+	_, err := init.Do(context.Background())
 
-	assert.NoError(err)
+	c.Assert(err, qt.IsNil)
 }
 
 func TestInitAddWithTimeoutTimeout(t *testing.T) {
-	assert := require.New(t)
+	c := qt.New(t)
 
-	init := New().AddWithTimeout(100*time.Millisecond, func(ctx context.Context) (interface{}, error) {
+	init := New().AddWithTimeout(100*time.Millisecond, func(ctx context.Context) (any, error) {
 		time.Sleep(500 * time.Millisecond)
-		select {
-		case <-ctx.Done():
-			return nil, nil
-		default:
-		}
-		t.Fatal("slept")
 		return nil, nil
 	})
 
-	_, err := init.Do()
+	_, err := init.Do(context.Background())
 
-	assert.Error(err)
+	c.Assert(err, qt.Not(qt.IsNil))
 
-	assert.Contains(err.Error(), "timed out")
+	c.Assert(err.Error(), qt.Contains, "timed out")
 
 	time.Sleep(1 * time.Second)
-
 }
 
 func TestInitAddWithTimeoutError(t *testing.T) {
-	assert := require.New(t)
+	c := qt.New(t)
 
-	init := New().AddWithTimeout(100*time.Millisecond, func(ctx context.Context) (interface{}, error) {
+	init := New().AddWithTimeout(100*time.Millisecond, func(ctx context.Context) (any, error) {
 		return nil, errors.New("failed")
 	})
 
-	_, err := init.Do()
+	_, err := init.Do(context.Background())
 
-	assert.Error(err)
+	c.Assert(err, qt.Not(qt.IsNil))
 }
 
 type T struct {
@@ -177,12 +170,12 @@ func (t *T) Add2(v string) {
 
 // https://github.com/gohugoio/hugo/issues/5901
 func TestInitBranchOrder(t *testing.T) {
-	assert := require.New(t)
+	c := qt.New(t)
 
 	base := New()
 
-	work := func(size int, f func()) func() (interface{}, error) {
-		return func() (interface{}, error) {
+	work := func(size int, f func()) func(context.Context) (any, error) {
+		return func(context.Context) (any, error) {
 			doWorkOfSize(size)
 			if f != nil {
 				f()
@@ -204,23 +197,42 @@ func TestInitBranchOrder(t *testing.T) {
 			// V1 is A
 			ab := state.V1 + "B"
 			state.Add2(ab)
-
 		}))
 	}
 
 	var wg sync.WaitGroup
+	ctx := context.Background()
 
 	for _, v := range inits {
 		v := v
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			_, err := v.Do()
-			assert.NoError(err)
+			_, err := v.Do(ctx)
+			c.Assert(err, qt.IsNil)
 		}()
 	}
 
 	wg.Wait()
 
-	assert.Equal("ABAB", state.V2)
+	c.Assert(state.V2, qt.Equals, "ABAB")
+}
+
+// See issue 7043
+func TestResetError(t *testing.T) {
+	c := qt.New(t)
+	r := false
+	i := New().Add(func(context.Context) (any, error) {
+		if r {
+			return nil, nil
+		}
+		return nil, errors.New("r is false")
+	})
+	_, err := i.Do(context.Background())
+	c.Assert(err, qt.IsNotNil)
+	i.Reset()
+	r = true
+	_, err = i.Do(context.Background())
+	c.Assert(err, qt.IsNil)
+
 }

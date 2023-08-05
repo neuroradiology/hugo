@@ -15,17 +15,18 @@ package collections
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
-	"github.com/alecthomas/assert"
+	qt "github.com/frankban/quicktest"
 )
 
-var _ Slicer = (*tstSlicer)(nil)
-var _ Slicer = (*tstSlicerIn1)(nil)
-var _ Slicer = (*tstSlicerIn2)(nil)
-var _ testSlicerInterface = (*tstSlicerIn1)(nil)
-var _ testSlicerInterface = (*tstSlicerIn1)(nil)
+var (
+	_ Slicer              = (*tstSlicer)(nil)
+	_ Slicer              = (*tstSlicerIn1)(nil)
+	_ Slicer              = (*tstSlicerIn2)(nil)
+	_ testSlicerInterface = (*tstSlicerIn1)(nil)
+	_ testSlicerInterface = (*tstSlicerIn1)(nil)
+)
 
 type testSlicerInterface interface {
 	Name() string
@@ -34,19 +35,19 @@ type testSlicerInterface interface {
 type testSlicerInterfaces []testSlicerInterface
 
 type tstSlicerIn1 struct {
-	name string
+	TheName string
 }
 
 type tstSlicerIn2 struct {
-	name string
+	TheName string
 }
 
 type tstSlicer struct {
-	name string
+	TheName string
 }
 
-func (p *tstSlicerIn1) Slice(in interface{}) (interface{}, error) {
-	items := in.([]interface{})
+func (p *tstSlicerIn1) Slice(in any) (any, error) {
+	items := in.([]any)
 	result := make(testSlicerInterfaces, len(items))
 	for i, v := range items {
 		switch vv := v.(type) {
@@ -55,13 +56,12 @@ func (p *tstSlicerIn1) Slice(in interface{}) (interface{}, error) {
 		default:
 			return nil, errors.New("invalid type")
 		}
-
 	}
 	return result, nil
 }
 
-func (p *tstSlicerIn2) Slice(in interface{}) (interface{}, error) {
-	items := in.([]interface{})
+func (p *tstSlicerIn2) Slice(in any) (any, error) {
+	items := in.([]any)
 	result := make(testSlicerInterfaces, len(items))
 	for i, v := range items {
 		switch vv := v.(type) {
@@ -75,15 +75,15 @@ func (p *tstSlicerIn2) Slice(in interface{}) (interface{}, error) {
 }
 
 func (p *tstSlicerIn1) Name() string {
-	return p.name
+	return p.TheName
 }
 
 func (p *tstSlicerIn2) Name() string {
-	return p.name
+	return p.TheName
 }
 
-func (p *tstSlicer) Slice(in interface{}) (interface{}, error) {
-	items := in.([]interface{})
+func (p *tstSlicer) Slice(in any) (any, error) {
+	items := in.([]any)
 	result := make(tstSlicers, len(items))
 	for i, v := range items {
 		switch vv := v.(type) {
@@ -100,26 +100,40 @@ type tstSlicers []*tstSlicer
 
 func TestSlice(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	for i, test := range []struct {
-		args     []interface{}
-		expected interface{}
+		args     []any
+		expected any
 	}{
-		{[]interface{}{"a", "b"}, []string{"a", "b"}},
-		{[]interface{}{&tstSlicer{"a"}, &tstSlicer{"b"}}, tstSlicers{&tstSlicer{"a"}, &tstSlicer{"b"}}},
-		{[]interface{}{&tstSlicer{"a"}, "b"}, []interface{}{&tstSlicer{"a"}, "b"}},
-		{[]interface{}{}, []interface{}{}},
-		{[]interface{}{nil}, []interface{}{nil}},
-		{[]interface{}{5, "b"}, []interface{}{5, "b"}},
-		{[]interface{}{&tstSlicerIn1{"a"}, &tstSlicerIn2{"b"}}, testSlicerInterfaces{&tstSlicerIn1{"a"}, &tstSlicerIn2{"b"}}},
-		{[]interface{}{&tstSlicerIn1{"a"}, &tstSlicer{"b"}}, []interface{}{&tstSlicerIn1{"a"}, &tstSlicer{"b"}}},
+		{[]any{"a", "b"}, []string{"a", "b"}},
+		{[]any{&tstSlicer{"a"}, &tstSlicer{"b"}}, tstSlicers{&tstSlicer{"a"}, &tstSlicer{"b"}}},
+		{[]any{&tstSlicer{"a"}, "b"}, []any{&tstSlicer{"a"}, "b"}},
+		{[]any{}, []any{}},
+		{[]any{nil}, []any{nil}},
+		{[]any{5, "b"}, []any{5, "b"}},
+		{[]any{&tstSlicerIn1{"a"}, &tstSlicerIn2{"b"}}, testSlicerInterfaces{&tstSlicerIn1{"a"}, &tstSlicerIn2{"b"}}},
+		{[]any{&tstSlicerIn1{"a"}, &tstSlicer{"b"}}, []any{&tstSlicerIn1{"a"}, &tstSlicer{"b"}}},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test.args)
+		errMsg := qt.Commentf("[%d] %v", i, test.args)
 
 		result := Slice(test.args...)
 
-		assert.Equal(t, test.expected, result, errMsg)
+		c.Assert(test.expected, qt.DeepEquals, result, errMsg)
 	}
+}
 
-	assert.Len(t, Slice(), 0)
+func TestSortedStringSlice(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+
+	var s SortedStringSlice = []string{"a", "b", "b", "b", "c", "d"}
+
+	c.Assert(s.Contains("a"), qt.IsTrue)
+	c.Assert(s.Contains("b"), qt.IsTrue)
+	c.Assert(s.Contains("z"), qt.IsFalse)
+	c.Assert(s.Count("b"), qt.Equals, 3)
+	c.Assert(s.Count("z"), qt.Equals, 0)
+	c.Assert(s.Count("a"), qt.Equals, 1)
+
 }

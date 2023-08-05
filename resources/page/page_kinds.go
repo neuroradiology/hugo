@@ -12,14 +12,3 @@
 // limitations under the License.
 
 package page
-
-const (
-	KindPage = "page"
-
-	// The rest are node types; home page, sections etc.
-
-	KindHome         = "home"
-	KindSection      = "section"
-	KindTaxonomy     = "taxonomy"
-	KindTaxonomyTerm = "taxonomyTerm"
-)

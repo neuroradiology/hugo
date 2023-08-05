@@ -14,38 +14,43 @@
 package hugolib
 
 import (
+	"context"
 	"html/template"
 	"strings"
+
+	"go.uber.org/atomic"
 
 	"github.com/gohugoio/hugo/common/hugo"
 
 	"github.com/gohugoio/hugo/common/maps"
-	"github.com/gohugoio/hugo/source"
-
-	"github.com/gohugoio/hugo/parser/pageparser"
-	"github.com/pkg/errors"
 
 	"github.com/gohugoio/hugo/output"
 
 	"github.com/gohugoio/hugo/lazy"
 
 	"github.com/gohugoio/hugo/resources/page"
-	"github.com/gohugoio/hugo/resources/resource"
 )
+
+var pageIdCounter atomic.Int64
 
 func newPageBase(metaProvider *pageMeta) (*pageState, error) {
 	if metaProvider.s == nil {
 		panic("must provide a Site")
 	}
 
+	id := int(pageIdCounter.Add(1))
+
 	s := metaProvider.s
 
 	ps := &pageState{
-		pageOutput: nopPageOutput,
+		id:                                id,
+		pageOutput:                        nopPageOutput,
+		pageOutputTemplateVariationsState: atomic.NewUint32(0),
 		pageCommon: &pageCommon{
 			FileProvider:            metaProvider,
 			AuthorProvider:          metaProvider,
 			Scratcher:               maps.NewScratcher(),
+			store:                   maps.NewScratch(),
 			Positioner:              page.NopPage,
 			InSectionPositioner:     page.NopPage,
 			ResourceMetaProvider:    metaProvider,
@@ -53,7 +58,8 @@ func newPageBase(metaProvider *pageMeta) (*pageState, error) {
 			PageMetaProvider:        metaProvider,
 			RelatedKeywordsProvider: metaProvider,
 			OutputFormatsProvider:   page.NopPage,
-			ResourceTypesProvider:   pageTypesProvider,
+			ResourceTypeProvider:    pageTypesProvider,
+			MediaTypeProvider:       pageTypesProvider,
 			RefProvider:             page.NopPage,
 			ShortcodeInfoProvider:   page.NopPage,
 			LanguageProvider:        s,
@@ -62,20 +68,15 @@ func newPageBase(metaProvider *pageMeta) (*pageState, error) {
 			InternalDependencies: s,
 			init:                 lazy.New(),
 			m:                    metaProvider,
-			s:                    s},
+			s:                    s,
+			sWrapped:             page.WrapSite(s),
+		},
 	}
+
+	ps.shortcodeState = newShortcodeHandler(ps, ps.s)
 
 	siteAdapter := pageSiteAdapter{s: s, p: ps}
 
-	deprecatedWarningPage := struct {
-		source.FileWithoutOverlap
-		page.DeprecatedWarningPageMethods1
-	}{
-		FileWithoutOverlap:            metaProvider.File(),
-		DeprecatedWarningPageMethods1: &pageDeprecatedWarning{p: ps},
-	}
-
-	ps.DeprecatedWarningPageMethods = page.NewDeprecatedWarningPage(deprecatedWarningPage)
 	ps.pageMenus = &pageMenus{p: ps}
 	ps.PageMenusProvider = ps.pageMenus
 	ps.GetPageProvider = siteAdapter
@@ -88,16 +89,22 @@ func newPageBase(metaProvider *pageMeta) (*pageState, error) {
 	ps.Eqer = ps
 	ps.TranslationKeyProvider = ps
 	ps.ShortcodeInfoProvider = ps
-	ps.PageRenderProvider = ps
 	ps.AlternativeOutputFormatsProvider = ps
 
 	return ps, nil
-
 }
 
-func newPageFromMeta(metaProvider *pageMeta) (*pageState, error) {
+func newPageBucket(p *pageState) *pagesMapBucket {
+	return &pagesMapBucket{owner: p, pagesMapBucketPages: &pagesMapBucketPages{}}
+}
+
+func newPageFromMeta(
+	n *contentNode,
+	parentBucket *pagesMapBucket,
+	meta map[string]any,
+	metaProvider *pageMeta) (*pageState, error) {
 	if metaProvider.f == nil {
-		metaProvider.f = page.NewZeroFile(metaProvider.s.DistinctWarningLog)
+		metaProvider.f = page.NewZeroFile(metaProvider.s.Log)
 	}
 
 	ps, err := newPageBase(metaProvider)
@@ -105,31 +112,53 @@ func newPageFromMeta(metaProvider *pageMeta) (*pageState, error) {
 		return nil, err
 	}
 
-	if err := metaProvider.applyDefaultValues(); err != nil {
+	bucket := parentBucket
+
+	if ps.IsNode() {
+		ps.bucket = newPageBucket(ps)
+	}
+
+	if meta != nil || parentBucket != nil {
+		if err := metaProvider.setMetadata(bucket, ps, meta); err != nil {
+			return nil, ps.wrapError(err)
+		}
+	}
+
+	if err := metaProvider.applyDefaultValues(n); err != nil {
 		return nil, err
 	}
 
-	ps.init.Add(func() (interface{}, error) {
+	ps.init.Add(func(context.Context) (any, error) {
 		pp, err := newPagePaths(metaProvider.s, ps, metaProvider)
 		if err != nil {
 			return nil, err
 		}
 
 		makeOut := func(f output.Format, render bool) *pageOutput {
-			return newPageOutput(nil, ps, pp, f, render)
+			return newPageOutput(ps, pp, f, render)
 		}
 
+		shouldRenderPage := !ps.m.noRender()
+
 		if ps.m.standalone {
-			ps.pageOutput = makeOut(ps.m.outputFormats()[0], true)
+			ps.pageOutput = makeOut(ps.m.outputFormats()[0], shouldRenderPage)
 		} else {
+			outputFormatsForPage := ps.m.outputFormats()
+
+			// Prepare output formats for all sites.
+			// We do this even if this page does not get rendered on
+			// its own. It may be referenced via .Site.GetPage and
+			// it will then need an output format.
 			ps.pageOutputs = make([]*pageOutput, len(ps.s.h.renderFormats))
 			created := make(map[string]*pageOutput)
-			outputFormatsForPage := ps.m.outputFormats()
 			for i, f := range ps.s.h.renderFormats {
 				po, found := created[f.Name]
 				if !found {
-					_, shouldRender := outputFormatsForPage.GetByName(f.Name)
-					po = makeOut(f, shouldRender)
+					render := shouldRenderPage
+					if render {
+						_, render = outputFormatsForPage.GetByName(f.Name)
+					}
+					po = makeOut(f, render)
 					created[f.Name] = po
 				}
 				ps.pageOutputs[i] = po
@@ -141,19 +170,16 @@ func newPageFromMeta(metaProvider *pageMeta) (*pageState, error) {
 		}
 
 		return nil, nil
-
 	})
 
 	return ps, err
-
 }
 
 // Used by the legacy 404, sitemap and robots.txt rendering
 func newPageStandalone(m *pageMeta, f output.Format) (*pageState, error) {
 	m.configuredOutputFormats = output.Formats{f}
 	m.standalone = true
-	p, err := newPageFromMeta(m)
-
+	p, err := newPageFromMeta(nil, nil, nil, m)
 	if err != nil {
 		return nil, err
 	}
@@ -163,109 +189,6 @@ func newPageStandalone(m *pageMeta, f output.Format) (*pageState, error) {
 	}
 
 	return p, nil
-
-}
-
-func newPageWithContent(f *fileInfo, s *Site, bundled bool, content resource.OpenReadSeekCloser) (*pageState, error) {
-	sections := s.sectionsFromFile(f)
-	kind := s.kindFromFileInfoOrSections(f, sections)
-	if kind == page.KindTaxonomy {
-		s.PathSpec.MakePathsSanitized(sections)
-	}
-
-	metaProvider := &pageMeta{kind: kind, sections: sections, bundled: bundled, s: s, f: f}
-
-	ps, err := newPageBase(metaProvider)
-	if err != nil {
-		return nil, err
-	}
-
-	gi, err := s.h.gitInfoForPage(ps)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to load Git data")
-	}
-	ps.gitInfo = gi
-
-	r, err := content()
-	if err != nil {
-		return nil, err
-	}
-	defer r.Close()
-
-	parseResult, err := pageparser.Parse(
-		r,
-		pageparser.Config{EnableEmoji: s.siteCfg.enableEmoji},
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	ps.pageContent = pageContent{
-		source: rawPageContent{
-			parsed:         parseResult,
-			posMainContent: -1,
-			posSummaryEnd:  -1,
-			posBodyStart:   -1,
-		},
-	}
-
-	ps.shortcodeState = newShortcodeHandler(ps, ps.s, nil)
-
-	if err := ps.mapContent(metaProvider); err != nil {
-		return nil, ps.wrapError(err)
-	}
-
-	if err := metaProvider.applyDefaultValues(); err != nil {
-		return nil, err
-	}
-
-	ps.init.Add(func() (interface{}, error) {
-		reuseContent := ps.renderable && !ps.shortcodeState.hasShortcodes()
-
-		// Creates what's needed for each output format.
-		contentPerOutput := newPageContentOutput(ps)
-
-		pp, err := newPagePaths(s, ps, metaProvider)
-		if err != nil {
-			return nil, err
-		}
-
-		// Prepare output formats for all sites.
-		ps.pageOutputs = make([]*pageOutput, len(ps.s.h.renderFormats))
-		created := make(map[string]*pageOutput)
-		outputFormatsForPage := ps.m.outputFormats()
-
-		for i, f := range ps.s.h.renderFormats {
-			if po, found := created[f.Name]; found {
-				ps.pageOutputs[i] = po
-				continue
-			}
-
-			_, render := outputFormatsForPage.GetByName(f.Name)
-			var contentProvider *pageContentOutput
-			if reuseContent && i > 0 {
-				contentProvider = ps.pageOutputs[0].cp
-			} else {
-				var err error
-				contentProvider, err = contentPerOutput(f)
-				if err != nil {
-					return nil, err
-				}
-			}
-
-			po := newPageOutput(contentProvider, ps, pp, f, render)
-			ps.pageOutputs[i] = po
-			created[f.Name] = po
-		}
-
-		if err := ps.initCommonProviders(pp); err != nil {
-			return nil, err
-		}
-
-		return nil, nil
-	})
-
-	return ps, nil
 }
 
 type pageDeprecatedWarning struct {
@@ -273,11 +196,12 @@ type pageDeprecatedWarning struct {
 }
 
 func (p *pageDeprecatedWarning) IsDraft() bool          { return p.p.m.draft }
-func (p *pageDeprecatedWarning) Hugo() hugo.Info        { return p.p.s.Info.Hugo() }
-func (p *pageDeprecatedWarning) LanguagePrefix() string { return p.p.s.Info.LanguagePrefix }
-func (p *pageDeprecatedWarning) GetParam(key string) interface{} {
+func (p *pageDeprecatedWarning) Hugo() hugo.HugoInfo    { return p.p.s.Hugo() }
+func (p *pageDeprecatedWarning) LanguagePrefix() string { return p.p.s.GetLanguagePrefix() }
+func (p *pageDeprecatedWarning) GetParam(key string) any {
 	return p.p.m.params[strings.ToLower(key)]
 }
+
 func (p *pageDeprecatedWarning) RSSLink() template.URL {
 	f := p.p.OutputFormats().Get("RSS")
 	if f == nil {
@@ -285,6 +209,7 @@ func (p *pageDeprecatedWarning) RSSLink() template.URL {
 	}
 	return template.URL(f.Permalink())
 }
+
 func (p *pageDeprecatedWarning) URL() string {
 	if p.p.IsPage() && p.p.m.urlPaths.URL != "" {
 		// This is the url set in front matter
@@ -292,5 +217,4 @@ func (p *pageDeprecatedWarning) URL() string {
 	}
 	// Fall back to the relative permalink.
 	return p.p.RelPermalink()
-
 }

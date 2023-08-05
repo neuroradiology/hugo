@@ -11,49 +11,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package tpl contains template functions and related types.
 package tpl
 
 import (
-	"fmt"
+	"context"
 	"io"
-	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
-	"time"
+	"unicode"
+
+	bp "github.com/gohugoio/hugo/bufferpool"
+	"github.com/gohugoio/hugo/output/layouts"
 
 	"github.com/gohugoio/hugo/output"
 
-	"github.com/gohugoio/hugo/common/herrors"
-
-	"github.com/gohugoio/hugo/hugofs"
-
-	"github.com/spf13/afero"
-
-	"html/template"
-	texttemplate "text/template"
-	"text/template/parse"
-
-	bp "github.com/gohugoio/hugo/bufferpool"
-	"github.com/gohugoio/hugo/metrics"
-	"github.com/pkg/errors"
+	htmltemplate "github.com/gohugoio/hugo/tpl/internal/go_templates/htmltemplate"
+	texttemplate "github.com/gohugoio/hugo/tpl/internal/go_templates/texttemplate"
 )
 
-var (
-	_ TemplateExecutor     = (*TemplateAdapter)(nil)
-	_ TemplateInfoProvider = (*TemplateAdapter)(nil)
-)
-
-// TemplateHandler manages the collection of templates.
-type TemplateHandler interface {
-	TemplateFinder
+// TemplateManager manages the collection of templates.
+type TemplateManager interface {
+	TemplateHandler
+	TemplateFuncGetter
 	AddTemplate(name, tpl string) error
-	AddLateTemplate(name, tpl string) error
-	LoadTemplates(prefix string) error
-
-	NewTextTemplate() TemplateParseFinder
-
 	MarkReady() error
-	RebuildClone()
 }
 
 // TemplateVariants describes the possible variants of a template.
@@ -67,6 +50,25 @@ type TemplateVariants struct {
 type TemplateFinder interface {
 	TemplateLookup
 	TemplateLookupVariant
+}
+
+// UnusedTemplatesProvider lists unused templates if the build is configured to track those.
+type UnusedTemplatesProvider interface {
+	UnusedTemplates() []FileInfo
+}
+
+// TemplateHandlers holds the templates needed by Hugo.
+type TemplateHandlers struct {
+	Tmpl    TemplateHandler
+	TxtTmpl TemplateParseFinder
+}
+
+// TemplateHandler finds and executes templates.
+type TemplateHandler interface {
+	TemplateFinder
+	ExecuteWithContext(ctx context.Context, t Template, wr io.Writer, data any) error
+	LookupLayout(d layouts.LayoutDescriptor, f output.Format) (Template, bool, error)
+	HasTemplate(name string) bool
 }
 
 type TemplateLookup interface {
@@ -84,17 +86,13 @@ type TemplateLookupVariant interface {
 	// We are currently only interested in output formats, so we should improve
 	// this for speed.
 	LookupVariant(name string, variants TemplateVariants) (Template, bool, bool)
+	LookupVariants(name string) []Template
 }
 
 // Template is the common interface between text/template and html/template.
 type Template interface {
-	Execute(wr io.Writer, data interface{}) error
 	Name() string
-}
-
-// TemplateInfoProvider provides some contextual information about a template.
-type TemplateInfoProvider interface {
-	TemplateInfo() Info
+	Prepare() (*texttemplate.Template, error)
 }
 
 // TemplateParser is used to parse ad-hoc templates, e.g. in the Resource chain.
@@ -108,30 +106,42 @@ type TemplateParseFinder interface {
 	TemplateFinder
 }
 
-// TemplateExecutor adds some extras to Template.
-type TemplateExecutor interface {
-	Template
-	ExecuteToString(data interface{}) (string, error)
-	Tree() string
-}
-
-// TemplateDebugger prints some debug info to stdoud.
+// TemplateDebugger prints some debug info to stdout.
 type TemplateDebugger interface {
 	Debug()
 }
 
-// TemplateAdapter implements the TemplateExecutor interface.
-type TemplateAdapter struct {
+// templateInfo wraps a Template with some additional information.
+type templateInfo struct {
 	Template
-	Metrics metrics.Provider
+	Info
+}
 
-	Info Info
+// templateInfo wraps a Template with some additional information.
+type templateInfoManager struct {
+	Template
+	InfoManager
+}
 
-	// The filesystem where the templates are stored.
-	Fs afero.Fs
+// TemplatesProvider as implemented by deps.Deps.
+type TemplatesProvider interface {
+	Tmpl() TemplateHandler
+	TextTmpl() TemplateParseFinder
+}
 
-	// Maps to base template if relevant.
-	NameBaseTemplateName map[string]string
+// WithInfo wraps the info in a template.
+func WithInfo(templ Template, info Info) Template {
+	if manager, ok := info.(InfoManager); ok {
+		return &templateInfoManager{
+			Template:    templ,
+			InfoManager: manager,
+		}
+	}
+
+	return &templateInfo{
+		Template: templ,
+		Info:     info,
+	}
 }
 
 var baseOfRe = regexp.MustCompile("template: (.*?):")
@@ -144,162 +154,88 @@ func extractBaseOf(err string) string {
 	return ""
 }
 
-// Execute executes the current template. The actual execution is performed
-// by the embedded text or html template, but we add an implementation here so
-// we can add a timer for some metrics.
-func (t *TemplateAdapter) Execute(w io.Writer, data interface{}) (execErr error) {
-	defer func() {
-		// Panics in templates are a little bit too common (nil pointers etc.)
-		// See https://github.com/gohugoio/hugo/issues/5327
-		if r := recover(); r != nil {
-			execErr = t.addFileContext(t.Name(), fmt.Errorf(`panic in Execute: %s. See "https://github.com/gohugoio/hugo/issues/5327" for the reason why we cannot provide a better error message for this`, r))
-		}
-	}()
-
-	if t.Metrics != nil {
-		defer t.Metrics.MeasureSince(t.Name(), time.Now())
-	}
-
-	execErr = t.Template.Execute(w, data)
-	if execErr != nil {
-		execErr = t.addFileContext(t.Name(), execErr)
-	}
-
-	return
+// TemplateFuncGetter allows to find a template func by name.
+type TemplateFuncGetter interface {
+	GetFunc(name string) (reflect.Value, bool)
 }
 
-func (t *TemplateAdapter) TemplateInfo() Info {
-	return t.Info
+// GetPageFromContext returns the top level Page.
+func GetPageFromContext(ctx context.Context) any {
+	return ctx.Value(texttemplate.PageContextKey)
 }
 
-// The identifiers may be truncated in the log, e.g.
-// "executing "main" at <$scaled.SRelPermalin...>: can't evaluate field SRelPermalink in type *resource.Image"
-var identifiersRe = regexp.MustCompile(`at \<(.*?)(\.{3})?\>:`)
-
-func (t *TemplateAdapter) extractIdentifiers(line string) []string {
-	m := identifiersRe.FindAllStringSubmatch(line, -1)
-	identifiers := make([]string, len(m))
-	for i := 0; i < len(m); i++ {
-		identifiers[i] = m[i][1]
-	}
-	return identifiers
+// SetPageInContext sets the top level Page.
+func SetPageInContext(ctx context.Context, p page) context.Context {
+	return context.WithValue(ctx, texttemplate.PageContextKey, p)
 }
 
-func (t *TemplateAdapter) addFileContext(name string, inerr error) error {
-	if strings.HasPrefix(t.Name(), "_internal") {
-		return inerr
-	}
-
-	f, realFilename, err := t.fileAndFilename(t.Name())
-	if err != nil {
-		return inerr
-
-	}
-	defer f.Close()
-
-	master, hasMaster := t.NameBaseTemplateName[name]
-
-	ferr := errors.Wrap(inerr, "execute of template failed")
-
-	// Since this can be a composite of multiple template files (single.html + baseof.html etc.)
-	// we potentially need to look in both -- and cannot rely on line number alone.
-	lineMatcher := func(m herrors.LineMatcher) bool {
-		if m.Position.LineNumber != m.LineNumber {
-			return false
-		}
-		if !hasMaster {
-			return true
-		}
-
-		identifiers := t.extractIdentifiers(m.Error.Error())
-
-		for _, id := range identifiers {
-			if strings.Contains(m.Line, id) {
-				return true
-			}
-		}
-		return false
-	}
-
-	fe, ok := herrors.WithFileContext(ferr, realFilename, f, lineMatcher)
-	if ok || !hasMaster {
-		return fe
-	}
-
-	// Try the base template if relevant
-	f, realFilename, err = t.fileAndFilename(master)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	fe, ok = herrors.WithFileContext(ferr, realFilename, f, lineMatcher)
-
-	if !ok {
-		// Return the most specific.
-		return ferr
-
-	}
-	return fe
-
+// SetSecurityAllowActionJSTmpl sets the global setting for allowing tempalte actions in JS template literals.
+// This was added in Hugo 0.114.0.
+// See https://github.com/golang/go/issues/59234
+func SetSecurityAllowActionJSTmpl(b bool) {
+	htmltemplate.SecurityAllowActionJSTmpl.Store(b)
 }
 
-func (t *TemplateAdapter) fileAndFilename(name string) (afero.File, string, error) {
-	fs := t.Fs
-	filename := filepath.FromSlash(name)
-
-	fi, err := fs.Stat(filename)
-	if err != nil {
-		return nil, "", err
-	}
-	f, err := fs.Open(filename)
-	if err != nil {
-		return nil, "", errors.Wrapf(err, "failed to open template file %q:", filename)
-	}
-
-	return f, fi.(hugofs.RealFilenameInfo).RealFilename(), nil
+type page interface {
+	IsNode() bool
 }
 
-// ExecuteToString executes the current template and returns the result as a
-// string.
-func (t *TemplateAdapter) ExecuteToString(data interface{}) (string, error) {
+func GetHasLockFromContext(ctx context.Context) bool {
+	if v := ctx.Value(texttemplate.HasLockContextKey); v != nil {
+		return v.(bool)
+	}
+	return false
+}
+
+func SetHasLockInContext(ctx context.Context, hasLock bool) context.Context {
+	return context.WithValue(ctx, texttemplate.HasLockContextKey, hasLock)
+}
+
+func GetCallbackFunctionFromContext(ctx context.Context) any {
+	return ctx.Value(texttemplate.CallbackContextKey)
+}
+
+func SetCallbackFunctionInContext(ctx context.Context, fn any) context.Context {
+	return context.WithValue(ctx, texttemplate.CallbackContextKey, fn)
+}
+
+const hugoNewLinePlaceholder = "___hugonl_"
+
+var (
+	stripHTMLReplacerPre = strings.NewReplacer("\n", " ", "</p>", hugoNewLinePlaceholder, "<br>", hugoNewLinePlaceholder, "<br />", hugoNewLinePlaceholder)
+	whitespaceRe         = regexp.MustCompile(`\s+`)
+)
+
+// StripHTML strips out all HTML tags in s.
+func StripHTML(s string) string {
+	// Shortcut strings with no tags in them
+	if !strings.ContainsAny(s, "<>") {
+		return s
+	}
+
+	pre := stripHTMLReplacerPre.Replace(s)
+	preReplaced := pre != s
+
+	s = htmltemplate.StripTags(pre)
+
+	if preReplaced {
+		s = strings.ReplaceAll(s, hugoNewLinePlaceholder, "\n")
+	}
+
+	var wasSpace bool
 	b := bp.GetBuffer()
 	defer bp.PutBuffer(b)
-	if err := t.Execute(b, data); err != nil {
-		return "", err
-	}
-	return b.String(), nil
-}
-
-// Tree returns the template Parse tree as a string.
-// Note: this isn't safe for parallel execution on the same template
-// vs Lookup and Execute.
-func (t *TemplateAdapter) Tree() string {
-	var tree *parse.Tree
-	switch tt := t.Template.(type) {
-	case *template.Template:
-		tree = tt.Tree
-	case *texttemplate.Template:
-		tree = tt.Tree
-	default:
-		panic("Unknown template")
+	for _, r := range s {
+		isSpace := unicode.IsSpace(r)
+		if !(isSpace && wasSpace) {
+			b.WriteRune(r)
+		}
+		wasSpace = isSpace
 	}
 
-	if tree == nil || tree.Root == nil {
-		return ""
+	if b.Len() > 0 {
+		s = b.String()
 	}
-	s := tree.Root.String()
 
 	return s
-}
-
-// TemplateFuncsGetter allows to get a map of functions.
-type TemplateFuncsGetter interface {
-	GetFuncs() map[string]interface{}
-}
-
-// TemplateTestMocker adds a way to override some template funcs during tests.
-// The interface is named so it's not used in regular application code.
-type TemplateTestMocker interface {
-	SetFuncs(funcMap map[string]interface{})
 }

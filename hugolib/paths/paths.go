@@ -14,13 +14,13 @@
 package paths
 
 import (
-	"fmt"
 	"path/filepath"
 	"strings"
 
+	hpaths "github.com/gohugoio/hugo/common/paths"
+
 	"github.com/gohugoio/hugo/config"
-	"github.com/gohugoio/hugo/langs"
-	"github.com/pkg/errors"
+	"github.com/gohugoio/hugo/modules"
 
 	"github.com/gohugoio/hugo/hugofs"
 )
@@ -29,101 +29,26 @@ var FilePathSeparator = string(filepath.Separator)
 
 type Paths struct {
 	Fs  *hugofs.Fs
-	Cfg config.Provider
-
-	BaseURL
-
-	// If the baseURL contains a base path, e.g. https://example.com/docs, then "/docs" will be the BasePath.
-	BasePath string
-
-	// Directories
-	// TODO(bep) when we have trimmed down mos of the dirs usage outside of this package, make
-	// these into an interface.
-	ContentDir string
-	ThemesDir  string
-	WorkingDir string
+	Cfg config.AllProvider
 
 	// Directories to store Resource related artifacts.
 	AbsResourcesDir string
 
 	AbsPublishDir string
 
-	// pagination path handling
-	PaginatePath string
-
-	PublishDir string
-
 	// When in multihost mode, this returns a list of base paths below PublishDir
 	// for each language.
 	MultihostTargetBasePaths []string
-
-	DisablePathToLower bool
-	RemovePathAccents  bool
-	UglyURLs           bool
-	CanonifyURLs       bool
-
-	Language  *langs.Language
-	Languages langs.Languages
-
-	// The PathSpec looks up its config settings in both the current language
-	// and then in the global Viper config.
-	// Some settings, the settings listed below, does not make sense to be set
-	// on per-language-basis. We have no good way of protecting against this
-	// other than a "white-list". See language.go.
-	defaultContentLanguageInSubdir bool
-	DefaultContentLanguage         string
-	multilingual                   bool
-
-	themes    []string
-	AllThemes []ThemeConfig
 }
 
-func New(fs *hugofs.Fs, cfg config.Provider) (*Paths, error) {
-	baseURLstr := cfg.GetString("baseURL")
-	baseURL, err := newBaseURLFromString(baseURLstr)
-
-	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to create baseURL from %q:", baseURLstr)
-	}
-
-	contentDir := filepath.Clean(cfg.GetString("contentDir"))
-	workingDir := filepath.Clean(cfg.GetString("workingDir"))
-	resourceDir := filepath.Clean(cfg.GetString("resourceDir"))
-	publishDir := filepath.Clean(cfg.GetString("publishDir"))
-
-	if contentDir == "" {
-		return nil, fmt.Errorf("contentDir not set")
-	}
-	if resourceDir == "" {
-		return nil, fmt.Errorf("resourceDir not set")
-	}
+func New(fs *hugofs.Fs, cfg config.AllProvider) (*Paths, error) {
+	bcfg := cfg.BaseConfig()
+	publishDir := bcfg.PublishDir
 	if publishDir == "" {
-		return nil, fmt.Errorf("publishDir not set")
+		panic("publishDir not set")
 	}
 
-	defaultContentLanguage := cfg.GetString("defaultContentLanguage")
-
-	var (
-		language  *langs.Language
-		languages langs.Languages
-	)
-
-	if l, ok := cfg.(*langs.Language); ok {
-		language = l
-
-	}
-
-	if l, ok := cfg.Get("languagesSorted").(langs.Languages); ok {
-		languages = l
-	}
-
-	if len(languages) == 0 {
-		// We have some old tests that does not test the entire chain, hence
-		// they have no languages. So create one so we get the proper filesystem.
-		languages = langs.Languages{&langs.Language{Lang: "en", Cfg: cfg, ContentDir: contentDir}}
-	}
-
-	absPublishDir := AbsPathify(workingDir, publishDir)
+	absPublishDir := hpaths.AbsPathify(bcfg.WorkingDir, publishDir)
 	if !strings.HasSuffix(absPublishDir, FilePathSeparator) {
 		absPublishDir += FilePathSeparator
 	}
@@ -131,7 +56,7 @@ func New(fs *hugofs.Fs, cfg config.Provider) (*Paths, error) {
 	if absPublishDir == "//" {
 		absPublishDir = FilePathSeparator
 	}
-	absResourcesDir := AbsPathify(workingDir, resourceDir)
+	absResourcesDir := hpaths.AbsPathify(bcfg.WorkingDir, cfg.Dirs().ResourceDir)
 	if !strings.HasSuffix(absResourcesDir, FilePathSeparator) {
 		absResourcesDir += FilePathSeparator
 	}
@@ -140,140 +65,68 @@ func New(fs *hugofs.Fs, cfg config.Provider) (*Paths, error) {
 	}
 
 	var multihostTargetBasePaths []string
-	if languages.IsMultihost() {
-		for _, l := range languages {
+	if cfg.IsMultihost() && len(cfg.Languages()) > 1 {
+		for _, l := range cfg.Languages() {
 			multihostTargetBasePaths = append(multihostTargetBasePaths, l.Lang)
 		}
 	}
 
 	p := &Paths{
-		Fs:      fs,
-		Cfg:     cfg,
-		BaseURL: baseURL,
-
-		DisablePathToLower: cfg.GetBool("disablePathToLower"),
-		RemovePathAccents:  cfg.GetBool("removePathAccents"),
-		UglyURLs:           cfg.GetBool("uglyURLs"),
-		CanonifyURLs:       cfg.GetBool("canonifyURLs"),
-
-		ContentDir: contentDir,
-		ThemesDir:  cfg.GetString("themesDir"),
-		WorkingDir: workingDir,
-
-		AbsResourcesDir: absResourcesDir,
-		AbsPublishDir:   absPublishDir,
-
-		themes: config.GetStringSlicePreserveString(cfg, "theme"),
-
-		multilingual:                   cfg.GetBool("multilingual"),
-		defaultContentLanguageInSubdir: cfg.GetBool("defaultContentLanguageInSubdir"),
-		DefaultContentLanguage:         defaultContentLanguage,
-
-		Language:                 language,
-		Languages:                languages,
+		Fs:                       fs,
+		Cfg:                      cfg,
+		AbsResourcesDir:          absResourcesDir,
+		AbsPublishDir:            absPublishDir,
 		MultihostTargetBasePaths: multihostTargetBasePaths,
-
-		PaginatePath: cfg.GetString("paginatePath"),
 	}
-
-	if !cfg.IsSet("theme") && cfg.IsSet("allThemes") {
-		p.AllThemes = cfg.Get("allThemes").([]ThemeConfig)
-	} else {
-		p.AllThemes, err = collectThemeNames(p)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// TODO(bep) remove this, eventually
-	p.PublishDir = absPublishDir
 
 	return p, nil
 }
 
+func (p *Paths) AllModules() modules.Modules {
+	return p.Cfg.GetConfigSection("activeModules").(modules.Modules)
+}
+
 // GetBasePath returns any path element in baseURL if needed.
 func (p *Paths) GetBasePath(isRelativeURL bool) string {
-	if isRelativeURL && p.CanonifyURLs {
+	if isRelativeURL && p.Cfg.CanonifyURLs() {
 		// The baseURL will be prepended later.
 		return ""
 	}
-	return p.BasePath
+	return p.Cfg.BaseURL().BasePath
 }
 
 func (p *Paths) Lang() string {
-	if p == nil || p.Language == nil {
+	if p == nil || p.Cfg.Language() == nil {
 		return ""
 	}
-	return p.Language.Lang
-}
-
-// ThemeSet checks whether a theme is in use or not.
-func (p *Paths) ThemeSet() bool {
-	return len(p.themes) > 0
-}
-
-func (p *Paths) Themes() []string {
-	return p.themes
+	return p.Cfg.Language().Lang
 }
 
 func (p *Paths) GetTargetLanguageBasePath() string {
-	if p.Languages.IsMultihost() {
+	if p.Cfg.IsMultihost() {
 		// In a multihost configuration all assets will be published below the language code.
 		return p.Lang()
 	}
 	return p.GetLanguagePrefix()
 }
 
-func (p *Paths) GetURLLanguageBasePath() string {
-	if p.Languages.IsMultihost() {
-		return ""
-	}
-	return p.GetLanguagePrefix()
-}
-
 func (p *Paths) GetLanguagePrefix() string {
-	if !p.multilingual {
-		return ""
-	}
-
-	defaultLang := p.DefaultContentLanguage
-	defaultInSubDir := p.defaultContentLanguageInSubdir
-
-	currentLang := p.Language.Lang
-	if currentLang == "" || (currentLang == defaultLang && !defaultInSubDir) {
-		return ""
-	}
-	return currentLang
-}
-
-// GetLangSubDir returns the given language's subdir if needed.
-func (p *Paths) GetLangSubDir(lang string) string {
-	if !p.multilingual {
-		return ""
-	}
-
-	if p.Languages.IsMultihost() {
-		return ""
-	}
-
-	if lang == "" || (lang == p.DefaultContentLanguage && !p.defaultContentLanguageInSubdir) {
-		return ""
-	}
-
-	return lang
+	return p.Cfg.LanguagePrefix()
 }
 
 // AbsPathify creates an absolute path if given a relative path. If already
 // absolute, the path is just cleaned.
 func (p *Paths) AbsPathify(inPath string) string {
-	return AbsPathify(p.WorkingDir, inPath)
+	return hpaths.AbsPathify(p.Cfg.BaseConfig().WorkingDir, inPath)
 }
 
-// AbsPathify creates an absolute path if given a working dir and arelative path.
-// If already absolute, the path is just cleaned.
-func AbsPathify(workingDir, inPath string) string {
-	if filepath.IsAbs(inPath) {
-		return filepath.Clean(inPath)
+// RelPathify trims any WorkingDir prefix from the given filename. If
+// the filename is not considered to be absolute, the path is just cleaned.
+func (p *Paths) RelPathify(filename string) string {
+	filename = filepath.Clean(filename)
+	if !filepath.IsAbs(filename) {
+		return filename
 	}
-	return filepath.Join(workingDir, inPath)
+
+	return strings.TrimPrefix(strings.TrimPrefix(filename, p.Cfg.BaseConfig().WorkingDir), FilePathSeparator)
 }

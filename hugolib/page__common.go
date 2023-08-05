@@ -16,28 +16,59 @@ package hugolib
 import (
 	"sync"
 
-	"github.com/bep/gitmap"
 	"github.com/gohugoio/hugo/common/maps"
 	"github.com/gohugoio/hugo/compare"
 	"github.com/gohugoio/hugo/lazy"
 	"github.com/gohugoio/hugo/navigation"
-	"github.com/gohugoio/hugo/output"
+	"github.com/gohugoio/hugo/output/layouts"
 	"github.com/gohugoio/hugo/resources/page"
 	"github.com/gohugoio/hugo/resources/resource"
+	"github.com/gohugoio/hugo/source"
 )
+
+type treeRefProvider interface {
+	getTreeRef() *contentTreeRef
+}
+
+func (p *pageCommon) getTreeRef() *contentTreeRef {
+	return p.treeRef
+}
+
+type nextPrevProvider interface {
+	getNextPrev() *nextPrev
+}
+
+func (p *pageCommon) getNextPrev() *nextPrev {
+	return p.posNextPrev
+}
+
+type nextPrevInSectionProvider interface {
+	getNextPrevInSection() *nextPrev
+}
+
+func (p *pageCommon) getNextPrevInSection() *nextPrev {
+	return p.posNextPrevSection
+}
 
 type pageCommon struct {
 	s *Site
 	m *pageMeta
 
-	// Laziliy initialized dependencies.
+	sWrapped page.Site
+
+	bucket  *pagesMapBucket
+	treeRef *contentTreeRef
+
+	// Lazily initialized dependencies.
 	init *lazy.Init
+
+	// Store holds state that survives server rebuilds.
+	store *maps.Scratch
 
 	// All of these represents the common parts of a page.Page
 	maps.Scratcher
 	navigation.PageMenusProvider
 	page.AuthorProvider
-	page.PageRenderProvider
 	page.AlternativeOutputFormatsProvider
 	page.ChildCareProvider
 	page.FileProvider
@@ -52,14 +83,14 @@ type pageCommon struct {
 	page.RefProvider
 	page.ShortcodeInfoProvider
 	page.SitesProvider
-	page.DeprecatedWarningPageMethods
 	page.TranslationsProvider
 	page.TreeProvider
 	resource.LanguageProvider
 	resource.ResourceDataProvider
 	resource.ResourceMetaProvider
 	resource.ResourceParamsProvider
-	resource.ResourceTypesProvider
+	resource.ResourceTypeProvider
+	resource.MediaTypeProvider
 	resource.TranslationKeyProvider
 	compare.Eqer
 
@@ -67,14 +98,18 @@ type pageCommon struct {
 	// should look like.
 	targetPathDescriptor page.TargetPathDescriptor
 
-	layoutDescriptor     output.LayoutDescriptor
+	layoutDescriptor     layouts.LayoutDescriptor
 	layoutDescriptorInit sync.Once
 
 	// The parsed page content.
 	pageContent
 
+	// Keeps track of the shortcodes on a page.
+	shortcodeState *shortcodeHandler
+
 	// Set if feature enabled and this is in a Git repo.
-	gitInfo *gitmap.GitInfo
+	gitInfo    source.GitInfo
+	codeowners []string
 
 	// Positional navigation
 	posNextPrev        *nextPrev
@@ -101,17 +136,23 @@ type pageCommon struct {
 	translationKey     string
 	translationKeyInit sync.Once
 
-	// Will only be set for sections and regular pages.
+	// Will only be set for bundled pages.
 	parent *pageState
-
-	// Will only be set for section pages and the home page.
-	subSections page.Pages
 
 	// Set in fast render mode to force render a given page.
 	forceRender bool
 }
 
+func (p *pageCommon) Store() *maps.Scratch {
+	return p.store
+}
+
 type pagePages struct {
-	pages     page.Pages
 	pagesInit sync.Once
+	pages     page.Pages
+
+	regularPagesInit          sync.Once
+	regularPages              page.Pages
+	regularPagesRecursiveInit sync.Once
+	regularPagesRecursive     page.Pages
 }

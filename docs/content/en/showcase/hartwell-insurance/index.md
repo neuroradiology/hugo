@@ -20,7 +20,7 @@ It’s a multi-page, single-page (!) website written in Hugo, a static site gene
 
 There’s no Apache or Node backend that does compilation at runtime, it’s all done at the build step. This means the server; Netlify in this case, only has to do one thing – serve files. Unsurprisingly, serving simple files is VERY quick.
 
-The starter point was the [Victor Hugo](https://github.com/netlify/victor-hugo) repository that Netlify have created. It let me dive in with Hugo, PostCSS, BrowserSync and ES6 without setting up any tooling myself – always a win!
+The starter point was the [Victor Hugo](https://github.com/netlify/victor-hugo) repository that Netlify have created. It let me dive in with Hugo, PostCSS, Browsersync and ES6 without setting up any tooling myself – always a win!
 
 I then took all the content from the design file and moved it into Markdown, putting shortcodes in where necessary. This site did need a number of custom shortcodes for the presentational elements like the expanding circles and full width backgrounds. But mostly it was just clean, semantic HTML with some CSS and JS enhancement thrown in.
 
@@ -30,7 +30,7 @@ For example, this two column layout shown below. I used CSS Columns with a  `bre
 
 For the ripple effects on the section headings, I used JS to prepend a `<canvas>` element then animated it with `RequestAnimationFrame`. It adds a nice bit of movement on the page.
 
-On the [Hartwell Profitmaker](https://www.hartwell-insurance.com/profitmaker/) section, I toyed with the idea of using Vue.js for the calculator, but after giving it some thought, I decided to code in Vanilla. The result, all of the site JS comes in at 3.2KB!
+On the Hartwell Profitmaker section, I toyed with the idea of using Vue.js for the calculator, but after giving it some thought, I decided to code in Vanilla. The result, all of the site JS comes in at 3.2KB!
 
 The plan was to host with Netlify and therefore get access to Netlify Forms. It meant spending 0 minutes on getting a backend set up – I could focus fully on the frontend.
 

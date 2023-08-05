@@ -14,73 +14,38 @@
 package metadecoders
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/gohugoio/hugo/media"
-
-	"github.com/gohugoio/hugo/parser/pageparser"
-
-	"github.com/stretchr/testify/require"
+	qt "github.com/frankban/quicktest"
 )
 
 func TestFormatFromString(t *testing.T) {
-	assert := require.New(t)
-	for i, test := range []struct {
+	c := qt.New(t)
+	for _, test := range []struct {
 		s      string
 		expect Format
 	}{
 		{"json", JSON},
 		{"yaml", YAML},
 		{"yml", YAML},
+		{"xml", XML},
 		{"toml", TOML},
 		{"config.toml", TOML},
 		{"tOMl", TOML},
 		{"org", ORG},
 		{"foo", ""},
 	} {
-		assert.Equal(test.expect, FormatFromString(test.s), fmt.Sprintf("t%d", i))
-	}
-}
-
-func TestFormatFromMediaType(t *testing.T) {
-	assert := require.New(t)
-	for i, test := range []struct {
-		m      media.Type
-		expect Format
-	}{
-		{media.JSONType, JSON},
-		{media.YAMLType, YAML},
-		{media.TOMLType, TOML},
-		{media.CalendarType, ""},
-	} {
-		assert.Equal(test.expect, FormatFromMediaType(test.m), fmt.Sprintf("t%d", i))
-	}
-}
-
-func TestFormatFromFrontMatterType(t *testing.T) {
-	assert := require.New(t)
-	for i, test := range []struct {
-		typ    pageparser.ItemType
-		expect Format
-	}{
-		{pageparser.TypeFrontMatterJSON, JSON},
-		{pageparser.TypeFrontMatterTOML, TOML},
-		{pageparser.TypeFrontMatterYAML, YAML},
-		{pageparser.TypeFrontMatterORG, ORG},
-		{pageparser.TypeIgnore, ""},
-	} {
-		assert.Equal(test.expect, FormatFromFrontMatterType(test.typ), fmt.Sprintf("t%d", i))
+		c.Assert(FormatFromString(test.s), qt.Equals, test.expect)
 	}
 }
 
 func TestFormatFromContentString(t *testing.T) {
 	t.Parallel()
-	assert := require.New(t)
+	c := qt.New(t)
 
 	for i, test := range []struct {
 		data   string
-		expect interface{}
+		expect any
 	}{
 		{`foo = "bar"`, TOML},
 		{`   foo = "bar"`, TOML},
@@ -89,13 +54,14 @@ func TestFormatFromContentString(t *testing.T) {
 		{`foo:"bar"`, YAML},
 		{`{ "foo": "bar"`, JSON},
 		{`a,b,c"`, CSV},
+		{`<foo>bar</foo>"`, XML},
 		{`asdfasdf`, Format("")},
 		{``, Format("")},
 	} {
-		errMsg := fmt.Sprintf("[%d] %s", i, test.data)
+		errMsg := qt.Commentf("[%d] %s", i, test.data)
 
 		result := Default.FormatFromContentString(test.data)
 
-		assert.Equal(test.expect, result, errMsg)
+		c.Assert(result, qt.Equals, test.expect, errMsg)
 	}
 }

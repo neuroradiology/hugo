@@ -1,22 +1,13 @@
 ---
 title: lang.Merge
 description: "Merge missing translations from other languages."
-godocref: ""
-workson: []
-date: 2018-03-16
 categories: [functions]
 keywords: [multilingual]
 menu:
   docs:
-    parent: "functions"
-toc: false
+    parent: functions
 signature: ["lang.Merge FROM TO"]
-workson: []
-hugoversion:
 relatedfuncs: []
-deprecated: false
-draft: false
-aliases: []
 comments:
 ---
 
@@ -37,7 +28,3 @@ A more practical example is to fill in the missing translations from the other l
 {{ $pages = $pages | lang.Merge .Site.RegularPages }}
 {{ end }}
  ```
-
-{{% note %}}
-Note that the slightly ugly `.Scratch` construct will not be needed once this is fixed: https://github.com/golang/go/issues/10608
-{{% /note %}}

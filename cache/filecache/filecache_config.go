@@ -11,90 +11,123 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+// Package filecache provides a file based cache for Hugo.
 package filecache
 
 import (
+	"fmt"
 	"path"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/gohugoio/hugo/helpers"
+	"github.com/gohugoio/hugo/common/maps"
+	"github.com/gohugoio/hugo/config"
+
+	"errors"
 
 	"github.com/mitchellh/mapstructure"
-	"github.com/pkg/errors"
 	"github.com/spf13/afero"
 )
 
 const (
-	cachesConfigKey = "caches"
-
 	resourcesGenDir = ":resourceDir/_gen"
+	cacheDirProject = ":cacheDir/:project"
 )
 
-var defaultCacheConfig = cacheConfig{
+var defaultCacheConfig = FileCacheConfig{
 	MaxAge: -1, // Never expire
-	Dir:    ":cacheDir/:project",
+	Dir:    cacheDirProject,
 }
 
 const (
-	cacheKeyGetJSON = "getjson"
-	cacheKeyGetCSV  = "getcsv"
-	cacheKeyImages  = "images"
-	cacheKeyAssets  = "assets"
+	CacheKeyGetJSON     = "getjson"
+	CacheKeyGetCSV      = "getcsv"
+	CacheKeyImages      = "images"
+	CacheKeyAssets      = "assets"
+	CacheKeyModules     = "modules"
+	CacheKeyGetResource = "getresource"
 )
 
-var defaultCacheConfigs = map[string]cacheConfig{
-	cacheKeyGetJSON: defaultCacheConfig,
-	cacheKeyGetCSV:  defaultCacheConfig,
-	cacheKeyImages: {
+type Configs map[string]FileCacheConfig
+
+// For internal use.
+func (c Configs) CacheDirModules() string {
+	return c[CacheKeyModules].DirCompiled
+}
+
+var defaultCacheConfigs = Configs{
+	CacheKeyModules: {
+		MaxAge: -1,
+		Dir:    ":cacheDir/modules",
+	},
+	CacheKeyGetJSON: defaultCacheConfig,
+	CacheKeyGetCSV:  defaultCacheConfig,
+	CacheKeyImages: {
 		MaxAge: -1,
 		Dir:    resourcesGenDir,
 	},
-	cacheKeyAssets: {
+	CacheKeyAssets: {
 		MaxAge: -1,
 		Dir:    resourcesGenDir,
+	},
+	CacheKeyGetResource: FileCacheConfig{
+		MaxAge: -1, // Never expire
+		Dir:    cacheDirProject,
 	},
 }
 
-type cachesConfig map[string]cacheConfig
-
-type cacheConfig struct {
+type FileCacheConfig struct {
 	// Max age of cache entries in this cache. Any items older than this will
 	// be removed and not returned from the cache.
-	// a negative value means forever, 0 means cache is disabled.
+	// A negative value means forever, 0 means cache is disabled.
+	// Hugo is lenient with what types it accepts here, but we recommend using
+	// a duration string, a sequence of  decimal numbers, each with optional fraction and a unit suffix,
+	// such as "300ms", "1.5h" or "2h45m".
+	// Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
 	MaxAge time.Duration
 
 	// The directory where files are stored.
-	Dir string
+	Dir         string
+	DirCompiled string `json:"-"`
 
 	// Will resources/_gen will get its own composite filesystem that
 	// also checks any theme.
-	isResourceDir bool
+	IsResourceDir bool
 }
 
 // GetJSONCache gets the file cache for getJSON.
 func (f Caches) GetJSONCache() *Cache {
-	return f[cacheKeyGetJSON]
+	return f[CacheKeyGetJSON]
 }
 
 // GetCSVCache gets the file cache for getCSV.
 func (f Caches) GetCSVCache() *Cache {
-	return f[cacheKeyGetCSV]
+	return f[CacheKeyGetCSV]
 }
 
 // ImageCache gets the file cache for processed images.
 func (f Caches) ImageCache() *Cache {
-	return f[cacheKeyImages]
+	return f[CacheKeyImages]
+}
+
+// ModulesCache gets the file cache for Hugo Modules.
+func (f Caches) ModulesCache() *Cache {
+	return f[CacheKeyModules]
 }
 
 // AssetsCache gets the file cache for assets (processed resources, SCSS etc.).
 func (f Caches) AssetsCache() *Cache {
-	return f[cacheKeyAssets]
+	return f[CacheKeyAssets]
 }
 
-func decodeConfig(p *helpers.PathSpec) (cachesConfig, error) {
-	c := make(cachesConfig)
+// GetResourceCache gets the file cache for remote resources.
+func (f Caches) GetResourceCache() *Cache {
+	return f[CacheKeyGetResource]
+}
+
+func DecodeConfig(fs afero.Fs, bcfg config.BaseConfig, m map[string]any) (Configs, error) {
+	c := make(Configs)
 	valid := make(map[string]bool)
 	// Add defaults
 	for k, v := range defaultCacheConfigs {
@@ -102,13 +135,12 @@ func decodeConfig(p *helpers.PathSpec) (cachesConfig, error) {
 		valid[k] = true
 	}
 
-	cfg := p.Cfg
-
-	m := cfg.GetStringMap(cachesConfigKey)
-
-	_, isOsFs := p.Fs.Source.(*afero.OsFs)
+	_, isOsFs := fs.(*afero.OsFs)
 
 	for k, v := range m {
+		if _, ok := v.(maps.Params); !ok {
+			continue
+		}
 		cc := defaultCacheConfig
 
 		dc := &mapstructure.DecoderConfig{
@@ -123,7 +155,7 @@ func decodeConfig(p *helpers.PathSpec) (cachesConfig, error) {
 		}
 
 		if err := decoder.Decode(v); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to decode filecache config: %w", err)
 		}
 
 		if cc.Dir == "" {
@@ -132,14 +164,11 @@ func decodeConfig(p *helpers.PathSpec) (cachesConfig, error) {
 
 		name := strings.ToLower(k)
 		if !valid[name] {
-			return nil, errors.Errorf("%q is not a valid cache name", name)
+			return nil, fmt.Errorf("%q is not a valid cache name", name)
 		}
 
 		c[name] = cc
 	}
-
-	// This is a very old flag in Hugo, but we need to respect it.
-	disabled := cfg.GetBool("ignoreCache")
 
 	for k, v := range c {
 		dir := filepath.ToSlash(filepath.Clean(v.Dir))
@@ -148,12 +177,12 @@ func decodeConfig(p *helpers.PathSpec) (cachesConfig, error) {
 
 		for i, part := range parts {
 			if strings.HasPrefix(part, ":") {
-				resolved, isResource, err := resolveDirPlaceholder(p, part)
+				resolved, isResource, err := resolveDirPlaceholder(fs, bcfg, part)
 				if err != nil {
 					return c, err
 				}
 				if isResource {
-					v.isResourceDir = true
+					v.IsResourceDir = true
 				}
 				parts[i] = resolved
 			}
@@ -163,21 +192,29 @@ func decodeConfig(p *helpers.PathSpec) (cachesConfig, error) {
 		if hadSlash {
 			dir = "/" + dir
 		}
-		v.Dir = filepath.Clean(filepath.FromSlash(dir))
+		v.DirCompiled = filepath.Clean(filepath.FromSlash(dir))
 
-		if !v.isResourceDir {
-			if isOsFs && !filepath.IsAbs(v.Dir) {
-				return c, errors.Errorf("%q must resolve to an absolute directory", v.Dir)
+		if !v.IsResourceDir {
+			if isOsFs && !filepath.IsAbs(v.DirCompiled) {
+				return c, fmt.Errorf("%q must resolve to an absolute directory", v.DirCompiled)
 			}
 
 			// Avoid cache in root, e.g. / (Unix) or c:\ (Windows)
-			if len(strings.TrimPrefix(v.Dir, filepath.VolumeName(v.Dir))) == 1 {
-				return c, errors.Errorf("%q is a root folder and not allowed as cache dir", v.Dir)
+			if len(strings.TrimPrefix(v.DirCompiled, filepath.VolumeName(v.DirCompiled))) == 1 {
+				return c, fmt.Errorf("%q is a root folder and not allowed as cache dir", v.DirCompiled)
 			}
 		}
 
-		if disabled {
-			v.MaxAge = 0
+		if !strings.HasPrefix(v.DirCompiled, "_gen") {
+			// We do cache eviction (file removes) and since the user can set
+			// his/hers own cache directory, we really want to make sure
+			// we do not delete any files that do not belong to this cache.
+			// We do add the cache name as the root, but this is an extra safe
+			// guard. We skip the files inside /resources/_gen/ because
+			// that would be breaking.
+			v.DirCompiled = filepath.Join(v.DirCompiled, FilecacheRootDirname, k)
+		} else {
+			v.DirCompiled = filepath.Join(v.DirCompiled, k)
 		}
 
 		c[k] = v
@@ -187,16 +224,16 @@ func decodeConfig(p *helpers.PathSpec) (cachesConfig, error) {
 }
 
 // Resolves :resourceDir => /myproject/resources etc., :cacheDir => ...
-func resolveDirPlaceholder(p *helpers.PathSpec, placeholder string) (cacheDir string, isResource bool, err error) {
+func resolveDirPlaceholder(fs afero.Fs, bcfg config.BaseConfig, placeholder string) (cacheDir string, isResource bool, err error) {
+
 	switch strings.ToLower(placeholder) {
 	case ":resourcedir":
 		return "", true, nil
 	case ":cachedir":
-		d, err := helpers.GetCacheDir(p.Fs.Source, p.Cfg)
-		return d, false, err
+		return bcfg.CacheDir, false, nil
 	case ":project":
-		return filepath.Base(p.WorkingDir), false, nil
+		return filepath.Base(bcfg.WorkingDir), false, nil
 	}
 
-	return "", false, errors.Errorf("%q is not a valid placeholder (valid values are :cacheDir or :resourceDir)", placeholder)
+	return "", false, fmt.Errorf("%q is not a valid placeholder (valid values are :cacheDir or :resourceDir)", placeholder)
 }

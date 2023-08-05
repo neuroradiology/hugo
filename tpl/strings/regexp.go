@@ -14,16 +14,14 @@
 package strings
 
 import (
-	"regexp"
-	"sync"
-
+	"github.com/gohugoio/hugo/common/hstrings"
 	"github.com/spf13/cast"
 )
 
 // FindRE returns a list of strings that match the regular expression. By default all matches
 // will be included. The number of matches can be limited with an optional third parameter.
-func (ns *Namespace) FindRE(expr string, content interface{}, limit ...interface{}) ([]string, error) {
-	re, err := reCache.Get(expr)
+func (ns *Namespace) FindRE(expr string, content any, limit ...any) ([]string, error) {
+	re, err := hstrings.GetOrCompileRegexp(expr)
 	if err != nil {
 		return nil, err
 	}
@@ -45,9 +43,40 @@ func (ns *Namespace) FindRE(expr string, content interface{}, limit ...interface
 	return re.FindAllString(conv, lim), nil
 }
 
+// FindRESubmatch returns a slice of all successive matches of the regular
+// expression in content. Each element is a slice of strings holding the text
+// of the leftmost match of the regular expression and the matches, if any, of
+// its subexpressions.
+//
+// By default all matches will be included. The number of matches can be
+// limited with the optional limit parameter. A return value of nil indicates
+// no match.
+func (ns *Namespace) FindRESubmatch(expr string, content any, limit ...any) ([][]string, error) {
+	re, err := hstrings.GetOrCompileRegexp(expr)
+	if err != nil {
+		return nil, err
+	}
+
+	conv, err := cast.ToStringE(content)
+	if err != nil {
+		return nil, err
+	}
+	n := -1
+	if len(limit) > 0 {
+		n, err = cast.ToIntE(limit[0])
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return re.FindAllStringSubmatch(conv, n), nil
+
+}
+
 // ReplaceRE returns a copy of s, replacing all matches of the regular
-// expression pattern with the replacement text repl.
-func (ns *Namespace) ReplaceRE(pattern, repl, s interface{}) (_ string, err error) {
+// expression pattern with the replacement text repl. The number of replacements
+// can be limited with an optional fourth parameter.
+func (ns *Namespace) ReplaceRE(pattern, repl, s any, n ...any) (_ string, err error) {
 	sp, err := cast.ToStringE(pattern)
 	if err != nil {
 		return
@@ -63,47 +92,25 @@ func (ns *Namespace) ReplaceRE(pattern, repl, s interface{}) (_ string, err erro
 		return
 	}
 
-	re, err := reCache.Get(sp)
+	nn := -1
+	if len(n) > 0 {
+		nn, err = cast.ToIntE(n[0])
+		if err != nil {
+			return
+		}
+	}
+
+	re, err := hstrings.GetOrCompileRegexp(sp)
 	if err != nil {
 		return "", err
 	}
 
-	return re.ReplaceAllString(ss, sr), nil
-}
-
-// regexpCache represents a cache of regexp objects protected by a mutex.
-type regexpCache struct {
-	mu sync.RWMutex
-	re map[string]*regexp.Regexp
-}
-
-// Get retrieves a regexp object from the cache based upon the pattern.
-// If the pattern is not found in the cache, create one
-func (rc *regexpCache) Get(pattern string) (re *regexp.Regexp, err error) {
-	var ok bool
-
-	if re, ok = rc.get(pattern); !ok {
-		re, err = regexp.Compile(pattern)
-		if err != nil {
-			return nil, err
+	return re.ReplaceAllStringFunc(ss, func(str string) string {
+		if nn == 0 {
+			return str
 		}
-		rc.set(pattern, re)
-	}
 
-	return re, nil
+		nn -= 1
+		return re.ReplaceAllString(str, sr)
+	}), nil
 }
-
-func (rc *regexpCache) get(key string) (re *regexp.Regexp, ok bool) {
-	rc.mu.RLock()
-	re, ok = rc.re[key]
-	rc.mu.RUnlock()
-	return
-}
-
-func (rc *regexpCache) set(key string, re *regexp.Regexp) {
-	rc.mu.Lock()
-	rc.re[key] = re
-	rc.mu.Unlock()
-}
-
-var reCache = regexpCache{re: make(map[string]*regexp.Regexp)}

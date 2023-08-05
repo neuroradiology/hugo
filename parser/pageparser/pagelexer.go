@@ -11,10 +11,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package pageparser provides a parser for Hugo content files (Markdown, HTML etc.) in Hugo.
-// This implementation is highly inspired by the great talk given by Rob Pike called "Lexical Scanning in Go"
-// It's on YouTube, Google it!.
-// See slides here: http://cuddle.googlecode.com/hg/talk/lex.html
 package pageparser
 
 import (
@@ -58,12 +54,11 @@ type pageLexer struct {
 
 // Implement the Result interface
 func (l *pageLexer) Iterator() *Iterator {
-	return l.newIterator()
+	return NewIterator(l.items)
 }
 
 func (l *pageLexer) Input() []byte {
 	return l.input
-
 }
 
 type Config struct {
@@ -90,10 +85,6 @@ func newPageLexer(input []byte, stateStart stateFunc, cfg Config) *pageLexer {
 	return lexer
 }
 
-func (l *pageLexer) newIterator() *Iterator {
-	return &Iterator{l: l, lastPos: -1}
-}
-
 // main loop
 func (l *pageLexer) run() *pageLexer {
 	for l.state = l.stateStart; l.state != nil; {
@@ -117,7 +108,7 @@ var (
 )
 
 func (l *pageLexer) next() rune {
-	if int(l.pos) >= len(l.input) {
+	if l.pos >= len(l.input) {
 		l.width = 0
 		return eof
 	}
@@ -125,6 +116,7 @@ func (l *pageLexer) next() rune {
 	runeValue, runeWidth := utf8.DecodeRune(l.input[l.pos:])
 	l.width = runeWidth
 	l.pos += l.width
+
 	return runeValue
 }
 
@@ -140,9 +132,48 @@ func (l *pageLexer) backup() {
 	l.pos -= l.width
 }
 
+func (l *pageLexer) append(item Item) {
+	if item.Pos() < len(l.input) {
+		item.firstByte = l.input[item.Pos()]
+	}
+	l.items = append(l.items, item)
+}
+
 // sends an item back to the client.
 func (l *pageLexer) emit(t ItemType) {
-	l.items = append(l.items, Item{t, l.start, l.input[l.start:l.pos]})
+	defer func() {
+		l.start = l.pos
+	}()
+
+	if t == tText {
+		// Identify any trailing whitespace/intendation.
+		// We currently only care about the last one.
+		for i := l.pos - 1; i >= l.start; i-- {
+			b := l.input[i]
+			if b != ' ' && b != '\t' && b != '\r' && b != '\n' {
+				break
+			}
+			if i == l.start && b != '\n' {
+				l.append(Item{Type: tIndentation, low: l.start, high: l.pos})
+				return
+			} else if b == '\n' && i < l.pos-1 {
+				l.append(Item{Type: t, low: l.start, high: i + 1})
+				l.append(Item{Type: tIndentation, low: i + 1, high: l.pos})
+				return
+			} else if b == '\n' && i == l.pos-1 {
+				break
+			}
+
+		}
+	}
+
+	l.append(Item{Type: t, low: l.start, high: l.pos})
+
+}
+
+// sends a string item back to the client.
+func (l *pageLexer) emitString(t ItemType) {
+	l.append(Item{Type: t, low: l.start, high: l.pos, isString: true})
 	l.start = l.pos
 }
 
@@ -151,15 +182,39 @@ func (l *pageLexer) isEOF() bool {
 }
 
 // special case, do not send '\\' back to client
-func (l *pageLexer) ignoreEscapesAndEmit(t ItemType) {
-	val := bytes.Map(func(r rune) rune {
+func (l *pageLexer) ignoreEscapesAndEmit(t ItemType, isString bool) {
+	i := l.start
+	k := i
+
+	var segments []lowHigh
+
+	for i < l.pos {
+		r, w := utf8.DecodeRune(l.input[i:l.pos])
 		if r == '\\' {
-			return -1
+			if i > k {
+				segments = append(segments, lowHigh{k, i})
+			}
+			// See issue #10236.
+			// We don't send the backslash back to the client,
+			// which makes the end parsing simpler.
+			// This means that we cannot render the AST back to be
+			// exactly the same as the input,
+			// but that was also the situation before we introduced the issue in #10236.
+			k = i + w
 		}
-		return r
-	}, l.input[l.start:l.pos])
-	l.items = append(l.items, Item{t, l.start, val})
+		i += w
+	}
+
+	if k < l.pos {
+		segments = append(segments, lowHigh{k, l.pos})
+	}
+
+	if len(segments) > 0 {
+		l.append(Item{Type: t, segments: segments})
+	}
+
 	l.start = l.pos
+
 }
 
 // gets the current value (for debugging and error handling)
@@ -175,8 +230,8 @@ func (l *pageLexer) ignore() {
 var lf = []byte("\n")
 
 // nil terminates the parser
-func (l *pageLexer) errorf(format string, args ...interface{}) stateFunc {
-	l.items = append(l.items, Item{tError, l.start, []byte(fmt.Sprintf(format, args...))})
+func (l *pageLexer) errorf(format string, args ...any) stateFunc {
+	l.append(Item{Type: tError, Err: fmt.Errorf(format, args...)})
 	return nil
 }
 
@@ -196,6 +251,16 @@ func (l *pageLexer) consumeToNextLine() {
 	for {
 		r := l.next()
 		if r == eof || isEndOfLine(r) {
+			return
+		}
+	}
+}
+
+func (l *pageLexer) consumeToSpace() {
+	for {
+		r := l.next()
+		if r == eof || unicode.IsSpace(r) {
+			l.backup()
 			return
 		}
 	}
@@ -274,7 +339,6 @@ func (s *sectionHandlers) skip() int {
 }
 
 func createSectionHandlers(l *pageLexer) *sectionHandlers {
-
 	shortCodeHandler := &sectionHandler{
 		l: l,
 		skipFunc: func(l *pageLexer) int {
@@ -315,7 +379,6 @@ func createSectionHandlers(l *pageLexer) *sectionHandlers {
 		skipFunc: func(l *pageLexer) int {
 			if l.summaryDividerChecked || l.summaryDivider == nil {
 				return -1
-
 			}
 			return l.index(l.summaryDivider)
 		},
@@ -331,7 +394,6 @@ func createSectionHandlers(l *pageLexer) *sectionHandlers {
 			l.emit(TypeLeadSummaryDivider)
 
 			return origin, true
-
 		},
 	}
 
@@ -413,13 +475,12 @@ func (s *sectionHandler) skip() int {
 }
 
 func lexMainSection(l *pageLexer) stateFunc {
-
 	if l.isEOF() {
 		return lexDone
 	}
 
 	if l.isInHTMLComment {
-		return lexEndFromtMatterHTMLComment
+		return lexEndFrontMatterHTMLComment
 	}
 
 	// Fast forward as far as possible.
@@ -439,11 +500,9 @@ func lexMainSection(l *pageLexer) stateFunc {
 
 	l.pos = len(l.input)
 	return lexDone
-
 }
 
 func lexDone(l *pageLexer) stateFunc {
-
 	// Done!
 	if l.pos > l.start {
 		l.emit(tText)

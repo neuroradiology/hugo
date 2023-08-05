@@ -1,25 +1,21 @@
 ---
 title: Archetypes
-linktitle: Archetypes
 description: Archetypes are templates used when creating new content.
-date: 2017-02-01
-publishdate: 2017-02-01
 keywords: [archetypes,generators,metadata,front matter]
-categories: ["content management"]
+categories: [content management]
 menu:
   docs:
-    parent: "content-management"
-    weight: 70
+    parent: content-management
+    weight: 140
   quicklinks:
-weight: 70	#rem
-draft: false
-aliases: [/content/archetypes/]
 toc: true
+weight: 140
+aliases: [/content/archetypes/]
 ---
 
-## What are Archetypes?
+## What are archetypes?
 
-**Archetypes** are content template files in the [archetypes directory][] of your project that contain preconfigured [front matter][] and possibly also a content disposition for your website's [content types][]. These will be used when you run `hugo new`.
+**Archetypes** are content template files in the [archetypes directory] of your project that contain preconfigured [front matter] and possibly also a content disposition for your website's [content types]. These will be used when you run `hugo new`.
 
 
 The `hugo new` uses the `content-section` to find the most suitable archetype template in your project. If your project does not contain any archetype files, it will also look in the theme.
@@ -37,7 +33,7 @@ The above will create a new content file in `content/posts/my-first-post.md` usi
 
 The last two list items are only applicable if you use a theme and it uses the `my-theme` theme name as an example.
 
-## Create a New Archetype Template
+## Create a new archetype template
 
 A fictional example for the section `newsletter` and the archetype file `archetypes/newsletter.md`. Create a new file in `archetypes/newsletter.md` and open it in a text editor.
 
@@ -50,7 +46,7 @@ draft: true
 
 **Insert Lead paragraph here.**
 
-## New Cool Posts
+## New cool posts
 
 {{ range first 10 ( where .Site.RegularPages "Type" "cool" ) }}
 * {{ .Title }}
@@ -68,7 +64,6 @@ It will create a new newsletter type of content file based on the archetype temp
 **Note:** the site will only be built if the `.Site` is in use in the archetype file, and this can be time consuming for big sites.
 
 The above _newsletter type archetype_ illustrates the possibilities: The full Hugo `.Site` and all of Hugo&#39;s template funcs can be used in the archetype file.
-
 
 ## Directory based archetypes
 
@@ -89,8 +84,6 @@ hugo new --kind post-bundle posts/my-post
 ```
 
 Will create a new folder in `/content/posts/my-post` with the same set of files as in the `post-bundle` archetypes folder. All content files (`index.md` etc.) can contain template logic, and will receive the correct `.Site` for the content's language.
-
-
 
 [archetypes directory]: /getting-started/directory-structure/
 [content types]: /content-management/types/

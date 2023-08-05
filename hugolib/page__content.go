@@ -14,6 +14,7 @@
 package hugolib
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/gohugoio/hugo/output"
@@ -28,32 +29,28 @@ var (
 
 // The content related items on a Page.
 type pageContent struct {
-	renderable bool
 	selfLayout string
-
-	truncated bool
+	truncated  bool
 
 	cmap *pageContentMap
-
-	shortcodeState *shortcodeHandler
 
 	source rawPageContent
 }
 
-// returns the content to be processed by Blackfriday or similar.
-func (p pageContent) contentToRender(renderedShortcodes map[string]string) []byte {
-	source := p.source.parsed.Input()
-
+// returns the content to be processed by Goldmark or similar.
+func (p pageContent) contentToRender(ctx context.Context, parsed pageparser.Result, pm *pageContentMap, renderedShortcodes map[string]shortcodeRenderer) ([]byte, bool, error) {
+	source := parsed.Input()
+	var hasVariants bool
 	c := make([]byte, 0, len(source)+(len(source)/10))
 
-	for _, it := range p.cmap.items {
+	for _, it := range pm.items {
 		switch v := it.(type) {
 		case pageparser.Item:
-			c = append(c, source[v.Pos:v.Pos+len(v.Val)]...)
+			c = append(c, source[v.Pos():v.Pos()+len(v.Val(source))]...)
 		case pageContentReplacement:
 			c = append(c, v.val...)
 		case *shortcode:
-			if !p.renderable || !v.insertPlaceholder() {
+			if !v.insertPlaceholder() {
 				// Insert the rendered shortcode.
 				renderedShortcode, found := renderedShortcodes[v.placeholder]
 				if !found {
@@ -61,20 +58,24 @@ func (p pageContent) contentToRender(renderedShortcodes map[string]string) []byt
 					panic(fmt.Sprintf("rendered shortcode %q not found", v.placeholder))
 				}
 
-				c = append(c, []byte(renderedShortcode)...)
+				b, more, err := renderedShortcode.renderShortcode(ctx)
+				if err != nil {
+					return nil, false, fmt.Errorf("failed to render shortcode: %w", err)
+				}
+				hasVariants = hasVariants || more
+				c = append(c, []byte(b)...)
 
 			} else {
 				// Insert the placeholder so we can insert the content after
 				// markdown processing.
 				c = append(c, []byte(v.placeholder)...)
-
 			}
 		default:
-			panic(fmt.Sprintf("unkown item type %T", it))
+			panic(fmt.Sprintf("unknown item type %T", it))
 		}
 	}
 
-	return c
+	return c, hasVariants, nil
 }
 
 func (p pageContent) selfLayoutForOutput(f output.Format) string {
@@ -114,7 +115,7 @@ type pageContentMap struct {
 	hasNonMarkdownShortcode bool
 
 	//  *shortcode, pageContentReplacement or pageparser.Item
-	items []interface{}
+	items []any
 }
 
 func (p *pageContentMap) AddBytes(item pageparser.Item) {

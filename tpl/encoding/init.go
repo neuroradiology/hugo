@@ -1,4 +1,4 @@
-// Copyright 2017 The Hugo Authors. All rights reserved.
+// Copyright 2020 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,8 @@
 package encoding
 
 import (
+	"context"
+
 	"github.com/gohugoio/hugo/deps"
 	"github.com/gohugoio/hugo/tpl/internal"
 )
@@ -26,7 +28,7 @@ func init() {
 
 		ns := &internal.TemplateFuncsNamespace{
 			Name:    name,
-			Context: func(args ...interface{}) interface{} { return ctx },
+			Context: func(cctx context.Context, args ...any) (any, error) { return ctx, nil },
 		}
 
 		ns.AddMethodMapping(ctx.Base64Decode,
@@ -48,11 +50,11 @@ func init() {
 			[]string{"jsonify"},
 			[][2]string{
 				{`{{ (slice "A" "B" "C") | jsonify }}`, `["A","B","C"]`},
+				{`{{ (slice "A" "B" "C") | jsonify (dict "indent" "  ") }}`, "[\n  \"A\",\n  \"B\",\n  \"C\"\n]"},
 			},
 		)
 
 		return ns
-
 	}
 
 	internal.AddTemplateFuncsNamespace(f)

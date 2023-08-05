@@ -14,34 +14,39 @@
 package transform
 
 import (
-	"io/ioutil"
+	"fmt"
+	"io"
 	"strings"
+
+	"github.com/gohugoio/hugo/resources/resource"
+
+	"github.com/gohugoio/hugo/common/types"
 
 	"github.com/mitchellh/mapstructure"
 
+	"errors"
+
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/parser/metadecoders"
-	"github.com/gohugoio/hugo/resources/resource"
-	"github.com/pkg/errors"
 
 	"github.com/spf13/cast"
 )
 
-// Unmarshal unmarshals the data given, which can be either a string
+// Unmarshal unmarshals the data given, which can be either a string, json.RawMessage
 // or a Resource. Supported formats are JSON, TOML, YAML, and CSV.
 // You can optionally provide an options map as the first argument.
-func (ns *Namespace) Unmarshal(args ...interface{}) (interface{}, error) {
+func (ns *Namespace) Unmarshal(args ...any) (any, error) {
 	if len(args) < 1 || len(args) > 2 {
 		return nil, errors.New("unmarshal takes 1 or 2 arguments")
 	}
 
-	var data interface{}
-	var decoder = metadecoders.Default
+	var data any
+	decoder := metadecoders.Default
 
 	if len(args) == 1 {
 		data = args[0]
 	} else {
-		m, ok := args[0].(map[string]interface{})
+		m, ok := args[0].(map[string]any)
 		if !ok {
 			return nil, errors.New("first argument must be a map")
 		}
@@ -51,11 +56,11 @@ func (ns *Namespace) Unmarshal(args ...interface{}) (interface{}, error) {
 		data = args[1]
 		decoder, err = decodeDecoder(m)
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to decode options")
+			return nil, fmt.Errorf("failed to decode options: %w", err)
 		}
 	}
 
-	if r, ok := data.(unmarshableResource); ok {
+	if r, ok := data.(resource.UnmarshableResource); ok {
 		key := r.Key()
 
 		if key == "" {
@@ -66,10 +71,10 @@ func (ns *Namespace) Unmarshal(args ...interface{}) (interface{}, error) {
 			key += decoder.OptionsKey()
 		}
 
-		return ns.cache.GetOrCreate(key, func() (interface{}, error) {
-			f := metadecoders.FormatFromMediaType(r.MediaType())
+		return ns.cache.GetOrCreate(key, func() (any, error) {
+			f := metadecoders.FormatFromStrings(r.MediaType().Suffixes()...)
 			if f == "" {
-				return nil, errors.Errorf("MIME %q not supported", r.MediaType())
+				return nil, fmt.Errorf("MIME %q not supported", r.MediaType())
 			}
 
 			reader, err := r.ReadSeekCloser()
@@ -78,7 +83,7 @@ func (ns *Namespace) Unmarshal(args ...interface{}) (interface{}, error) {
 			}
 			defer reader.Close()
 
-			b, err := ioutil.ReadAll(reader)
+			b, err := io.ReadAll(reader)
 			if err != nil {
 				return nil, err
 			}
@@ -87,14 +92,18 @@ func (ns *Namespace) Unmarshal(args ...interface{}) (interface{}, error) {
 		})
 	}
 
-	dataStr, err := cast.ToStringE(data)
+	dataStr, err := types.ToStringE(data)
 	if err != nil {
-		return nil, errors.Errorf("type %T not supported", data)
+		return nil, fmt.Errorf("type %T not supported", data)
+	}
+
+	if dataStr == "" {
+		return nil, errors.New("no data to transform")
 	}
 
 	key := helpers.MD5String(dataStr)
 
-	return ns.cache.GetOrCreate(key, func() (interface{}, error) {
+	return ns.cache.GetOrCreate(key, func() (any, error) {
 		f := decoder.FormatFromContentString(dataStr)
 		if f == "" {
 			return nil, errors.New("unknown format")
@@ -104,13 +113,7 @@ func (ns *Namespace) Unmarshal(args ...interface{}) (interface{}, error) {
 	})
 }
 
-// All the relevant resources implements this interface.
-type unmarshableResource interface {
-	resource.ReadSeekCloserResource
-	resource.Identifier
-}
-
-func decodeDecoder(m map[string]interface{}) (metadecoders.Decoder, error) {
+func decodeDecoder(m map[string]any) (metadecoders.Decoder, error) {
 	opts := metadecoders.Default
 
 	if m == nil {
@@ -143,7 +146,7 @@ func decodeDecoder(m map[string]interface{}) (metadecoders.Decoder, error) {
 	return opts, err
 }
 
-func stringToRune(v interface{}) (rune, error) {
+func stringToRune(v any) (rune, error) {
 	s, err := cast.ToStringE(v)
 	if err != nil {
 		return 0, err
@@ -159,7 +162,7 @@ func stringToRune(v interface{}) (rune, error) {
 		if i == 0 {
 			r = rr
 		} else {
-			return 0, errors.Errorf("invalid character: %q", v)
+			return 0, fmt.Errorf("invalid character: %q", v)
 		}
 	}
 

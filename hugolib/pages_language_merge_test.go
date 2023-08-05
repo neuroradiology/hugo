@@ -17,15 +17,15 @@ import (
 	"fmt"
 	"testing"
 
+	qt "github.com/frankban/quicktest"
 	"github.com/gohugoio/hugo/resources/resource"
-	"github.com/stretchr/testify/require"
 )
 
 // TODO(bep) move and rewrite in resource/page.
 
 func TestMergeLanguages(t *testing.T) {
 	t.Parallel()
-	assert := require.New(t)
+	c := qt.New(t)
 
 	b := newTestSiteForLanguageMerge(t, 30)
 	b.CreateSites()
@@ -38,54 +38,53 @@ func TestMergeLanguages(t *testing.T) {
 	frSite := h.Sites[1]
 	nnSite := h.Sites[2]
 
-	assert.Equal(31, len(enSite.RegularPages()))
-	assert.Equal(6, len(frSite.RegularPages()))
-	assert.Equal(12, len(nnSite.RegularPages()))
+	c.Assert(len(enSite.RegularPages()), qt.Equals, 31)
+	c.Assert(len(frSite.RegularPages()), qt.Equals, 6)
+	c.Assert(len(nnSite.RegularPages()), qt.Equals, 12)
 
 	for i := 0; i < 2; i++ {
 		mergedNN := nnSite.RegularPages().MergeByLanguage(enSite.RegularPages())
-		assert.Equal(31, len(mergedNN))
+		c.Assert(len(mergedNN), qt.Equals, 31)
 		for i := 1; i <= 31; i++ {
 			expectedLang := "en"
 			if i == 2 || i%3 == 0 || i == 31 {
 				expectedLang = "nn"
 			}
 			p := mergedNN[i-1]
-			assert.Equal(expectedLang, p.Language().Lang, fmt.Sprintf("Test %d", i))
+			c.Assert(p.Language().Lang, qt.Equals, expectedLang)
 		}
 	}
 
 	mergedFR := frSite.RegularPages().MergeByLanguage(enSite.RegularPages())
-	assert.Equal(31, len(mergedFR))
+	c.Assert(len(mergedFR), qt.Equals, 31)
 	for i := 1; i <= 31; i++ {
 		expectedLang := "en"
 		if i%5 == 0 {
 			expectedLang = "fr"
 		}
 		p := mergedFR[i-1]
-		assert.Equal(expectedLang, p.Language().Lang, fmt.Sprintf("Test %d", i))
+		c.Assert(p.Language().Lang, qt.Equals, expectedLang)
 	}
 
 	firstNN := nnSite.RegularPages()[0]
-	assert.Equal(4, len(firstNN.Sites()))
-	assert.Equal("en", firstNN.Sites().First().Language().Lang)
+	c.Assert(len(firstNN.Sites()), qt.Equals, 4)
+	c.Assert(firstNN.Sites().First().Language().Lang, qt.Equals, "en")
 
 	nnBundle := nnSite.getPage("page", "bundle")
 	enBundle := enSite.getPage("page", "bundle")
 
-	assert.Equal(6, len(enBundle.Resources()))
-	assert.Equal(2, len(nnBundle.Resources()))
+	c.Assert(len(enBundle.Resources()), qt.Equals, 6)
+	c.Assert(len(nnBundle.Resources()), qt.Equals, 2)
 
-	var ri interface{} = nnBundle.Resources()
+	var ri any = nnBundle.Resources()
 
 	// This looks less ugly in the templates ...
 	mergedNNResources := ri.(resource.ResourcesLanguageMerger).MergeByLanguage(enBundle.Resources())
-	assert.Equal(6, len(mergedNNResources))
+	c.Assert(len(mergedNNResources), qt.Equals, 6)
 
 	unchanged, err := nnSite.RegularPages().MergeByLanguageInterface(nil)
-	assert.NoError(err)
-	assert.Equal(nnSite.RegularPages(), unchanged)
-
+	c.Assert(err, qt.IsNil)
+	c.Assert(unchanged, deepEqualsPages, nnSite.RegularPages())
 }
 
 func TestMergeLanguagesTemplate(t *testing.T) {
@@ -95,9 +94,9 @@ func TestMergeLanguagesTemplate(t *testing.T) {
 	b.WithTemplates("home.html", `
 {{ $pages := .Site.RegularPages }}
 {{ .Scratch.Set "pages" $pages }}
-{{ if eq .Language.Lang "nn" }}:
 {{ $enSite := index .Sites 0 }}
 {{ $frSite := index .Sites 1 }}
+{{ if eq .Language.Lang "nn" }}:
 {{ $nnBundle := .Site.GetPage "page" "bundle" }}
 {{ $enBundle := $enSite.GetPage "page" "bundle" }}
 {{ .Scratch.Set "pages" ($pages | lang.Merge $frSite.RegularPages| lang.Merge $enSite.RegularPages) }}
@@ -107,6 +106,10 @@ func TestMergeLanguagesTemplate(t *testing.T) {
 {{ $pages2 := .Scratch.Get "pages2" }}
 Pages1: {{ range $i, $p := $pages }}{{ add $i 1 }}: {{ .File.Path }} {{ .Language.Lang }} | {{ end }}
 Pages2: {{ range $i, $p := $pages2 }}{{ add $i 1 }}: {{ .Title }} {{ .Language.Lang }} | {{ end }}
+{{ $nil := resources.Get "asdfasdfasdf" }}
+Pages3: {{ $frSite.RegularPages | lang.Merge  $nil }}
+Pages4: {{  $nil | lang.Merge $frSite.RegularPages }}
+
 
 `,
 		"shortcodes/shortcode.html", "MyShort",
@@ -118,6 +121,10 @@ Pages2: {{ range $i, $p := $pages2 }}{{ add $i 1 }}: {{ .Title }} {{ .Language.L
 
 	b.AssertFileContent("public/nn/index.html", "Pages1: 1: p1.md en | 2: p2.nn.md nn | 3: p3.nn.md nn | 4: p4.md en | 5: p5.fr.md fr | 6: p6.nn.md nn | 7: p7.md en | 8: p8.md en | 9: p9.nn.md nn | 10: p10.fr.md fr | 11: p11.md en | 12: p12.nn.md nn | 13: p13.md en | 14: p14.md en | 15: p15.nn.md nn")
 	b.AssertFileContent("public/nn/index.html", "Pages2: 1: doc100 en | 2: doc101 nn | 3: doc102 nn | 4: doc103 en | 5: doc104 en | 6: doc105 en")
+	b.AssertFileContent("public/nn/index.html", `
+Pages3: Pages(3)
+Pages4: Pages(3)
+	`)
 }
 
 func newTestSiteForLanguageMerge(t testing.TB, count int) *sitesBuilder {
@@ -171,7 +178,8 @@ date: "2018-02-28"
 func BenchmarkMergeByLanguage(b *testing.B) {
 	const count = 100
 
-	builder := newTestSiteForLanguageMerge(b, count)
+	// newTestSiteForLanguageMerge creates count+1 pages.
+	builder := newTestSiteForLanguageMerge(b, count-1)
 	builder.CreateSites()
 	builder.Build(BuildCfg{SkipRender: true})
 	h := builder.H

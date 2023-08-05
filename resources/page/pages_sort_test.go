@@ -14,18 +14,26 @@
 package page
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/gohugoio/hugo/resources/resource"
+	"github.com/google/go-cmp/cmp"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	qt "github.com/frankban/quicktest"
+)
+
+var eq = qt.CmpEquals(
+	cmp.Comparer(func(p1, p2 testPage) bool {
+		return p1.path == p2.path && p1.weight == p2.weight
+	}),
 )
 
 func TestDefaultSort(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 	d1 := time.Now()
 	d2 := d1.Add(-1 * time.Hour)
 	d3 := d1.Add(-2 * time.Hour)
@@ -37,31 +45,31 @@ func TestDefaultSort(t *testing.T) {
 	setSortVals([4]time.Time{d1, d2, d3, d4}, [4]string{"b", "a", "c", "d"}, [4]int{4, 3, 2, 1}, p)
 	SortByDefault(p)
 
-	assert.Equal(t, 1, p[0].Weight())
+	c.Assert(p[0].Weight(), qt.Equals, 1)
 
 	// Consider zero weight, issue #2673
 	setSortVals([4]time.Time{d1, d2, d3, d4}, [4]string{"b", "a", "d", "c"}, [4]int{0, 0, 0, 1}, p)
 	SortByDefault(p)
 
-	assert.Equal(t, 1, p[0].Weight())
+	c.Assert(p[0].Weight(), qt.Equals, 1)
 
 	// next by date
 	setSortVals([4]time.Time{d3, d4, d1, d2}, [4]string{"a", "b", "c", "d"}, [4]int{1, 1, 1, 1}, p)
 	SortByDefault(p)
-	assert.Equal(t, d1, p[0].Date())
+	c.Assert(p[0].Date(), qt.Equals, d1)
 
 	// finally by link title
 	setSortVals([4]time.Time{d3, d3, d3, d3}, [4]string{"b", "c", "a", "d"}, [4]int{1, 1, 1, 1}, p)
 	SortByDefault(p)
-	assert.Equal(t, "al", p[0].LinkTitle())
-	assert.Equal(t, "bl", p[1].LinkTitle())
-	assert.Equal(t, "cl", p[2].LinkTitle())
+	c.Assert(p[0].LinkTitle(), qt.Equals, "al")
+	c.Assert(p[1].LinkTitle(), qt.Equals, "bl")
+	c.Assert(p[2].LinkTitle(), qt.Equals, "cl")
 }
 
 // https://github.com/gohugoio/hugo/issues/4953
 func TestSortByLinkTitle(t *testing.T) {
 	t.Parallel()
-	assert := require.New(t)
+	c := qt.New(t)
 	pages := createSortTestPages(6)
 
 	for i, p := range pages {
@@ -81,11 +89,10 @@ func TestSortByLinkTitle(t *testing.T) {
 	bylt := pages.ByLinkTitle()
 
 	for i, p := range bylt {
-		msg := fmt.Sprintf("test: %d", i)
 		if i < 3 {
-			assert.Equal(fmt.Sprintf("linkTitle%d", i+3), p.LinkTitle(), msg)
+			c.Assert(p.LinkTitle(), qt.Equals, fmt.Sprintf("linkTitle%d", i+3))
 		} else {
-			assert.Equal(fmt.Sprintf("title%d", i-3), p.LinkTitle(), msg)
+			c.Assert(p.LinkTitle(), qt.Equals, fmt.Sprintf("title%d", i-3))
 		}
 	}
 }
@@ -98,6 +105,12 @@ func TestSortByN(t *testing.T) {
 	d4 := d1.Add(-20 * time.Hour)
 
 	p := createSortTestPages(4)
+	ctx := context.Background()
+
+	byLen := func(p Pages) Pages {
+		return p.ByLength(ctx)
+
+	}
 
 	for i, this := range []struct {
 		sortFunc   func(p Pages) Pages
@@ -110,7 +123,7 @@ func TestSortByN(t *testing.T) {
 		{(Pages).ByPublishDate, func(p Pages) bool { return p[0].PublishDate() == d4 }},
 		{(Pages).ByExpiryDate, func(p Pages) bool { return p[0].ExpiryDate() == d4 }},
 		{(Pages).ByLastmod, func(p Pages) bool { return p[1].Lastmod() == d3 }},
-		{(Pages).ByLength, func(p Pages) bool { return p[0].(resource.LengthProvider).Len() == len(p[0].(*testPage).content) }},
+		{byLen, func(p Pages) bool { return p[0].(resource.LengthProvider).Len(ctx) == len(p[0].(*testPage).content) }},
 	} {
 		setSortVals([4]time.Time{d1, d2, d3, d4}, [4]string{"b", "ab", "cde", "fg"}, [4]int{0, 3, 2, 1}, p)
 
@@ -119,36 +132,38 @@ func TestSortByN(t *testing.T) {
 			t.Errorf("[%d] sort error", i)
 		}
 	}
-
 }
 
 func TestLimit(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 	p := createSortTestPages(10)
 	firstFive := p.Limit(5)
-	assert.Equal(t, 5, len(firstFive))
+	c.Assert(len(firstFive), qt.Equals, 5)
 	for i := 0; i < 5; i++ {
-		assert.Equal(t, p[i], firstFive[i])
+		c.Assert(firstFive[i], qt.Equals, p[i])
 	}
-	assert.Equal(t, p, p.Limit(10))
-	assert.Equal(t, p, p.Limit(11))
+	c.Assert(p.Limit(10), eq, p)
+	c.Assert(p.Limit(11), eq, p)
 }
 
 func TestPageSortReverse(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 	p1 := createSortTestPages(10)
-	assert.Equal(t, 0, p1[0].(*testPage).fuzzyWordCount)
-	assert.Equal(t, 9, p1[9].(*testPage).fuzzyWordCount)
+	c.Assert(p1[0].(*testPage).fuzzyWordCount, qt.Equals, 0)
+	c.Assert(p1[9].(*testPage).fuzzyWordCount, qt.Equals, 9)
 	p2 := p1.Reverse()
-	assert.Equal(t, 9, p2[0].(*testPage).fuzzyWordCount)
-	assert.Equal(t, 0, p2[9].(*testPage).fuzzyWordCount)
+	c.Assert(p2[0].(*testPage).fuzzyWordCount, qt.Equals, 9)
+	c.Assert(p2[9].(*testPage).fuzzyWordCount, qt.Equals, 0)
 	// cached
-	assert.True(t, pagesEqual(p2, p1.Reverse()))
+	c.Assert(pagesEqual(p2, p1.Reverse()), qt.Equals, true)
 }
 
 func TestPageSortByParam(t *testing.T) {
 	t.Parallel()
-	var k interface{} = "arbitrarily.nested"
+	c := qt.New(t)
+	var k any = "arbitrarily.nested"
 
 	unsorted := createSortTestPages(10)
 	delete(unsorted[9].Params(), "arbitrarily")
@@ -158,10 +173,10 @@ func TestPageSortByParam(t *testing.T) {
 	lastSetValue, _ := unsorted[8].Param(k)
 	unsetValue, _ := unsorted[9].Param(k)
 
-	assert.Equal(t, "xyz100", firstSetValue)
-	assert.Equal(t, "xyz99", secondSetValue)
-	assert.Equal(t, "xyz92", lastSetValue)
-	assert.Equal(t, nil, unsetValue)
+	c.Assert(firstSetValue, qt.Equals, "xyz100")
+	c.Assert(secondSetValue, qt.Equals, "xyz99")
+	c.Assert(lastSetValue, qt.Equals, "xyz92")
+	c.Assert(unsetValue, qt.Equals, nil)
 
 	sorted := unsorted.ByParam("arbitrarily.nested")
 	firstSetSortedValue, _ := sorted[0].Param(k)
@@ -169,15 +184,17 @@ func TestPageSortByParam(t *testing.T) {
 	lastSetSortedValue, _ := sorted[8].Param(k)
 	unsetSortedValue, _ := sorted[9].Param(k)
 
-	assert.Equal(t, firstSetValue, firstSetSortedValue)
-	assert.Equal(t, secondSetValue, lastSetSortedValue)
-	assert.Equal(t, lastSetValue, secondSetSortedValue)
-	assert.Equal(t, unsetValue, unsetSortedValue)
+	c.Assert(firstSetSortedValue, qt.Equals, firstSetValue)
+	c.Assert(lastSetSortedValue, qt.Equals, secondSetValue)
+	c.Assert(secondSetSortedValue, qt.Equals, lastSetValue)
+	c.Assert(unsetSortedValue, qt.Equals, unsetValue)
 }
 
 func TestPageSortByParamNumeric(t *testing.T) {
 	t.Parallel()
-	var k interface{} = "arbitrarily.nested"
+	c := qt.New(t)
+
+	var k any = "arbitrarily.nested"
 
 	n := 10
 	unsorted := createSortTestPages(n)
@@ -187,8 +204,8 @@ func TestPageSortByParamNumeric(t *testing.T) {
 			v = 100.0 - i
 		}
 
-		unsorted[i].(*testPage).params = map[string]interface{}{
-			"arbitrarily": map[string]interface{}{
+		unsorted[i].(*testPage).params = map[string]any{
+			"arbitrarily": map[string]any{
 				"nested": v,
 			},
 		}
@@ -200,10 +217,10 @@ func TestPageSortByParamNumeric(t *testing.T) {
 	lastSetValue, _ := unsorted[8].Param(k)
 	unsetValue, _ := unsorted[9].Param(k)
 
-	assert.Equal(t, 100, firstSetValue)
-	assert.Equal(t, 99, secondSetValue)
-	assert.Equal(t, 92, lastSetValue)
-	assert.Equal(t, nil, unsetValue)
+	c.Assert(firstSetValue, qt.Equals, 100)
+	c.Assert(secondSetValue, qt.Equals, 99)
+	c.Assert(lastSetValue, qt.Equals, 92)
+	c.Assert(unsetValue, qt.Equals, nil)
 
 	sorted := unsorted.ByParam("arbitrarily.nested")
 	firstSetSortedValue, _ := sorted[0].Param(k)
@@ -211,10 +228,10 @@ func TestPageSortByParamNumeric(t *testing.T) {
 	lastSetSortedValue, _ := sorted[8].Param(k)
 	unsetSortedValue, _ := sorted[9].Param(k)
 
-	assert.Equal(t, 92, firstSetSortedValue)
-	assert.Equal(t, 93, secondSetSortedValue)
-	assert.Equal(t, 100, lastSetSortedValue)
-	assert.Equal(t, unsetValue, unsetSortedValue)
+	c.Assert(firstSetSortedValue, qt.Equals, 92)
+	c.Assert(secondSetSortedValue, qt.Equals, 93)
+	c.Assert(lastSetSortedValue, qt.Equals, 100)
+	c.Assert(unsetSortedValue, qt.Equals, unsetValue)
 }
 
 func BenchmarkSortByWeightAndReverse(b *testing.B) {
@@ -248,7 +265,6 @@ func setSortVals(dates [4]time.Time, titles [4]string, weights [4]int, pages Pag
 	for _, p := range pages {
 		p.(*testPage).content = ""
 	}
-
 }
 
 func createSortTestPages(num int) Pages {
@@ -257,8 +273,9 @@ func createSortTestPages(num int) Pages {
 	for i := 0; i < num; i++ {
 		p := newTestPage()
 		p.path = fmt.Sprintf("/x/y/p%d.md", i)
-		p.params = map[string]interface{}{
-			"arbitrarily": map[string]interface{}{
+		p.title = fmt.Sprintf("Title %d", i%(num+1/2))
+		p.params = map[string]any{
+			"arbitrarily": map[string]any{
 				"nested": ("xyz" + fmt.Sprintf("%v", 100-i)),
 			},
 		}

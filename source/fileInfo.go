@@ -1,4 +1,4 @@
-// Copyright 2019 The Hugo Authors. All rights reserved.
+// Copyright 2021 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,10 +14,16 @@
 package source
 
 import (
-	"os"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/bep/gitmap"
+	"github.com/gohugoio/hugo/common/paths"
+
+	"github.com/gohugoio/hugo/hugofs/files"
 
 	"github.com/gohugoio/hugo/common/hugio"
 
@@ -28,8 +34,7 @@ import (
 
 // fileInfo implements the File interface.
 var (
-	_ File         = (*FileInfo)(nil)
-	_ ReadableFile = (*FileInfo)(nil)
+	_ File = (*FileInfo)(nil)
 )
 
 // File represents a source file.
@@ -66,11 +71,12 @@ type FileWithoutOverlap interface {
 	// The directory is relative to the content root.
 	Dir() string
 
-	// Extension gets the file extension, i.e "myblogpost.md" will return "md".
+	// Extension is an alias to Ext().
+	// Deprecated: Use Ext instead.
 	Extension() string
 
-	// Ext is an alias for Extension.
-	Ext() string // Hmm... Deprecate Extension
+	// Ext gets the file extension, i.e "myblogpost.md" will return "md".
+	Ext() string
 
 	// LogicalName is filename and extension of the file.
 	LogicalName() string
@@ -90,13 +96,8 @@ type FileWithoutOverlap interface {
 	// Hugo content files being one of them, considered to be unique.
 	UniqueID() string
 
-	FileInfo() os.FileInfo
-}
-
-// A ReadableFile is a File that is readable.
-type ReadableFile interface {
-	File
-	Open() (hugio.ReadSeekCloser, error)
+	// For internal use only.
+	FileInfo() hugofs.FileMetaInfo
 }
 
 // FileInfo describes a source file.
@@ -107,7 +108,7 @@ type FileInfo struct {
 
 	sp *SourceSpec
 
-	fi os.FileInfo
+	fi hugofs.FileMetaInfo
 
 	// Derived from filename
 	ext  string // Extension without any "."
@@ -122,7 +123,7 @@ type FileInfo struct {
 	translationBaseName string
 	contentBaseName     string
 	section             string
-	isLeafBundle        bool
+	classifier          files.ContentClass
 
 	uniqueID string
 
@@ -141,7 +142,10 @@ func (fi *FileInfo) Path() string { return fi.relPath }
 func (fi *FileInfo) Dir() string { return fi.relDir }
 
 // Extension is an alias to Ext().
-func (fi *FileInfo) Extension() string { return fi.Ext() }
+func (fi *FileInfo) Extension() string {
+	helpers.Deprecated(".File.Extension", "Use .File.Ext instead. ", false)
+	return fi.Ext()
+}
 
 // Ext returns a file's extension without the leading period (ie. "md").
 func (fi *FileInfo) Ext() string { return fi.ext }
@@ -156,7 +160,7 @@ func (fi *FileInfo) LogicalName() string { return fi.name }
 func (fi *FileInfo) BaseFileName() string { return fi.baseName }
 
 // TranslationBaseName returns a file's translation base name without the
-// language segement (ie. "page").
+// language segment (ie. "page").
 func (fi *FileInfo) TranslationBaseName() string { return fi.translationBaseName }
 
 // ContentBaseName is a either TranslationBaseName or name of containing folder
@@ -179,13 +183,15 @@ func (fi *FileInfo) UniqueID() string {
 }
 
 // FileInfo returns a file's underlying os.FileInfo.
-func (fi *FileInfo) FileInfo() os.FileInfo { return fi.fi }
+// For internal use only.
+func (fi *FileInfo) FileInfo() hugofs.FileMetaInfo { return fi.fi }
 
 func (fi *FileInfo) String() string { return fi.BaseFileName() }
 
 // Open implements ReadableFile.
 func (fi *FileInfo) Open() (hugio.ReadSeekCloser, error) {
-	f, err := fi.sp.SourceFs.Open(fi.Filename())
+	f, err := fi.fi.Meta().Open()
+
 	return f, err
 }
 
@@ -200,12 +206,12 @@ func (fi *FileInfo) init() {
 		relDir := strings.Trim(fi.relDir, helpers.FilePathSeparator)
 		parts := strings.Split(relDir, helpers.FilePathSeparator)
 		var section string
-		if (!fi.isLeafBundle && len(parts) == 1) || len(parts) > 1 {
+		if (fi.classifier != files.ContentClassLeaf && len(parts) == 1) || len(parts) > 1 {
 			section = parts[0]
 		}
 		fi.section = section
 
-		if fi.isLeafBundle && len(parts) > 0 {
+		if fi.classifier.IsBundle() && len(parts) > 0 {
 			fi.contentBaseName = parts[len(parts)-1]
 		} else {
 			fi.contentBaseName = fi.translationBaseName
@@ -225,45 +231,50 @@ func NewTestFile(filename string) *FileInfo {
 	}
 }
 
-// NewFileInfo returns a new FileInfo structure.
-func (sp *SourceSpec) NewFileInfo(baseDir, filename string, isLeafBundle bool, fi os.FileInfo) *FileInfo {
-
-	var lang, translationBaseName, relPath string
-
-	if fp, ok := fi.(hugofs.FilePather); ok {
-		filename = fp.Filename()
-		baseDir = fp.BaseDir()
-		relPath = fp.Path()
+func (sp *SourceSpec) NewFileInfoFrom(path, filename string) (*FileInfo, error) {
+	meta := &hugofs.FileMeta{
+		Filename: filename,
+		Path:     path,
 	}
 
-	if fl, ok := fi.(hugofs.LanguageAnnouncer); ok {
-		lang = fl.Lang()
-		translationBaseName = fl.TranslationBaseName()
+	return sp.NewFileInfo(hugofs.NewFileMetaInfo(nil, meta))
+}
+
+func (sp *SourceSpec) NewFileInfo(fi hugofs.FileMetaInfo) (*FileInfo, error) {
+	m := fi.Meta()
+
+	filename := m.Filename
+	relPath := m.Path
+
+	if relPath == "" {
+		return nil, fmt.Errorf("no Path provided by %v (%T)", m, m.Fs)
 	}
 
-	dir, name := filepath.Split(filename)
+	if filename == "" {
+		return nil, fmt.Errorf("no Filename provided by %v (%T)", m, m.Fs)
+	}
+
+	relDir := filepath.Dir(relPath)
+	if relDir == "." {
+		relDir = ""
+	}
+	if !strings.HasSuffix(relDir, helpers.FilePathSeparator) {
+		relDir = relDir + helpers.FilePathSeparator
+	}
+
+	lang := m.Lang
+	translationBaseName := m.TranslationBaseName
+
+	dir, name := filepath.Split(relPath)
 	if !strings.HasSuffix(dir, helpers.FilePathSeparator) {
 		dir = dir + helpers.FilePathSeparator
 	}
 
-	baseDir = strings.TrimSuffix(baseDir, helpers.FilePathSeparator)
-
-	relDir := ""
-	if dir != baseDir {
-		relDir = strings.TrimPrefix(dir, baseDir)
-	}
-
-	relDir = strings.TrimPrefix(relDir, helpers.FilePathSeparator)
-
-	if relPath == "" {
-		relPath = filepath.Join(relDir, name)
-	}
-
 	ext := strings.ToLower(strings.TrimPrefix(filepath.Ext(name), "."))
-	baseName := helpers.Filename(name)
+	baseName := paths.Filename(name)
 
 	if translationBaseName == "" {
-		// This is usyally provided by the filesystem. But this FileInfo is also
+		// This is usually provided by the filesystem. But this FileInfo is also
 		// created in a standalone context when doing "hugo new". This is
 		// an approximate implementation, which is "good enough" in that case.
 		fileLangExt := filepath.Ext(baseName)
@@ -277,14 +288,41 @@ func (sp *SourceSpec) NewFileInfo(baseDir, filename string, isLeafBundle bool, f
 		lang:                lang,
 		ext:                 ext,
 		dir:                 dir,
-		relDir:              relDir,
-		relPath:             relPath,
+		relDir:              relDir,  // Dir()
+		relPath:             relPath, // Path()
 		name:                name,
-		baseName:            baseName,
+		baseName:            baseName, // BaseFileName()
 		translationBaseName: translationBaseName,
-		isLeafBundle:        isLeafBundle,
+		classifier:          m.Classifier,
 	}
 
-	return f
+	return f, nil
+}
 
+func NewGitInfo(info gitmap.GitInfo) GitInfo {
+	return GitInfo(info)
+}
+
+// GitInfo provides information about a version controlled source file.
+type GitInfo struct {
+	// Commit hash.
+	Hash string `json:"hash"`
+	// Abbreviated commit hash.
+	AbbreviatedHash string `json:"abbreviatedHash"`
+	// The commit message's subject/title line.
+	Subject string `json:"subject"`
+	// The author name, respecting .mailmap.
+	AuthorName string `json:"authorName"`
+	// The author email address, respecting .mailmap.
+	AuthorEmail string `json:"authorEmail"`
+	// The author date.
+	AuthorDate time.Time `json:"authorDate"`
+	// The commit date.
+	CommitDate time.Time `json:"commitDate"`
+}
+
+// IsZero returns true if the GitInfo is empty,
+// meaning it will also be falsy in the Go templates.
+func (g GitInfo) IsZero() bool {
+	return g.Hash == ""
 }

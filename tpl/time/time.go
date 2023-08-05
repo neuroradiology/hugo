@@ -16,60 +16,76 @@ package time
 
 import (
 	"fmt"
+	"time"
 	_time "time"
+
+	"github.com/gohugoio/hugo/common/htime"
 
 	"github.com/spf13/cast"
 )
 
 // New returns a new instance of the time-namespaced template functions.
-func New() *Namespace {
-	return &Namespace{}
+func New(timeFormatter htime.TimeFormatter, location *time.Location) *Namespace {
+	return &Namespace{
+		timeFormatter: timeFormatter,
+		location:      location,
+	}
 }
 
 // Namespace provides template functions for the "time" namespace.
-type Namespace struct{}
+type Namespace struct {
+	timeFormatter htime.TimeFormatter
+	location      *time.Location
+}
 
 // AsTime converts the textual representation of the datetime string into
 // a time.Time interface.
-func (ns *Namespace) AsTime(v interface{}) (interface{}, error) {
-	t, err := cast.ToTimeE(v)
-	if err != nil {
-		return nil, err
+func (ns *Namespace) AsTime(v any, args ...any) (any, error) {
+	loc := ns.location
+	if len(args) > 0 {
+		locStr, err := cast.ToStringE(args[0])
+		if err != nil {
+			return nil, err
+		}
+		loc, err = _time.LoadLocation(locStr)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	return t, nil
+	return htime.ToTimeInDefaultLocationE(v, loc)
+
 }
 
-// Format converts the textual representation of the datetime string into
-// the other form or returns it of the time.Time value. These are formatted
-// with the layout string
-func (ns *Namespace) Format(layout string, v interface{}) (string, error) {
-	t, err := cast.ToTimeE(v)
+// Format converts the textual representation of the datetime string in v into
+// time.Time if needed and formats it with the given layout.
+func (ns *Namespace) Format(layout string, v any) (string, error) {
+	t, err := htime.ToTimeInDefaultLocationE(v, ns.location)
 	if err != nil {
 		return "", err
 	}
 
-	return t.Format(layout), nil
+	return ns.timeFormatter.Format(t, layout), nil
 }
 
-// Now returns the current local time.
+// Now returns the current local time or `clock` time
 func (ns *Namespace) Now() _time.Time {
-	return _time.Now()
+	return htime.Now()
 }
 
-// ParseDuration parses a duration string.
+// ParseDuration parses the duration string s.
 // A duration string is a possibly signed sequence of
 // decimal numbers, each with optional fraction and a unit suffix,
 // such as "300ms", "-1.5h" or "2h45m".
 // Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
 // See https://golang.org/pkg/time/#ParseDuration
-func (ns *Namespace) ParseDuration(in interface{}) (_time.Duration, error) {
-	s, err := cast.ToStringE(in)
+func (ns *Namespace) ParseDuration(s any) (_time.Duration, error) {
+	ss, err := cast.ToStringE(s)
 	if err != nil {
 		return 0, err
 	}
 
-	return _time.ParseDuration(s)
+	return _time.ParseDuration(ss)
 }
 
 var durationUnits = map[string]_time.Duration{
@@ -90,7 +106,7 @@ var durationUnits = map[string]_time.Duration{
 
 // Duration converts the given number to a time.Duration.
 // Unit is one of nanosecond/ns, microsecond/us/µs, millisecond/ms, second/s, minute/m or hour/h.
-func (ns *Namespace) Duration(unit interface{}, number interface{}) (_time.Duration, error) {
+func (ns *Namespace) Duration(unit any, number any) (_time.Duration, error) {
 	unitStr, err := cast.ToStringE(unit)
 	if err != nil {
 		return 0, err

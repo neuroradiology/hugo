@@ -1,23 +1,13 @@
 ---
 title: safeJS
-# linktitle:
 description: Declares the provided string as a known safe JavaScript string.
-godocref: https://golang.org/src/html/template/content.go?s=2548:2557#L51
-date: 2017-02-01
-publishdate: 2017-02-01
-lastmod: 2017-02-01
 categories: [functions]
 menu:
   docs:
-    parent: "functions"
+    parent: functions
 keywords: [strings]
 signature: ["safeJS INPUT"]
-workson: []
-hugoversion:
 relatedfuncs: []
-deprecated: false
-draft: false
-aliases: []
 ---
 
 In this context, *safe* means the string encapsulates a known safe EcmaScript5 Expression (e.g., `(x + y * z())`).
@@ -28,4 +18,3 @@ Example: Given `hash = "619c16f"` defined in the front matter of your `.md` file
 
 * <span class="good">`<script>var form_{{ .Params.hash | safeJS }};…</script>` &rarr; `<script>var form_619c16f;…</script>`</span>
 * <span class="bad">`<script>var form_{{ .Params.hash }};…</script>` &rarr; `<script>var form_"619c16f";…</script>`</span>
-

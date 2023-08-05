@@ -20,12 +20,13 @@ import (
 	"path/filepath"
 	"reflect"
 
-	"github.com/pkg/errors"
+	"errors"
 
 	"github.com/gohugoio/hugo/common/maps"
 
 	"github.com/gohugoio/hugo/codegen"
 	"github.com/gohugoio/hugo/resources/page"
+	"github.com/gohugoio/hugo/resources/resource"
 	"github.com/gohugoio/hugo/source"
 )
 
@@ -46,7 +47,6 @@ const header = `// Copyright 2019 The Hugo Authors. All rights reserved.
 `
 
 var (
-	fileInterfaceDeprecated = reflect.TypeOf((*source.FileWithoutOverlap)(nil)).Elem()
 	pageInterfaceDeprecated = reflect.TypeOf((*page.DeprecatedWarningPageMethods)(nil)).Elem()
 	pageInterface           = reflect.TypeOf((*page.Page)(nil)).Elem()
 
@@ -55,16 +55,15 @@ var (
 
 func Generate(c *codegen.Inspector) error {
 	if err := generateMarshalJSON(c); err != nil {
-		return errors.Wrap(err, "failed to generate JSON marshaler")
-
+		return fmt.Errorf("failed to generate JSON marshaler: %w", err)
 	}
 
 	if err := generateDeprecatedWrappers(c); err != nil {
-		return errors.Wrap(err, "failed to generate deprecate wrappers")
+		return fmt.Errorf("failed to generate deprecate wrappers: %w", err)
 	}
 
 	if err := generateFileIsZeroWrappers(c); err != nil {
-		return errors.Wrap(err, "failed to generate file wrappers")
+		return fmt.Errorf("failed to generate file wrappers: %w", err)
 	}
 
 	return nil
@@ -73,7 +72,6 @@ func Generate(c *codegen.Inspector) error {
 func generateMarshalJSON(c *codegen.Inspector) error {
 	filename := filepath.Join(c.ProjectRootDir, packageDir, "page_marshaljson.autogen.go")
 	f, err := os.Create(filename)
-
 	if err != nil {
 		return err
 	}
@@ -83,12 +81,14 @@ func generateMarshalJSON(c *codegen.Inspector) error {
 
 	// Exclude these methods
 	excludes := []reflect.Type{
-		// We need to eveluate the deprecated vs JSON in the future,
+		// We need to evaluate the deprecated vs JSON in the future,
 		// but leave them out for now.
 		pageInterfaceDeprecated,
 
 		// Leave this out for now. We need to revisit the author issue.
 		reflect.TypeOf((*page.AuthorProvider)(nil)).Elem(),
+
+		reflect.TypeOf((*resource.ErrProvider)(nil)).Elem(),
 
 		// navigation.PageMenus
 
@@ -148,29 +148,23 @@ func generateDeprecatedWrappers(c *codegen.Inspector) error {
 		"Hugo":           "Use the global hugo function.",
 		"LanguagePrefix": "Use .Site.LanguagePrefix.",
 		"GetParam":       "Use .Param or .Params.myParam.",
-		"RSSLink": `Use the Output Format's link, e.g. something like: 
+		"RSSLink": `Use the Output Format's link, e.g. something like:
     {{ with .OutputFormats.Get "RSS" }}{{ .RelPermalink }}{{ end }}`,
 		"URL": "Use .Permalink or .RelPermalink. If what you want is the front matter URL value, use .Params.url",
 	}
 
 	deprecated := func(name string, tp reflect.Type) string {
-		var alternative string
-		if tp == fileInterfaceDeprecated {
-			alternative = "Use .File." + name
-		} else {
-			var found bool
-			alternative, found = reasons[name]
-			if !found {
-				panic(fmt.Sprintf("no deprecated reason found for %q", name))
-			}
+		alternative, found := reasons[name]
+		if !found {
+			panic(fmt.Sprintf("no deprecated reason found for %q", name))
 		}
 
-		return fmt.Sprintf("helpers.Deprecated(%q, %q, %q, false)", "Page", "."+name, alternative)
+		return fmt.Sprintf("helpers.Deprecated(%q, %q, true)", "Page."+name, alternative)
 	}
 
 	var buff bytes.Buffer
 
-	methods := c.MethodsFromTypes([]reflect.Type{fileInterfaceDeprecated, pageInterfaceDeprecated}, nil)
+	methods := c.MethodsFromTypes([]reflect.Type{pageInterfaceDeprecated}, nil)
 
 	for _, m := range methods {
 		fmt.Fprint(&buff, m.Declaration("*pageDeprecated"))
@@ -180,7 +174,8 @@ func generateDeprecatedWrappers(c *codegen.Inspector) error {
 
 	}
 
-	pkgImports := append(methods.Imports(), "github.com/gohugoio/hugo/helpers")
+	pkgImports := methods.Imports()
+	// pkgImports := append(methods.Imports(), "github.com/gohugoio/hugo/helpers")
 
 	fmt.Fprintf(f, `%s
 
@@ -216,7 +211,9 @@ func generateFileIsZeroWrappers(c *codegen.Inspector) error {
 	warning := func(name string, tp reflect.Type) string {
 		msg := fmt.Sprintf(".File.%s on zero object. Wrap it in if or with: {{ with .File }}{{ .%s }}{{ end }}", name, name)
 
-		return fmt.Sprintf("z.log.Println(%q)", msg)
+		// We made this a Warning in 0.92.0.
+		// When we remove this construct in 0.93.0, people will get a nil pointer.
+		return fmt.Sprintf("z.log.Warnln(%q)", msg)
 	}
 
 	var buff bytes.Buffer
@@ -224,7 +221,7 @@ func generateFileIsZeroWrappers(c *codegen.Inspector) error {
 	methods := c.MethodsFromTypes([]reflect.Type{reflect.TypeOf((*source.File)(nil)).Elem()}, nil)
 
 	for _, m := range methods {
-		if m.Name == "IsZero" {
+		if m.Name == "IsZero" || m.Name == "Classifier" {
 			continue
 		}
 		fmt.Fprint(&buff, m.DeclarationNamed("zeroFile"))
@@ -237,7 +234,7 @@ func generateFileIsZeroWrappers(c *codegen.Inspector) error {
 
 	}
 
-	pkgImports := append(methods.Imports(), "github.com/gohugoio/hugo/helpers", "github.com/gohugoio/hugo/source")
+	pkgImports := append(methods.Imports(), "github.com/gohugoio/hugo/common/loggers", "github.com/gohugoio/hugo/source")
 
 	fmt.Fprintf(f, `%s
 
@@ -246,17 +243,18 @@ package page
 %s
 
 // ZeroFile represents a zero value of source.File with warnings if invoked.
-type zeroFile struct {	
-	log *helpers.DistinctLogger 
+type zeroFile struct {
+	log loggers.Logger
 }
 
-func NewZeroFile(log *helpers.DistinctLogger) source.File {
+func NewZeroFile(log loggers.Logger) source.File {
 	return zeroFile{log: log}
 }
 
 func (zeroFile) IsZero() bool {
 	return true
 }
+
 
 %s
 

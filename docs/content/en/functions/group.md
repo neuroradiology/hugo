@@ -1,14 +1,12 @@
 ---
 title: group
 description: "`group` groups a list of pages."
-date: 2018-09-14
 categories: [functions]
 menu:
   docs:
-    parent: "functions"
+    parent: functions
 keywords: [collections]
 signature: ["PAGES | group KEY"]
-hugoversion: "0.49"
 ---
 
 {{< code file="layouts/partials/groups.html" >}}
@@ -28,10 +26,4 @@ hugoversion: "0.49"
 {{ end }}
 {{< /code >}}
 
-
-
 The page group you get from `group` is of the same type you get from the built-in [group methods](/templates/lists#group-content) in Hugo. The above example can even be [paginated](/templates/pagination/#list-paginator-pages).
-
-
-
-

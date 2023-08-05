@@ -1,64 +1,70 @@
-package resources
+package resources_test
 
 import (
-	"path/filepath"
-	"testing"
-
-	"fmt"
 	"image"
 	"io"
-	"io/ioutil"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
+	"testing"
 
-	"github.com/gohugoio/hugo/cache/filecache"
+	"github.com/gohugoio/hugo/config"
+	"github.com/gohugoio/hugo/config/testconfig"
+	"github.com/gohugoio/hugo/deps"
+	"github.com/gohugoio/hugo/resources"
+
+	qt "github.com/frankban/quicktest"
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/hugofs"
-	"github.com/gohugoio/hugo/media"
-	"github.com/gohugoio/hugo/output"
+	"github.com/gohugoio/hugo/resources/images"
 	"github.com/gohugoio/hugo/resources/page"
 	"github.com/gohugoio/hugo/resources/resource"
 	"github.com/spf13/afero"
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/require"
 )
 
-func newTestResourceSpec(assert *require.Assertions) *Spec {
-	return newTestResourceSpecForBaseURL(assert, "https://example.com/")
+type specDescriptor struct {
+	baseURL string
+	c       *qt.C
+	fs      afero.Fs
 }
 
-func newTestResourceSpecForBaseURL(assert *require.Assertions, baseURL string) *Spec {
-	cfg := viper.New()
+func newTestResourceSpec(desc specDescriptor) *resources.Spec {
+	baseURL := desc.baseURL
+	if baseURL == "" {
+		baseURL = "https://example.com/"
+	}
+
+	afs := desc.fs
+	if afs == nil {
+		afs = afero.NewMemMapFs()
+	}
+
+	if hugofs.IsOsFs(afs) {
+		panic("osFs not supported for this test")
+	}
+
+	if err := afs.MkdirAll("assets", 0755); err != nil {
+		panic(err)
+	}
+
+	cfg := config.New()
 	cfg.Set("baseURL", baseURL)
-	cfg.Set("resourceDir", "resources")
-	cfg.Set("contentDir", "content")
-	cfg.Set("dataDir", "data")
-	cfg.Set("i18nDir", "i18n")
-	cfg.Set("layoutDir", "layouts")
-	cfg.Set("assetDir", "assets")
-	cfg.Set("archetypeDir", "archetypes")
 	cfg.Set("publishDir", "public")
 
-	imagingCfg := map[string]interface{}{
+	imagingCfg := map[string]any{
 		"resampleFilter": "linear",
 		"quality":        68,
 		"anchor":         "left",
 	}
 
 	cfg.Set("imaging", imagingCfg)
+	d := testconfig.GetTestDeps(
+		afs, cfg,
+		func(d *deps.Deps) { d.Fs.PublishDir = hugofs.NewCreateCountingFs(d.Fs.PublishDir) },
+	)
 
-	fs := hugofs.NewMem(cfg)
-
-	s, err := helpers.NewPathSpec(fs, cfg)
-	assert.NoError(err)
-
-	filecaches, err := filecache.NewCaches(s)
-	assert.NoError(err)
-
-	spec, err := NewSpec(s, filecaches, nil, output.DefaultFormats, media.DefaultTypes)
-	assert.NoError(err)
-	return spec
+	return d.ResourceSpec
 }
 
 func newTargetPaths(link string) func() page.TargetPaths {
@@ -70,11 +76,13 @@ func newTargetPaths(link string) func() page.TargetPaths {
 	}
 }
 
-func newTestResourceOsFs(assert *require.Assertions) *Spec {
-	cfg := viper.New()
+func newTestResourceOsFs(c *qt.C) (*resources.Spec, string) {
+	cfg := config.New()
 	cfg.Set("baseURL", "https://example.com")
 
-	workDir, _ := ioutil.TempDir("", "hugores")
+	workDir, err := os.MkdirTemp("", "hugores")
+	c.Assert(err, qt.IsNil)
+	c.Assert(workDir, qt.Not(qt.Equals), "")
 
 	if runtime.GOOS == "darwin" && !strings.HasPrefix(workDir, "/private") {
 		// To get the entry folder in line with the rest. This its a little bit
@@ -83,82 +91,68 @@ func newTestResourceOsFs(assert *require.Assertions) *Spec {
 	}
 
 	cfg.Set("workingDir", workDir)
-	cfg.Set("resourceDir", "resources")
-	cfg.Set("contentDir", "content")
-	cfg.Set("dataDir", "data")
-	cfg.Set("i18nDir", "i18n")
-	cfg.Set("layoutDir", "layouts")
-	cfg.Set("assetDir", "assets")
-	cfg.Set("archetypeDir", "archetypes")
-	cfg.Set("publishDir", "public")
 
-	fs := hugofs.NewFrom(hugofs.Os, cfg)
-	fs.Destination = &afero.MemMapFs{}
+	os.MkdirAll(filepath.Join(workDir, "assets"), 0755)
 
-	s, err := helpers.NewPathSpec(fs, cfg)
-	assert.NoError(err)
+	d := testconfig.GetTestDeps(hugofs.Os, cfg)
 
-	filecaches, err := filecache.NewCaches(s)
-	assert.NoError(err)
-
-	spec, err := NewSpec(s, filecaches, nil, output.DefaultFormats, media.DefaultTypes)
-	assert.NoError(err)
-	return spec
-
+	return d.ResourceSpec, workDir
 }
 
-func fetchSunset(assert *require.Assertions) *Image {
-	return fetchImage(assert, "sunset.jpg")
+func fetchSunset(c *qt.C) (*resources.Spec, images.ImageResource) {
+	return fetchImage(c, "sunset.jpg")
 }
 
-func fetchImage(assert *require.Assertions, name string) *Image {
-	spec := newTestResourceSpec(assert)
-	return fetchImageForSpec(spec, assert, name)
+func fetchImage(c *qt.C, name string) (*resources.Spec, images.ImageResource) {
+	spec := newTestResourceSpec(specDescriptor{c: c})
+	return spec, fetchImageForSpec(spec, c, name)
 }
 
-func fetchImageForSpec(spec *Spec, assert *require.Assertions, name string) *Image {
-	r := fetchResourceForSpec(spec, assert, name)
-	assert.IsType(&Image{}, r)
-	return r.(*Image)
+func fetchImageForSpec(spec *resources.Spec, c *qt.C, name string) images.ImageResource {
+	r := fetchResourceForSpec(spec, c, name)
+	img := r.(images.ImageResource)
+	c.Assert(img, qt.Not(qt.IsNil))
+	return img
 }
 
-func fetchResourceForSpec(spec *Spec, assert *require.Assertions, name string) resource.ContentResource {
+func fetchResourceForSpec(spec *resources.Spec, c *qt.C, name string, targetPathAddends ...string) resource.ContentResource {
 	src, err := os.Open(filepath.FromSlash("testdata/" + name))
-	assert.NoError(err)
-
-	out, err := helpers.OpenFileForWriting(spec.BaseFs.Content.Fs, name)
-	assert.NoError(err)
+	c.Assert(err, qt.IsNil)
+	if len(targetPathAddends) > 0 {
+		addends := strings.Join(targetPathAddends, "_")
+		name = addends + "_" + name
+	}
+	out, err := helpers.OpenFileForWriting(spec.Fs.WorkingDirWritable, filepath.Join(filepath.Join("assets", name)))
+	c.Assert(err, qt.IsNil)
 	_, err = io.Copy(out, src)
 	out.Close()
 	src.Close()
-	assert.NoError(err)
+	c.Assert(err, qt.IsNil)
 
 	factory := newTargetPaths("/a")
 
-	r, err := spec.New(ResourceSourceDescriptor{TargetPaths: factory, LazyPublish: true, SourceFilename: name})
-	assert.NoError(err)
+	r, err := spec.New(resources.ResourceSourceDescriptor{Fs: spec.BaseFs.Assets.Fs, TargetPaths: factory, LazyPublish: true, RelTargetFilename: name, SourceFilename: name})
+	c.Assert(err, qt.IsNil)
+	c.Assert(r, qt.Not(qt.IsNil))
 
 	return r.(resource.ContentResource)
 }
 
-func assertImageFile(assert *require.Assertions, fs afero.Fs, filename string, width, height int) {
+func assertImageFile(c *qt.C, fs afero.Fs, filename string, width, height int) {
 	filename = filepath.Clean(filename)
 	f, err := fs.Open(filename)
-	if err != nil {
-		printFs(fs, "", os.Stdout)
-	}
-	assert.NoError(err)
+	c.Assert(err, qt.IsNil)
 	defer f.Close()
 
 	config, _, err := image.DecodeConfig(f)
-	assert.NoError(err)
+	c.Assert(err, qt.IsNil)
 
-	assert.Equal(width, config.Width)
-	assert.Equal(height, config.Height)
+	c.Assert(config.Width, qt.Equals, width)
+	c.Assert(config.Height, qt.Equals, height)
 }
 
-func assertFileCache(assert *require.Assertions, fs afero.Fs, filename string, width, height int) {
-	assertImageFile(assert, fs, filepath.Clean(filename), width, height)
+func assertFileCache(c *qt.C, fs afero.Fs, filename string, width, height int) {
+	assertImageFile(c, fs, filepath.Clean(filename), width, height)
 }
 
 func writeSource(t testing.TB, fs *hugofs.Fs, filename, content string) {
@@ -169,23 +163,4 @@ func writeToFs(t testing.TB, fs afero.Fs, filename, content string) {
 	if err := afero.WriteFile(fs, filepath.FromSlash(filename), []byte(content), 0755); err != nil {
 		t.Fatalf("Failed to write file: %s", err)
 	}
-}
-
-func printFs(fs afero.Fs, path string, w io.Writer) {
-	if fs == nil {
-		return
-	}
-	afero.Walk(fs, path, func(path string, info os.FileInfo, err error) error {
-		if info != nil && !info.IsDir() {
-			s := path
-			if lang, ok := info.(hugofs.LanguageAnnouncer); ok {
-				s = s + "\t" + lang.Lang()
-			}
-			if fp, ok := info.(hugofs.FilePather); ok {
-				s += "\tFilename: " + fp.Filename() + "\tBase: " + fp.BaseDir()
-			}
-			fmt.Fprintln(w, "    ", s)
-		}
-		return nil
-	})
 }

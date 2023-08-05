@@ -1,4 +1,4 @@
-// Copyright 2019 The Hugo Authors. All rights reserved.
+// Copyright 2023 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,16 +15,42 @@ package hugolib
 
 import (
 	"fmt"
+	"math/rand"
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	qt "github.com/frankban/quicktest"
 )
+
+// The most basic build test.
+func TestHello(t *testing.T) {
+	files := `
+-- hugo.toml --
+title = "Hello"
+baseURL="https://example.org"
+disableKinds = ["term", "taxonomy", "section", "page"]
+-- content/p1.md --
+---
+title: Page
+---
+-- layouts/index.html --
+{{ .Title }}
+`
+
+	b := NewIntegrationTestBuilder(
+		IntegrationTestConfig{
+			T:           t,
+			TxtarString: files,
+		},
+	).Build()
+
+	b.AssertFileContent("public/index.html", `Hello`)
+}
 
 func TestSmoke(t *testing.T) {
 	t.Parallel()
 
-	assert := require.New(t)
+	c := qt.New(t)
 
 	const configFile = `
 baseURL = "https://example.com"
@@ -101,7 +127,7 @@ Footnotes:
 
 `
 
-	var pageContentAutoSummary = strings.Replace(pageContentAndSummaryDivider, "<!--more-->", "", 1)
+	pageContentAutoSummary := strings.Replace(pageContentAndSummaryDivider, "<!--more-->", "", 1)
 
 	b := newTestSitesBuilder(t).WithConfigFile("toml", configFile)
 	b.WithTemplatesAdded("shortcodes/markdown-shortcode.html", `
@@ -141,10 +167,10 @@ Some **Markdown** in JSON shortcode.
 	b.WithContent("blog/mybundle/mydata.csv", "Bundled CSV")
 
 	const (
-		commonPageTemplate            = `|{{ .Kind }}|{{ .Title }}|{{ .Path }}|{{ .Summary }}|{{ .Content }}|RelPermalink: {{ .RelPermalink }}|WordCount: {{ .WordCount }}|Pages: {{ .Pages }}|Data Pages: Pages({{ len .Data.Pages }})|Resources: {{ len .Resources }}|Summary: {{ .Summary }}`
+		commonPageTemplate            = `|{{ .Kind }}|{{ .Title }}|{{ .File.Path }}|{{ .Summary }}|{{ .Content }}|RelPermalink: {{ .RelPermalink }}|WordCount: {{ .WordCount }}|Pages: {{ .Pages }}|Data Pages: Pages({{ len .Data.Pages }})|Resources: {{ len .Resources }}|Summary: {{ .Summary }}`
 		commonPaginatorTemplate       = `|Paginator: {{ with .Paginator }}{{ .PageNumber }}{{ else }}NIL{{ end }}`
-		commonListTemplateNoPaginator = `|{{ range $i, $e := (.Pages | first 1) }}|Render {{ $i }}: {{ .Kind }}|{{ .Render "li" }}|{{ end }}|Site params: {{ $.Site.Params.hugo }}|RelPermalink: {{ .RelPermalink }}`
-		commonListTemplate            = commonPaginatorTemplate + `|{{ range $i, $e := (.Pages | first 1) }}|Render {{ $i }}: {{ .Kind }}|{{ .Render "li" }}|{{ end }}|Site params: {{ $.Site.Params.hugo }}|RelPermalink: {{ .RelPermalink }}`
+		commonListTemplateNoPaginator = `|{{ $pages := .Pages }}{{ if .IsHome }}{{ $pages = .Site.RegularPages }}{{ end }}{{ range $i, $e := ($pages | first 1) }}|Render {{ $i }}: {{ .Kind }}|{{ .Render "li" }}|{{ end }}|Site params: {{ $.Site.Params.hugo }}|RelPermalink: {{ .RelPermalink }}`
+		commonListTemplate            = commonPaginatorTemplate + `|{{ $pages := .Pages }}{{ if .IsHome }}{{ $pages = .Site.RegularPages }}{{ end }}{{ range $i, $e := ($pages | first 1) }}|Render {{ $i }}: {{ .Kind }}|{{ .Render "li" }}|{{ end }}|Site params: {{ $.Site.Params.hugo }}|RelPermalink: {{ .RelPermalink }}`
 		commonShortcodeTemplate       = `|{{ .Name }}|{{ .Ordinal }}|{{ .Page.Summary }}|{{ .Page.Content }}|WordCount: {{ .Page.WordCount }}`
 		prevNextTemplate              = `|Prev: {{ with .Prev }}{{ .RelPermalink }}{{ end }}|Next: {{ with .Next }}{{ .RelPermalink }}{{ end }}`
 		prevNextInSectionTemplate     = `|PrevInSection: {{ with .PrevInSection }}{{ .RelPermalink }}{{ end }}|NextInSection: {{ with .NextInSection }}{{ .RelPermalink }}{{ end }}`
@@ -193,7 +219,7 @@ Some **Markdown** in JSON shortcode.
 	b.AssertFileContent("public/index.html",
 		"home|In English",
 		"Site params: Rules",
-		"Pages: Pages(18)|Data Pages: Pages(18)",
+		"Pages: Pages(6)|Data Pages: Pages(6)",
 		"Paginator: 1",
 		"First Site: In English",
 		"RelPermalink: /",
@@ -203,8 +229,8 @@ Some **Markdown** in JSON shortcode.
 
 	// Check RSS
 	rssHome := b.FileContent("public/index.xml")
-	assert.Contains(rssHome, `<atom:link href="https://example.com/index.xml" rel="self" type="application/rss+xml" />`)
-	assert.Equal(3, strings.Count(rssHome, "<item>")) // rssLimit = 3
+	c.Assert(rssHome, qt.Contains, `<atom:link href="https://example.com/index.xml" rel="self" type="application/rss+xml" />`)
+	c.Assert(strings.Count(rssHome, "<item>"), qt.Equals, 3) // rssLimit = 3
 
 	// .Render should use template/content from the current output format
 	// even if that output format isn't configured for that page.
@@ -261,12 +287,10 @@ Some **Markdown** in JSON shortcode.
 	// Markdown vs shortcodes
 	// Check that all footnotes are grouped (even those from inside the shortcode)
 	b.AssertFileContentRe("public/blog/markyshort/index.html", `Footnotes:.*<ol>.*Fn 1.*Fn 2.*Fn 3.*</ol>`)
-
 }
 
 // https://github.com/golang/go/issues/30286
 func TestDataRace(t *testing.T) {
-
 	const page = `
 ---
 title: "The Page"
@@ -300,4 +324,153 @@ The content.
 	b.WithTemplatesAdded("_default/list.html", "HTML List: "+commonTemplate)
 
 	b.CreateSites().Build(BuildCfg{})
+}
+
+// This is just a test to verify that BenchmarkBaseline is working as intended.
+func TestBenchmarkBaseline(t *testing.T) {
+	cfg := IntegrationTestConfig{
+		T:           t,
+		TxtarString: benchmarkBaselineFiles(),
+	}
+	b := NewIntegrationTestBuilder(cfg).Build()
+
+	b.Assert(len(b.H.Sites), qt.Equals, 4)
+	b.Assert(len(b.H.Sites[0].RegularPages()), qt.Equals, 161)
+	b.Assert(len(b.H.Sites[0].Pages()), qt.Equals, 197)
+	b.Assert(len(b.H.Sites[2].RegularPages()), qt.Equals, 158)
+	b.Assert(len(b.H.Sites[2].Pages()), qt.Equals, 194)
+
+}
+
+func BenchmarkBaseline(b *testing.B) {
+	b.Run("withrender", func(b *testing.B) {
+		cfg := IntegrationTestConfig{
+			T:           b,
+			TxtarString: benchmarkBaselineFiles(),
+		}
+		builders := make([]*IntegrationTestBuilder, b.N)
+
+		for i := range builders {
+			builders[i] = NewIntegrationTestBuilder(cfg)
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			builders[i].Build()
+		}
+	})
+
+	b.Run("skiprender", func(b *testing.B) {
+		cfg := IntegrationTestConfig{
+			T:           b,
+			TxtarString: benchmarkBaselineFiles(),
+			BuildCfg: BuildCfg{
+				SkipRender: true,
+			},
+		}
+		builders := make([]*IntegrationTestBuilder, b.N)
+
+		for i := range builders {
+			builders[i] = NewIntegrationTestBuilder(cfg)
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			builders[i].Build()
+		}
+	})
+}
+
+func benchmarkBaselineFiles() string {
+
+	rnd := rand.New(rand.NewSource(32))
+
+	files := `
+-- config.toml --
+baseURL = "https://example.com"
+defaultContentLanguage = 'en'
+
+[module]
+[[module.mounts]]
+source = 'content/en'
+target = 'content/en'
+lang = 'en'
+[[module.mounts]]
+source = 'content/nn'
+target = 'content/nn'
+lang = 'nn'
+[[module.mounts]]
+source = 'content/no'
+target = 'content/no'
+lang = 'no'
+[[module.mounts]]
+source = 'content/sv'
+target = 'content/sv'
+lang = 'sv'
+[[module.mounts]]
+source = 'layouts'
+target = 'layouts'
+
+[languages]
+[languages.en]
+title = "English"
+weight = 1
+[languages.nn]
+title = "Nynorsk"
+weight = 2
+[languages.no]
+title = "Norsk"
+weight = 3
+[languages.sv]
+title = "Svenska"
+weight = 4
+-- layouts/_default/list.html --
+{{ .Title }}
+{{ .Content }}
+-- layouts/_default/single.html --
+{{ .Title }}
+{{ .Content }}
+-- layouts/shortcodes/myshort.html --
+{{ .Inner }}
+`
+
+	contentTemplate := `
+---
+title: "Page %d"
+date: "2018-01-01"
+weight: %d
+---
+
+## Heading 1
+
+Duis nisi reprehenderit nisi cupidatat cillum aliquip ea id eu esse commodo et.
+
+## Heading 2
+
+Aliqua labore enim et sint anim amet excepteur ea dolore.
+
+{{< myshort >}}
+Hello, World!
+{{< /myshort >}}
+
+Aliqua labore enim et sint anim amet excepteur ea dolore.
+
+
+`
+
+	for _, lang := range []string{"en", "nn", "no", "sv"} {
+		files += fmt.Sprintf("\n-- content/%s/_index.md --\n"+contentTemplate, lang, 1, 1, 1)
+		for i, root := range []string{"", "foo", "bar", "baz"} {
+			for j, section := range []string{"posts", "posts/funny", "posts/science", "posts/politics", "posts/world", "posts/technology", "posts/world/news", "posts/world/news/europe"} {
+				n := i + j + 1
+				files += fmt.Sprintf("\n-- content/%s/%s/%s/_index.md --\n"+contentTemplate, lang, root, section, n, n, n)
+				for k := 1; k < rnd.Intn(30)+1; k++ {
+					n := n + k
+					files += fmt.Sprintf("\n-- content/%s/%s/%s/p%d.md --\n"+contentTemplate, lang, root, section, n, n, n)
+				}
+			}
+		}
+	}
+
+	return files
 }

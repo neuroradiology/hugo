@@ -14,35 +14,66 @@
 package langs
 
 import (
+	"sync"
 	"testing"
 
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/require"
+	qt "github.com/frankban/quicktest"
+	"golang.org/x/text/collate"
+	"golang.org/x/text/language"
 )
 
-func TestGetGlobalOnlySetting(t *testing.T) {
-	v := viper.New()
-	v.Set("defaultContentLanguageInSubdir", true)
-	v.Set("contentDir", "content")
-	v.Set("paginatePath", "page")
-	lang := NewDefaultLanguage(v)
-	lang.Set("defaultContentLanguageInSubdir", false)
-	lang.Set("paginatePath", "side")
+func TestCollator(t *testing.T) {
 
-	require.True(t, lang.GetBool("defaultContentLanguageInSubdir"))
-	require.Equal(t, "side", lang.GetString("paginatePath"))
+	c := qt.New(t)
+
+	var wg sync.WaitGroup
+
+	coll := &Collator{c: collate.New(language.English, collate.Loose)}
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+		go func() {
+			coll.Lock()
+			defer coll.Unlock()
+			defer wg.Done()
+			for j := 0; j < 10; j++ {
+				k := coll.CompareStrings("abc", "def")
+				c.Assert(k, qt.Equals, -1)
+			}
+		}()
+	}
+	wg.Wait()
+
 }
 
-func TestLanguageParams(t *testing.T) {
-	assert := require.New(t)
+func BenchmarkCollator(b *testing.B) {
+	s := []string{"foo", "bar", "éntre", "baz", "qux", "quux", "corge", "grault", "garply", "waldo", "fred", "plugh", "xyzzy", "thud"}
 
-	v := viper.New()
-	v.Set("p1", "p1cfg")
-	v.Set("contentDir", "content")
+	doWork := func(coll *Collator) {
+		for i := 0; i < len(s); i++ {
+			for j := i + 1; j < len(s); j++ {
+				_ = coll.CompareStrings(s[i], s[j])
+			}
+		}
+	}
 
-	lang := NewDefaultLanguage(v)
-	lang.SetParam("p1", "p1p")
+	b.Run("Single", func(b *testing.B) {
+		coll := &Collator{c: collate.New(language.English, collate.Loose)}
+		for i := 0; i < b.N; i++ {
+			doWork(coll)
+		}
+	})
 
-	assert.Equal("p1p", lang.Params()["p1"])
-	assert.Equal("p1cfg", lang.Get("p1"))
+	b.Run("Para", func(b *testing.B) {
+		b.RunParallel(func(pb *testing.PB) {
+			coll := &Collator{c: collate.New(language.English, collate.Loose)}
+
+			for pb.Next() {
+				coll.Lock()
+				doWork(coll)
+				coll.Unlock()
+			}
+		})
+	})
+
 }

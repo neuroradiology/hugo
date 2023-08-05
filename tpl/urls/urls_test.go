@@ -14,26 +14,29 @@
 package urls
 
 import (
-	"fmt"
 	"net/url"
 	"testing"
 
-	"github.com/gohugoio/hugo/deps"
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/gohugoio/hugo/config/testconfig"
+	"github.com/gohugoio/hugo/htesting/hqt"
+
+	qt "github.com/frankban/quicktest"
 )
 
-var ns = New(&deps.Deps{Cfg: viper.New()})
+func newNs() *Namespace {
+	return New(testconfig.GetTestDeps(nil, nil))
+}
 
 type tstNoStringer struct{}
 
 func TestParse(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
+	ns := newNs()
 
-	for i, test := range []struct {
-		rawurl interface{}
-		expect interface{}
+	for _, test := range []struct {
+		rawurl any
+		expect any
 	}{
 		{
 			"http://www.google.com",
@@ -53,16 +56,52 @@ func TestParse(t *testing.T) {
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.Parse(test.rawurl)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result,
+			qt.CmpEquals(hqt.DeepAllowUnexported(&url.URL{}, url.Userinfo{})), test.expect)
+	}
+}
+
+func TestJoinPath(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+	ns := newNs()
+
+	for _, test := range []struct {
+		elements any
+		expect   any
+	}{
+		{"", `/`},
+		{"a", `a`},
+		{"/a/b", `/a/b`},
+		{"./../a/b", `a/b`},
+		{[]any{""}, `/`},
+		{[]any{"a"}, `a`},
+		{[]any{"/a", "b"}, `/a/b`},
+		{[]any{".", "..", "/a", "b"}, `a/b`},
+		{[]any{"https://example.org", "a"}, `https://example.org/a`},
+		{[]any{nil}, `/`},
+		// errors
+		{tstNoStringer{}, false},
+		{[]any{tstNoStringer{}}, false},
+	} {
+
+		result, err := ns.JoinPath(test.elements)
+
+		if b, ok := test.expect.(bool); ok && !b {
+			c.Assert(err, qt.Not(qt.IsNil))
+			continue
+		}
+
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }

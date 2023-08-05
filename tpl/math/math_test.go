@@ -14,56 +14,90 @@
 package math
 
 import (
-	"fmt"
 	"math"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	qt "github.com/frankban/quicktest"
 )
 
 func TestBasicNSArithmetic(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New()
 
-	for i, test := range []struct {
-		fn     func(a, b interface{}) (interface{}, error)
-		a      interface{}
-		b      interface{}
-		expect interface{}
-	}{
-		{ns.Add, 4, 2, int64(6)},
-		{ns.Add, 1.0, "foo", false},
-		{ns.Sub, 4, 2, int64(2)},
-		{ns.Sub, 1.0, "foo", false},
-		{ns.Mul, 4, 2, int64(8)},
-		{ns.Mul, 1.0, "foo", false},
-		{ns.Div, 4, 2, int64(2)},
-		{ns.Div, 1.0, "foo", false},
-	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
+	type TestCase struct {
+		fn     func(inputs ...any) (any, error)
+		values []any
+		expect any
+	}
 
-		result, err := test.fn(test.a, test.b)
+	for _, test := range []TestCase{
+		{ns.Add, []any{4, 2}, int64(6)},
+		{ns.Add, []any{4, 2, 5}, int64(11)},
+		{ns.Add, []any{1.0, "foo"}, false},
+		{ns.Add, []any{0}, false},
+		{ns.Sub, []any{4, 2}, int64(2)},
+		{ns.Sub, []any{4, 2, 5}, int64(-3)},
+		{ns.Sub, []any{1.0, "foo"}, false},
+		{ns.Sub, []any{0}, false},
+		{ns.Mul, []any{4, 2}, int64(8)},
+		{ns.Mul, []any{4, 2, 5}, int64(40)},
+		{ns.Mul, []any{1.0, "foo"}, false},
+		{ns.Mul, []any{0}, false},
+		{ns.Div, []any{4, 2}, int64(2)},
+		{ns.Div, []any{4, 2, 5}, int64(0)},
+		{ns.Div, []any{1.0, "foo"}, false},
+		{ns.Div, []any{0}, false},
+	} {
+
+		result, err := test.fn(test.values...)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
+	}
+}
+
+func TestAbs(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+	ns := New()
+
+	for _, test := range []struct {
+		x      any
+		expect any
+	}{
+		{0.0, 0.0},
+		{1.5, 1.5},
+		{-1.5, 1.5},
+		{-2, 2.0},
+		{"abc", false},
+	} {
+		result, err := ns.Abs(test.x)
+
+		if b, ok := test.expect.(bool); ok && !b {
+			c.Assert(err, qt.Not(qt.IsNil))
+			continue
+		}
+
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestCeil(t *testing.T) {
 	t.Parallel()
-
+	c := qt.New(t)
 	ns := New()
 
-	for i, test := range []struct {
-		x      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		x      any
+		expect any
 	}{
 		{0.1, 1.0},
 		{0.5, 1.0},
@@ -75,28 +109,28 @@ func TestCeil(t *testing.T) {
 		{-1.5, -1.0},
 		{"abc", false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.Ceil(test.x)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestFloor(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New()
 
-	for i, test := range []struct {
-		x      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		x      any
+		expect any
 	}{
 		{0.1, 0.0},
 		{0.5, 0.0},
@@ -108,42 +142,41 @@ func TestFloor(t *testing.T) {
 		{-1.5, -2.0},
 		{"abc", false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.Floor(test.x)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestLog(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New()
 
-	for i, test := range []struct {
-		a      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		a      any
+		expect any
 	}{
-		{1, float64(0)},
-		{3, float64(1.0986)},
-		{0, float64(math.Inf(-1))},
-		{1.0, float64(0)},
-		{3.1, float64(1.1314)},
+		{1, 0.0},
+		{3, 1.0986},
+		{0, math.Inf(-1)},
+		{1.0, 0.0},
+		{3.1, 1.1314},
 		{"abc", false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.Log(test.a)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
@@ -153,20 +186,65 @@ func TestLog(t *testing.T) {
 			result = float64(int(result*10000)) / 10000
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
+
+	// Separate test for Log(-1) -- returns NaN
+	result, err := ns.Log(-1)
+	c.Assert(err, qt.IsNil)
+	c.Assert(result, qt.Satisfies, math.IsNaN)
+}
+
+func TestSqrt(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+
+	ns := New()
+
+	for _, test := range []struct {
+		a      any
+		expect any
+	}{
+		{81, 9.0},
+		{0.25, 0.5},
+		{0, 0.0},
+		{"abc", false},
+	} {
+
+		result, err := ns.Sqrt(test.a)
+
+		if b, ok := test.expect.(bool); ok && !b {
+			c.Assert(err, qt.Not(qt.IsNil))
+			continue
+		}
+
+		// we compare only 4 digits behind point if its a real float
+		// otherwise we usually get different float values on the last positions
+		if result != math.Inf(-1) {
+			result = float64(int(result*10000)) / 10000
+		}
+
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
+	}
+
+	// Separate test for Sqrt(-1) -- returns NaN
+	result, err := ns.Sqrt(-1)
+	c.Assert(err, qt.IsNil)
+	c.Assert(result, qt.Satisfies, math.IsNaN)
 }
 
 func TestMod(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New()
 
-	for i, test := range []struct {
-		a      interface{}
-		b      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		a      any
+		b      any
+		expect any
 	}{
 		{3, 2, int64(1)},
 		{3, 1, int64(0)},
@@ -184,29 +262,29 @@ func TestMod(t *testing.T) {
 		{"aaa", "0", false},
 		{"3", "aaa", false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.Mod(test.a, test.b)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestModBool(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New()
 
-	for i, test := range []struct {
-		a      interface{}
-		b      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		a      any
+		b      any
+		expect any
 	}{
 		{3, 3, true},
 		{3, 2, false},
@@ -230,28 +308,28 @@ func TestModBool(t *testing.T) {
 		{"aaa", "0", nil},
 		{"3", "aaa", nil},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.ModBool(test.a, test.b)
 
 		if test.expect == nil {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestRound(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New()
 
-	for i, test := range []struct {
-		x      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		x      any
+		expect any
 	}{
 		{0.1, 0.0},
 		{0.5, 1.0},
@@ -263,16 +341,211 @@ func TestRound(t *testing.T) {
 		{-1.5, -2.0},
 		{"abc", false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.Round(test.x)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
+}
+
+func TestPow(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+
+	ns := New()
+
+	for _, test := range []struct {
+		a      any
+		b      any
+		expect any
+	}{
+		{0, 0, 1.0},
+		{2, 0, 1.0},
+		{2, 3, 8.0},
+		{-2, 3, -8.0},
+		{2, -3, 0.125},
+		{-2, -3, -0.125},
+		{0.2, 3, 0.008},
+		{2, 0.3, 1.2311},
+		{0.2, 0.3, 0.617},
+		{"aaa", "3", false},
+		{"2", "aaa", false},
+	} {
+
+		result, err := ns.Pow(test.a, test.b)
+
+		if b, ok := test.expect.(bool); ok && !b {
+			c.Assert(err, qt.Not(qt.IsNil))
+			continue
+		}
+
+		// we compare only 4 digits behind point if its a real float
+		// otherwise we usually get different float values on the last positions
+		result = float64(int(result*10000)) / 10000
+
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
+	}
+}
+
+func TestMax(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+
+	ns := New()
+
+	type TestCase struct {
+		values []any
+		expect any
+	}
+
+	for _, test := range []TestCase{
+		// two values
+		{[]any{-1, -1}, -1.0},
+		{[]any{-1, 0}, 0.0},
+		{[]any{-1, 1}, 1.0},
+		{[]any{0, -1}, 0.0},
+		{[]any{0, 0}, 0.0},
+		{[]any{0, 1}, 1.0},
+		{[]any{1, -1}, 1.0},
+		{[]any{1, 0}, 1.0},
+		{[]any{32}, 32.0},
+		{[]any{1, 1}, 1.0},
+		{[]any{1.2, 1.23}, 1.23},
+		{[]any{-1.2, -1.23}, -1.2},
+		{[]any{0, "a"}, false},
+		{[]any{"a", 0}, false},
+		{[]any{"a", "b"}, false},
+		// Issue #11030
+		{[]any{7, []any{3, 4}}, 7.0},
+		{[]any{8, []any{3, 12}, 3}, 12.0},
+		{[]any{[]any{3, 5, 2}}, 5.0},
+		{[]any{3, []int{3, 6}, 3}, 6.0},
+		// No values.
+		{[]any{}, false},
+
+		// multi values
+		{[]any{-1, -2, -3}, -1.0},
+		{[]any{1, 2, 3}, 3.0},
+		{[]any{"a", 2, 3}, false},
+	} {
+		result, err := ns.Max(test.values...)
+
+		if b, ok := test.expect.(bool); ok && !b {
+			c.Assert(err, qt.Not(qt.IsNil))
+			continue
+		}
+
+		msg := qt.Commentf("values: %v", test.values)
+		c.Assert(err, qt.IsNil, msg)
+		c.Assert(result, qt.Equals, test.expect, msg)
+	}
+}
+
+func TestMin(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+
+	ns := New()
+
+	type TestCase struct {
+		values []any
+		expect any
+	}
+
+	for _, test := range []TestCase{
+		// two values
+		{[]any{-1, -1}, -1.0},
+		{[]any{-1, 0}, -1.0},
+		{[]any{-1, 1}, -1.0},
+		{[]any{0, -1}, -1.0},
+		{[]any{0, 0}, 0.0},
+		{[]any{0, 1}, 0.0},
+		{[]any{1, -1}, -1.0},
+		{[]any{1, 0}, 0.0},
+		{[]any{1, 1}, 1.0},
+		{[]any{2}, 2.0},
+		{[]any{1.2, 1.23}, 1.2},
+		{[]any{-1.2, -1.23}, -1.23},
+		{[]any{0, "a"}, false},
+		{[]any{"a", 0}, false},
+		{[]any{"a", "b"}, false},
+		// Issue #11030
+		{[]any{1, []any{3, 4}}, 1.0},
+		{[]any{8, []any{3, 2}, 3}, 2.0},
+		{[]any{[]any{3, 2, 2}}, 2.0},
+		{[]any{8, []int{3, 2}, 3}, 2.0},
+
+		// No values.
+		{[]any{}, false},
+
+		// multi values
+		{[]any{-1, -2, -3}, -3.0},
+		{[]any{1, 2, 3}, 1.0},
+		{[]any{"a", 2, 3}, false},
+	} {
+
+		result, err := ns.Min(test.values...)
+
+		if b, ok := test.expect.(bool); ok && !b {
+			c.Assert(err, qt.Not(qt.IsNil))
+			continue
+		}
+
+		c.Assert(err, qt.IsNil, qt.Commentf("values: %v", test.values))
+		c.Assert(result, qt.Equals, test.expect)
+	}
+}
+
+func TestSum(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+
+	ns := New()
+
+	mustSum := func(values ...any) any {
+		result, err := ns.Sum(values...)
+		c.Assert(err, qt.IsNil)
+		return result
+	}
+
+	c.Assert(mustSum(1, 2, 3), qt.Equals, 6.0)
+	c.Assert(mustSum(1, 2, 3.0), qt.Equals, 6.0)
+	c.Assert(mustSum(1, 2, []any{3, 4}), qt.Equals, 10.0)
+	c.Assert(mustSum(23), qt.Equals, 23.0)
+	c.Assert(mustSum([]any{23}), qt.Equals, 23.0)
+	c.Assert(mustSum([]any{}), qt.Equals, 0.0)
+
+	_, err := ns.Sum()
+	c.Assert(err, qt.Not(qt.IsNil))
+
+}
+
+func TestProduct(t *testing.T) {
+	t.Parallel()
+	c := qt.New(t)
+
+	ns := New()
+
+	mustProduct := func(values ...any) any {
+		result, err := ns.Product(values...)
+		c.Assert(err, qt.IsNil)
+		return result
+	}
+
+	c.Assert(mustProduct(2, 2, 3), qt.Equals, 12.0)
+	c.Assert(mustProduct(1, 2, 3.0), qt.Equals, 6.0)
+	c.Assert(mustProduct(1, 2, []any{3, 4}), qt.Equals, 24.0)
+	c.Assert(mustProduct(3.0), qt.Equals, 3.0)
+	c.Assert(mustProduct([]string{}), qt.Equals, 0.0)
+
+	_, err := ns.Product()
+	c.Assert(err, qt.Not(qt.IsNil))
+
 }

@@ -23,24 +23,22 @@ import (
 
 func TestRSSOutput(t *testing.T) {
 	t.Parallel()
-	var (
-		cfg, fs = newTestCfg()
-		th      = testHelper{cfg, fs, t}
-	)
 
 	rssLimit := len(weightedSources) - 1
 
-	rssURI := "index.xml"
-
+	cfg, fs := newTestCfg()
 	cfg.Set("baseURL", "http://auth/bub/")
 	cfg.Set("title", "RSSTest")
 	cfg.Set("rssLimit", rssLimit)
+	th, configs := newTestHelperFromProvider(cfg, fs, t)
+
+	rssURI := "index.xml"
 
 	for _, src := range weightedSources {
 		writeSource(t, fs, filepath.Join("content", "sect", src[0]), src[1])
 	}
 
-	buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{})
+	buildSingleSite(t, deps.DepsCfg{Fs: fs, Configs: configs}, BuildCfg{})
 
 	// Home RSS
 	th.assertFileContent(filepath.Join("public", rssURI), "<?xml", "rss version", "RSSTest")
@@ -50,7 +48,7 @@ func TestRSSOutput(t *testing.T) {
 	th.assertFileContent(filepath.Join("public", "categories", "hugo", rssURI), "<?xml", "rss version", "hugo on RSSTest")
 
 	// RSS Item Limit
-	content := readDestination(t, fs, filepath.Join("public", rssURI))
+	content := readWorkingDir(t, fs, filepath.Join("public", rssURI))
 	c := strings.Count(content, "<item>")
 	if c != rssLimit {
 		t.Errorf("incorrect RSS item count: expected %d, got %d", rssLimit, c)

@@ -27,7 +27,7 @@ type OutputFormats []OutputFormat
 
 // OutputFormat links to a representation of a resource.
 type OutputFormat struct {
-	// Rel constains a value that can be used to construct a rel link.
+	// Rel contains a value that can be used to construct a rel link.
 	// This is value is fetched from the output format definition.
 	// Note that for pages with only one output format,
 	// this method will always return "canonical".
@@ -66,8 +66,18 @@ func (o OutputFormat) RelPermalink() string {
 }
 
 func NewOutputFormat(relPermalink, permalink string, isCanonical bool, f output.Format) OutputFormat {
+	isUserConfigured := true
+	for _, d := range output.DefaultFormats {
+		if strings.EqualFold(d.Name, f.Name) {
+			isUserConfigured = false
+		}
+	}
 	rel := f.Rel
-	if isCanonical {
+	// If the output format is the canonical format for the content, we want
+	// to specify this in the "rel" attribute of an HTML "link" element.
+	// However, for custom output formats, we don't want to surprise users by
+	// overwriting "rel"
+	if isCanonical && !isUserConfigured {
 		rel = "canonical"
 	}
 	return OutputFormat{Rel: rel, Format: f, relPermalink: relPermalink, permalink: permalink}

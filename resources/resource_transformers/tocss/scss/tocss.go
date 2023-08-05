@@ -11,6 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//go:build extended
 // +build extended
 
 package scss
@@ -19,17 +20,18 @@ import (
 	"fmt"
 	"io"
 	"path"
+
 	"path/filepath"
 	"strings"
 
-	"github.com/bep/go-tocss/scss"
-	"github.com/bep/go-tocss/scss/libsass"
-	"github.com/bep/go-tocss/tocss"
+	"github.com/bep/golibsass/libsass"
+	"github.com/bep/golibsass/libsass/libsasserrors"
+	"github.com/gohugoio/hugo/common/herrors"
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/hugofs"
 	"github.com/gohugoio/hugo/media"
 	"github.com/gohugoio/hugo/resources"
-	"github.com/pkg/errors"
+	"github.com/gohugoio/hugo/resources/resource_transformers/tocss/internal/sass"
 )
 
 // Used in tests. This feature requires Hugo to be built with the extended tag.
@@ -38,7 +40,7 @@ func Supports() bool {
 }
 
 func (t *toCSSTransformation) Transform(ctx *resources.ResourceTransformationCtx) error {
-	ctx.OutMediaType = media.CSSType
+	ctx.OutMediaType = media.Builtin.CSSType
 
 	var outName string
 	if t.options.from.TargetPath != "" {
@@ -55,14 +57,24 @@ func (t *toCSSTransformation) Transform(ctx *resources.ResourceTransformationCtx
 
 	// Append any workDir relative include paths
 	for _, ip := range options.from.IncludePaths {
-		options.to.IncludePaths = append(options.to.IncludePaths, t.c.workFs.RealDirs(filepath.Clean(ip))...)
+		info, err := t.c.workFs.Stat(filepath.Clean(ip))
+		if err == nil {
+			filename := info.(hugofs.FileMetaInfo).Meta().Filename
+			options.to.IncludePaths = append(options.to.IncludePaths, filename)
+		}
 	}
+
+	varsStylesheet := sass.CreateVarsStyleSheet(options.from.Vars)
 
 	// To allow for overrides of SCSS files anywhere in the project/theme hierarchy, we need
 	// to help libsass revolve the filename by looking in the composite filesystem first.
 	// We add the entry directories for both project and themes to the include paths list, but
 	// that only work for overrides on the top level.
 	options.to.ImportResolver = func(url string, prev string) (newUrl string, body string, resolved bool) {
+		if url == sass.HugoVarsNamespace {
+			return url, varsStylesheet, true
+		}
+
 		// We get URL paths from LibSASS, but we need file paths.
 		url = filepath.FromSlash(url)
 		prev = filepath.FromSlash(prev)
@@ -70,10 +82,12 @@ func (t *toCSSTransformation) Transform(ctx *resources.ResourceTransformationCtx
 		var basePath string
 		urlDir := filepath.Dir(url)
 		var prevDir string
+
 		if prev == "stdin" {
 			prevDir = baseDir
 		} else {
-			prevDir = t.c.sfs.MakePathRelative(filepath.Dir(prev))
+			prevDir, _ = t.c.sfs.MakePathRelative(filepath.Dir(prev))
+
 			if prevDir == "" {
 				// Not a member of this filesystem. Let LibSASS handle it.
 				return "", "", false
@@ -100,8 +114,8 @@ func (t *toCSSTransformation) Transform(ctx *resources.ResourceTransformationCtx
 			filenameToCheck := filepath.Join(basePath, fmt.Sprintf(namePattern, name))
 			fi, err := t.c.sfs.Fs.Stat(filenameToCheck)
 			if err == nil {
-				if fir, ok := fi.(hugofs.RealFilenameInfo); ok {
-					return fir.RealFilename(), "", true
+				if fim, ok := fi.(hugofs.FileMetaInfo); ok {
+					return fim.Meta().Filename, "", true
 				}
 			}
 		}
@@ -110,36 +124,43 @@ func (t *toCSSTransformation) Transform(ctx *resources.ResourceTransformationCtx
 		return "", "", false
 	}
 
-	if ctx.InMediaType.SubType == media.SASSType.SubType {
+	if ctx.InMediaType.SubType == media.Builtin.SASSType.SubType {
 		options.to.SassSyntax = true
 	}
 
 	if options.from.EnableSourceMap {
 
-		options.to.SourceMapFilename = outName + ".map"
-		options.to.SourceMapRoot = t.c.rs.WorkingDir
+		options.to.SourceMapOptions.Filename = outName + ".map"
+		options.to.SourceMapOptions.Root = t.c.rs.Cfg.BaseConfig().WorkingDir
 
 		// Setting this to the relative input filename will get the source map
 		// more correct for the main entry path (main.scss typically), but
 		// it will mess up the import mappings. As a workaround, we do a replacement
 		// in the source map itself (see below).
-		//options.InputPath = inputPath
-		options.to.OutputPath = outName
-		options.to.SourceMapContents = true
-		options.to.OmitSourceMapURL = false
-		options.to.EnableEmbeddedSourceMap = false
+		// options.InputPath = inputPath
+		options.to.SourceMapOptions.OutputPath = outName
+		options.to.SourceMapOptions.Contents = true
+		options.to.SourceMapOptions.OmitURL = false
+		options.to.SourceMapOptions.EnableEmbedded = false
 	}
 
 	res, err := t.c.toCSS(options.to, ctx.To, ctx.From)
 	if err != nil {
-		return err
+		if sasserr, ok := err.(libsasserrors.Error); ok {
+			if sasserr.File == "stdin" && ctx.SourcePath != "" {
+				sasserr.File = t.c.sfs.RealFilename(ctx.SourcePath)
+				err = sasserr
+			}
+		}
+		return herrors.NewFileErrorFromFileInErr(err, hugofs.Os, nil)
+
 	}
 
 	if options.from.EnableSourceMap && res.SourceMapContent != "" {
 		sourcePath := t.c.sfs.RealFilename(ctx.SourcePath)
 
-		if strings.HasPrefix(sourcePath, t.c.rs.WorkingDir) {
-			sourcePath = strings.TrimPrefix(sourcePath, t.c.rs.WorkingDir+helpers.FilePathSeparator)
+		if strings.HasPrefix(sourcePath, t.c.rs.Cfg.BaseConfig().WorkingDir) {
+			sourcePath = strings.TrimPrefix(sourcePath, t.c.rs.Cfg.BaseConfig().WorkingDir+helpers.FilePathSeparator)
 		}
 
 		// This needs to be Unix-style slashes, even on Windows.
@@ -149,25 +170,42 @@ func (t *toCSSTransformation) Transform(ctx *resources.ResourceTransformationCtx
 		// This is a workaround for what looks like a bug in Libsass. But
 		// getting this resolution correct in tools like Chrome Workspaces
 		// is important enough to go this extra mile.
-		mapContent := strings.Replace(res.SourceMapContent, `stdin",`, fmt.Sprintf("%s\",", sourcePath), 1)
+		mapContent := strings.Replace(res.SourceMapContent, `stdin"`, fmt.Sprintf("%s\"", sourcePath), 1)
 
 		return ctx.PublishSourceMap(mapContent)
 	}
 	return nil
 }
 
-func (c *Client) toCSS(options scss.Options, dst io.Writer, src io.Reader) (tocss.Result, error) {
-	var res tocss.Result
+func (c *Client) toCSS(options libsass.Options, dst io.Writer, src io.Reader) (libsass.Result, error) {
+	var res libsass.Result
 
 	transpiler, err := libsass.New(options)
 	if err != nil {
 		return res, err
 	}
 
-	res, err = transpiler.Execute(dst, src)
+	in := helpers.ReaderToString(src)
+
+	// See https://github.com/gohugoio/hugo/issues/7059
+	// We need to preserve the regular CSS imports. This is by far
+	// a perfect solution, and only works for the main entry file, but
+	// that should cover many use cases, e.g. using SCSS as a preprocessor
+	// for Tailwind.
+	var importsReplaced bool
+	in, importsReplaced = replaceRegularImportsIn(in)
+
+	res, err = transpiler.Execute(in)
 	if err != nil {
-		return res, errors.Wrap(err, "SCSS processing failed")
+		return res, err
 	}
 
-	return res, nil
+	out := res.CSS
+	if importsReplaced {
+		out = replaceRegularImportsOut(out)
+	}
+
+	_, err = io.WriteString(dst, out)
+
+	return res, err
 }

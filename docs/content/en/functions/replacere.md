@@ -1,31 +1,58 @@
 ---
 title: replaceRE
-# linktitle: replaceRE
-description: Replaces all occurrences of a regular expression with the replacement pattern.
-godocref:
-date: 2017-02-01
-publishdate: 2017-02-01
-lastmod: 2017-04-30
+description: Returns a string, replacing all occurrences of a regular expression with a replacement pattern.
 categories: [functions]
 menu:
   docs:
-    parent: "functions"
+    parent: functions
 keywords: [regex]
-signature: ["replaceRE PATTERN REPLACEMENT INPUT"]
-workson: []
-hugoversion:
-relatedfuncs: []
-deprecated: false
-aliases: []
+signature:
+  - "replaceRE PATTERN REPLACEMENT INPUT [LIMIT]"
+  - "strings.ReplaceRE PATTERN REPLACEMENT INPUT [LIMIT]"
+relatedfuncs: [findRE, FindRESubmatch, replace]
 ---
+By default, `replaceRE` replaces all matches. You can limit the number of matches with an optional LIMIT parameter.
 
+When specifying the regular expression, use a raw [string literal] (backticks) instead of an interpreted string literal (double quotes) to simplify the syntax. With an interpreted string literal you must escape backslashes.
+
+[string literal]: https://go.dev/ref/spec#String_literals
+
+This function uses the [RE2] regular expression library. See the [RE2 syntax documentation] for details. Note that the RE2 `\C` escape sequence is not supported.
+
+[RE2]: https://github.com/google/re2/
+[RE2 syntax documentation]: https://github.com/google/re2/wiki/Syntax/
+
+{{% note %}}
+The RE2 syntax is a subset of that accepted by [PCRE], roughly speaking, and with various [caveats].
+
+[caveats]: https://swtch.com/~rsc/regexp/regexp3.html#caveats
+[PCRE]: https://www.pcre.org/
+{{% /note %}}
+
+This example replaces two or more consecutive hyphens with a single hyphen:
+
+```go-html-template
+{{ $s := "a-b--c---d" }}
+{{ replaceRE `(-{2,})` "-" $s }} → a-b-c-d
 ```
-{{ replaceRE "^https?://([^/]+).*" "$1" "http://gohugo.io/docs" }}` → "gohugo.io"
-{{ "http://gohugo.io/docs" | replaceRE "^https?://([^/]+).*" "$1" }}` → "gohugo.io"
+
+To limit the number of replacements to one:
+
+```go-html-template
+{{ $s := "a-b--c---d" }}
+{{ replaceRE `(-{2,})` "-" $s 1 }} → a-b-c---d
+```
+
+You can use `$1`, `$2`, etc. within the replacement string to insert the groups captured within the regular expression:
+
+```go-html-template
+{{ $s := "http://gohugo.io/docs" }}
+{{ replaceRE "^https?://([^/]+).*" "$1" $s }} → gohugo.io
 ```
 
 {{% note %}}
-Hugo uses Go's [Regular Expression package](https://golang.org/pkg/regexp/), which is the same general syntax used by Perl, Python, and other languages but with a few minor differences for those coming from a background in PCRE. For a full syntax listing, see the [GitHub wiki for re2](https://github.com/google/re2/wiki/Syntax).
-
-If you are just learning RegEx, or at least Go's flavor, you can practice pattern matching in the browser at <https://regex101.com/>.
+You can write and test your regular expression using [regex101.com](https://regex101.com/). Be sure to select the Go flavor before you begin.
 {{% /note %}}
+
+[RE2]: https://github.com/google/re2/wiki/Syntax
+[string literal]: https://go.dev/ref/spec#String_literals

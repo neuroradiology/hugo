@@ -1,4 +1,4 @@
-// Copyright 2019 The Hugo Authors. All rights reserved.
+// Copyright 2023 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package helpers
+package helpers_test
 
 import (
 	"fmt"
@@ -19,12 +19,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gohugoio/hugo/helpers"
+
+	qt "github.com/frankban/quicktest"
 	"github.com/spf13/afero"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
-func TestGuessType(t *testing.T) {
+func TestResolveMarkup(t *testing.T) {
+	spec := newTestContentSpec(nil)
+
 	for i, this := range []struct {
 		in     string
 		expect string
@@ -32,19 +35,18 @@ func TestGuessType(t *testing.T) {
 		{"md", "markdown"},
 		{"markdown", "markdown"},
 		{"mdown", "markdown"},
-		{"asciidoc", "asciidoc"},
-		{"adoc", "asciidoc"},
-		{"ad", "asciidoc"},
+		{"asciidocext", "asciidocext"},
+		{"adoc", "asciidocext"},
+		{"ad", "asciidocext"},
 		{"rst", "rst"},
 		{"pandoc", "pandoc"},
 		{"pdc", "pandoc"},
-		{"mmark", "mmark"},
 		{"html", "html"},
 		{"htm", "html"},
 		{"org", "org"},
 		{"excel", ""},
 	} {
-		result := GuessType(this.in)
+		result := spec.ResolveMarkup(this.in)
 		if result != this.expect {
 			t.Errorf("[%d] got %s but expected %s", i, result, this.expect)
 		}
@@ -62,7 +64,7 @@ func TestFirstUpper(t *testing.T) {
 		{"", ""},
 		{"å", "Å"},
 	} {
-		result := FirstUpper(this.in)
+		result := helpers.FirstUpper(this.in)
 		if result != this.expect {
 			t.Errorf("[%d] got %s but expected %s", i, result, this.expect)
 		}
@@ -82,7 +84,7 @@ func TestHasStringsPrefix(t *testing.T) {
 		{[]string{"abra", "ca", "dabra"}, []string{"abra", "ca"}, true},
 		{[]string{"abra", "ca"}, []string{"abra", "ca", "dabra"}, false},
 	} {
-		result := HasStringsPrefix(this.s, this.prefix)
+		result := helpers.HasStringsPrefix(this.s, this.prefix)
 		if result != this.expect {
 			t.Fatalf("[%d] got %t but expected %t", i, result, this.expect)
 		}
@@ -101,7 +103,7 @@ func TestHasStringsSuffix(t *testing.T) {
 		{[]string{"abra", "ca", "dabra"}, []string{"abra", "ca"}, false},
 		{[]string{"abra", "ca", "dabra"}, []string{"ca", "dabra"}, true},
 	} {
-		result := HasStringsSuffix(this.s, this.suffix)
+		result := helpers.HasStringsSuffix(this.s, this.suffix)
 		if result != this.expect {
 			t.Fatalf("[%d] got %t but expected %t", i, result, this.expect)
 		}
@@ -178,7 +180,7 @@ func TestSliceToLower(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		res := SliceToLower(test.value)
+		res := helpers.SliceToLower(test.value)
 		for i, val := range res {
 			if val != test.expected[i] {
 				t.Errorf("Case mismatch. Expected %s, got %s", test.expected[i], res[i])
@@ -188,36 +190,38 @@ func TestSliceToLower(t *testing.T) {
 }
 
 func TestReaderContains(t *testing.T) {
+	c := qt.New(t)
 	for i, this := range append(containsBenchTestData, containsAdditionalTestData...) {
-		result := ReaderContains(strings.NewReader(this.v1), this.v2)
+		result := helpers.ReaderContains(strings.NewReader(this.v1), this.v2)
 		if result != this.expect {
 			t.Errorf("[%d] got %t but expected %t", i, result, this.expect)
 		}
 	}
 
-	assert.False(t, ReaderContains(nil, []byte("a")))
-	assert.False(t, ReaderContains(nil, nil))
+	c.Assert(helpers.ReaderContains(nil, []byte("a")), qt.Equals, false)
+	c.Assert(helpers.ReaderContains(nil, nil), qt.Equals, false)
 }
 
 func TestGetTitleFunc(t *testing.T) {
-	title := "somewhere over the rainbow"
-	assert := require.New(t)
+	title := "somewhere over the Rainbow"
+	c := qt.New(t)
 
-	assert.Equal("Somewhere Over The Rainbow", GetTitleFunc("go")(title))
-	assert.Equal("Somewhere over the Rainbow", GetTitleFunc("chicago")(title), "Chicago style")
-	assert.Equal("Somewhere over the Rainbow", GetTitleFunc("Chicago")(title), "Chicago style")
-	assert.Equal("Somewhere Over the Rainbow", GetTitleFunc("ap")(title), "AP style")
-	assert.Equal("Somewhere Over the Rainbow", GetTitleFunc("ap")(title), "AP style")
-	assert.Equal("Somewhere Over the Rainbow", GetTitleFunc("")(title), "AP style")
-	assert.Equal("Somewhere Over the Rainbow", GetTitleFunc("unknown")(title), "AP style")
-
+	c.Assert(helpers.GetTitleFunc("go")(title), qt.Equals, "Somewhere Over The Rainbow")
+	c.Assert(helpers.GetTitleFunc("chicago")(title), qt.Equals, "Somewhere over the Rainbow")
+	c.Assert(helpers.GetTitleFunc("Chicago")(title), qt.Equals, "Somewhere over the Rainbow")
+	c.Assert(helpers.GetTitleFunc("ap")(title), qt.Equals, "Somewhere Over the Rainbow")
+	c.Assert(helpers.GetTitleFunc("ap")(title), qt.Equals, "Somewhere Over the Rainbow")
+	c.Assert(helpers.GetTitleFunc("")(title), qt.Equals, "Somewhere Over the Rainbow")
+	c.Assert(helpers.GetTitleFunc("unknown")(title), qt.Equals, "Somewhere Over the Rainbow")
+	c.Assert(helpers.GetTitleFunc("none")(title), qt.Equals, title)
+	c.Assert(helpers.GetTitleFunc("firstupper")(title), qt.Equals, "Somewhere over the Rainbow")
 }
 
 func BenchmarkReaderContains(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for i, this := range containsBenchTestData {
-			result := ReaderContains(strings.NewReader(this.v1), this.v2)
+			result := helpers.ReaderContains(strings.NewReader(this.v1), this.v2)
 			if result != this.expect {
 				b.Errorf("[%d] got %t but expected %t", i, result, this.expect)
 			}
@@ -227,18 +231,29 @@ func BenchmarkReaderContains(b *testing.B) {
 
 func TestUniqueStrings(t *testing.T) {
 	in := []string{"a", "b", "a", "b", "c", "", "a", "", "d"}
-	output := UniqueStrings(in)
+	output := helpers.UniqueStrings(in)
 	expected := []string{"a", "b", "c", "", "d"}
 	if !reflect.DeepEqual(output, expected) {
 		t.Errorf("Expected %#v, got %#v\n", expected, output)
 	}
 }
 
-func TestFindAvailablePort(t *testing.T) {
-	addr, err := FindAvailablePort()
-	assert.Nil(t, err)
-	assert.NotNil(t, addr)
-	assert.True(t, addr.Port > 0)
+func TestUniqueStringsReuse(t *testing.T) {
+	in := []string{"a", "b", "a", "b", "c", "", "a", "", "d"}
+	output := helpers.UniqueStringsReuse(in)
+	expected := []string{"a", "b", "c", "", "d"}
+	if !reflect.DeepEqual(output, expected) {
+		t.Errorf("Expected %#v, got %#v\n", expected, output)
+	}
+}
+
+func TestUniqueStringsSorted(t *testing.T) {
+	c := qt.New(t)
+	in := []string{"a", "a", "b", "c", "b", "", "a", "", "d"}
+	output := helpers.UniqueStringsSorted(in)
+	expected := []string{"", "a", "b", "c", "d"}
+	c.Assert(output, qt.DeepEquals, expected)
+	c.Assert(helpers.UniqueStringsSorted(nil), qt.IsNil)
 }
 
 func TestFastMD5FromFile(t *testing.T) {
@@ -260,42 +275,42 @@ func TestFastMD5FromFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	req := require.New(t)
+	c := qt.New(t)
 
 	sf1, err := fs.Open("small.txt")
-	req.NoError(err)
+	c.Assert(err, qt.IsNil)
 	sf2, err := fs.Open("small2.txt")
-	req.NoError(err)
+	c.Assert(err, qt.IsNil)
 
 	bf1, err := fs.Open("bigger.txt")
-	req.NoError(err)
+	c.Assert(err, qt.IsNil)
 	bf2, err := fs.Open("bigger2.txt")
-	req.NoError(err)
+	c.Assert(err, qt.IsNil)
 
 	defer sf1.Close()
 	defer sf2.Close()
 	defer bf1.Close()
 	defer bf2.Close()
 
-	m1, err := MD5FromFileFast(sf1)
-	req.NoError(err)
-	req.Equal("e9c8989b64b71a88b4efb66ad05eea96", m1)
+	m1, err := helpers.MD5FromFileFast(sf1)
+	c.Assert(err, qt.IsNil)
+	c.Assert(m1, qt.Equals, "e9c8989b64b71a88b4efb66ad05eea96")
 
-	m2, err := MD5FromFileFast(sf2)
-	req.NoError(err)
-	req.NotEqual(m1, m2)
+	m2, err := helpers.MD5FromFileFast(sf2)
+	c.Assert(err, qt.IsNil)
+	c.Assert(m2, qt.Not(qt.Equals), m1)
 
-	m3, err := MD5FromFileFast(bf1)
-	req.NoError(err)
-	req.NotEqual(m2, m3)
+	m3, err := helpers.MD5FromFileFast(bf1)
+	c.Assert(err, qt.IsNil)
+	c.Assert(m3, qt.Not(qt.Equals), m2)
 
-	m4, err := MD5FromFileFast(bf2)
-	req.NoError(err)
-	req.NotEqual(m3, m4)
+	m4, err := helpers.MD5FromFileFast(bf2)
+	c.Assert(err, qt.IsNil)
+	c.Assert(m4, qt.Not(qt.Equals), m3)
 
-	m5, err := MD5FromReader(bf2)
-	req.NoError(err)
-	req.NotEqual(m4, m5)
+	m5, err := helpers.MD5FromReader(bf2)
+	c.Assert(err, qt.IsNil)
+	c.Assert(m5, qt.Not(qt.Equals), m4)
 }
 
 func BenchmarkMD5FromFileFast(b *testing.B) {
@@ -314,11 +329,11 @@ func BenchmarkMD5FromFileFast(b *testing.B) {
 				}
 				b.StartTimer()
 				if full {
-					if _, err := MD5FromReader(f); err != nil {
+					if _, err := helpers.MD5FromReader(f); err != nil {
 						b.Fatal(err)
 					}
 				} else {
-					if _, err := MD5FromFileFast(f); err != nil {
+					if _, err := helpers.MD5FromFileFast(f); err != nil {
 						b.Fatal(err)
 					}
 				}
@@ -326,5 +341,55 @@ func BenchmarkMD5FromFileFast(b *testing.B) {
 			}
 		})
 	}
+}
 
+func BenchmarkUniqueStrings(b *testing.B) {
+	input := []string{"a", "b", "d", "e", "d", "h", "a", "i"}
+
+	b.Run("Safe", func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			result := helpers.UniqueStrings(input)
+			if len(result) != 6 {
+				b.Fatal(fmt.Sprintf("invalid count: %d", len(result)))
+			}
+		}
+	})
+
+	b.Run("Reuse slice", func(b *testing.B) {
+		b.StopTimer()
+		inputs := make([][]string, b.N)
+		for i := 0; i < b.N; i++ {
+			inputc := make([]string, len(input))
+			copy(inputc, input)
+			inputs[i] = inputc
+		}
+		b.StartTimer()
+		for i := 0; i < b.N; i++ {
+			inputc := inputs[i]
+
+			result := helpers.UniqueStringsReuse(inputc)
+			if len(result) != 6 {
+				b.Fatal(fmt.Sprintf("invalid count: %d", len(result)))
+			}
+		}
+	})
+
+	b.Run("Reuse slice sorted", func(b *testing.B) {
+		b.StopTimer()
+		inputs := make([][]string, b.N)
+		for i := 0; i < b.N; i++ {
+			inputc := make([]string, len(input))
+			copy(inputc, input)
+			inputs[i] = inputc
+		}
+		b.StartTimer()
+		for i := 0; i < b.N; i++ {
+			inputc := inputs[i]
+
+			result := helpers.UniqueStringsSorted(inputc)
+			if len(result) != 6 {
+				b.Fatal(fmt.Sprintf("invalid count: %d", len(result)))
+			}
+		}
+	})
 }

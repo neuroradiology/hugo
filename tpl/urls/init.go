@@ -14,6 +14,8 @@
 package urls
 
 import (
+	"context"
+
 	"github.com/gohugoio/hugo/deps"
 	"github.com/gohugoio/hugo/tpl/internal"
 )
@@ -26,7 +28,7 @@ func init() {
 
 		ns := &internal.TemplateFuncsNamespace{
 			Name:    name,
-			Context: func(args ...interface{}) interface{} { return ctx },
+			Context: func(cctx context.Context, args ...any) (any, error) { return ctx, nil },
 		}
 
 		ns.AddMethodMapping(ctx.AbsURL,
@@ -66,8 +68,15 @@ func init() {
 			},
 		)
 
-		return ns
+		ns.AddMethodMapping(ctx.JoinPath,
+			nil,
+			[][2]string{
+				{`{{ urls.JoinPath "https://example.org" "foo" }}`, `https://example.org/foo`},
+				{`{{ urls.JoinPath (slice "a" "b") }}`, `a/b`},
+			},
+		)
 
+		return ns
 	}
 
 	internal.AddTemplateFuncsNamespace(f)

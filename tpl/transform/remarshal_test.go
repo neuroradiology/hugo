@@ -11,42 +11,46 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package transform
+package transform_test
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/gohugoio/hugo/helpers"
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/require"
+	"github.com/gohugoio/hugo/htesting"
+	"github.com/gohugoio/hugo/hugolib"
+	"github.com/gohugoio/hugo/tpl/transform"
+
+	qt "github.com/frankban/quicktest"
 )
 
 func TestRemarshal(t *testing.T) {
 	t.Parallel()
 
-	v := viper.New()
-	v.Set("contentDir", "content")
-	ns := New(newDeps(v))
-	assert := require.New(t)
+	b := hugolib.NewIntegrationTestBuilder(
+		hugolib.IntegrationTestConfig{T: t},
+	).Build()
 
-	tomlExample := `title = "Test Metadata"
+	ns := transform.New(b.H.Deps)
+	c := qt.New(t)
+
+	c.Run("Roundtrip variants", func(c *qt.C) {
+		tomlExample := `title = 'Test Metadata'
 		
 [[resources]]
-  src = "**image-4.png"
-  title = "The Fourth Image!"
+  src = '**image-4.png'
+  title = 'The Fourth Image!'
   [resources.params]
-    byline = "picasso"
+    byline = 'picasso'
 
 [[resources]]
-  name = "my-cool-image-:counter"
-  src = "**.png"
-  title = "TOML: The Image #:counter"
+  name = 'my-cool-image-:counter'
+  src = '**.png'
+  title = 'TOML: The Image #:counter'
   [resources.params]
-    byline = "bep"
+    byline = 'bep'
 `
 
-	yamlExample := `resources:
+		yamlExample := `resources:
 - params:
     byline: picasso
   src: '**image-4.png'
@@ -59,7 +63,7 @@ func TestRemarshal(t *testing.T) {
 title: Test Metadata
 `
 
-	jsonExample := `{
+		jsonExample := `{
    "resources": [
       {
          "params": {
@@ -80,46 +84,57 @@ title: Test Metadata
    "title": "Test Metadata"
 }
 `
+		xmlExample := `<root>
+		  <resources>
+			<params>
+			  <byline>picasso</byline>
+			</params>
+			<src>**image-4.png</src>
+			<title>The Fourth Image!</title>
+		  </resources>
+		  <resources>
+			<name>my-cool-image-:counter</name>
+			<params>
+			  <byline>bep</byline>
+			</params>
+			<src>**.png</src>
+			<title>TOML: The Image #:counter</title>
+		  </resources>
+		  <title>Test Metadata</title>
+		</root>
+		`
 
-	variants := []struct {
-		format string
-		data   string
-	}{
-		{"yaml", yamlExample},
-		{"json", jsonExample},
-		{"toml", tomlExample},
-		{"TOML", tomlExample},
-		{"Toml", tomlExample},
-		{" TOML ", tomlExample},
-	}
-
-	for _, v1 := range variants {
-		for _, v2 := range variants {
-			// Both from and to may be the same here, but that is fine.
-			fromTo := fmt.Sprintf("%s => %s", v2.format, v1.format)
-
-			converted, err := ns.Remarshal(v1.format, v2.data)
-			assert.NoError(err, fromTo)
-			diff := helpers.DiffStrings(v1.data, converted)
-			if len(diff) > 0 {
-				t.Errorf("[%s] Expected \n%v\ngot\n%v\ndiff:\n%v", fromTo, v1.data, converted, diff)
-			}
-
+		variants := []struct {
+			format string
+			data   string
+		}{
+			{"yaml", yamlExample},
+			{"json", jsonExample},
+			{"toml", tomlExample},
+			{"TOML", tomlExample},
+			{"Toml", tomlExample},
+			{" TOML ", tomlExample},
+			{"XML", xmlExample},
 		}
-	}
 
-}
+		for _, v1 := range variants {
+			for _, v2 := range variants {
+				// Both from and to may be the same here, but that is fine.
+				fromTo := qt.Commentf("%s => %s", v2.format, v1.format)
 
-func TestRemarshalComments(t *testing.T) {
-	t.Parallel()
+				converted, err := ns.Remarshal(v1.format, v2.data)
+				c.Assert(err, qt.IsNil, fromTo)
+				diff := htesting.DiffStrings(v1.data, converted)
+				if len(diff) > 0 {
+					t.Errorf("[%s] Expected \n%v\ngot\n%v\ndiff:\n%v", fromTo, v1.data, converted, diff)
+				}
 
-	v := viper.New()
-	v.Set("contentDir", "content")
-	ns := New(newDeps(v))
+			}
+		}
+	})
 
-	assert := require.New(t)
-
-	input := `
+	c.Run("Comments", func(c *qt.C) {
+		input := `
 Hugo = "Rules"
 		
 # It really does!
@@ -130,43 +145,59 @@ a = "b"
 
 `
 
-	expected := `
-Hugo = "Rules"
-		
+		expected := `Hugo = 'Rules'
 [m]
-  a = "b"
+a = 'b'
 `
 
-	for _, format := range []string{"json", "yaml", "toml"} {
-		fromTo := fmt.Sprintf("%s => %s", "toml", format)
+		for _, format := range []string{"json", "yaml", "toml"} {
+			fromTo := qt.Commentf("%s => %s", "toml", format)
 
-		converted := input
-		var err error
-		// Do a round-trip conversion
-		for _, toFormat := range []string{format, "toml"} {
-			converted, err = ns.Remarshal(toFormat, converted)
-			assert.NoError(err, fromTo)
+			converted := input
+			var err error
+			// Do a round-trip conversion
+			for _, toFormat := range []string{format, "toml"} {
+				converted, err = ns.Remarshal(toFormat, converted)
+				c.Assert(err, qt.IsNil, fromTo)
+			}
+
+			diff := htesting.DiffStrings(expected, converted)
+			if len(diff) > 0 {
+				t.Fatalf("[%s] Expected \n%v\ngot\n>>%v\ndiff:\n%v\n", fromTo, expected, converted, diff)
+			}
+		}
+	})
+
+	// Issue 8850
+	c.Run("TOML Indent", func(c *qt.C) {
+		input := `
+
+[params]
+[params.variables]
+a = "b"
+
+`
+
+		converted, err := ns.Remarshal("toml", input)
+		c.Assert(err, qt.IsNil)
+		c.Assert(converted, qt.Equals, "[params]\n  [params.variables]\n    a = 'b'\n")
+	})
+
+	c.Run("Map input", func(c *qt.C) {
+		input := map[string]any{
+			"hello": "world",
 		}
 
-		diff := helpers.DiffStrings(expected, converted)
-		if len(diff) > 0 {
-			t.Fatalf("[%s] Expected \n%v\ngot\n%v\ndiff:\n%v\n", fromTo, expected, converted, diff)
-		}
-	}
-}
+		output, err := ns.Remarshal("toml", input)
+		c.Assert(err, qt.IsNil)
+		c.Assert(output, qt.Equals, "hello = 'world'\n")
+	})
 
-func TestTestRemarshalError(t *testing.T) {
-	t.Parallel()
+	c.Run("Error", func(c *qt.C) {
+		_, err := ns.Remarshal("asdf", "asdf")
+		c.Assert(err, qt.Not(qt.IsNil))
 
-	v := viper.New()
-	v.Set("contentDir", "content")
-	ns := New(newDeps(v))
-	assert := require.New(t)
-
-	_, err := ns.Remarshal("asdf", "asdf")
-	assert.Error(err)
-
-	_, err = ns.Remarshal("json", "asdf")
-	assert.Error(err)
-
+		_, err = ns.Remarshal("json", "asdf")
+		c.Assert(err, qt.Not(qt.IsNil))
+	})
 }

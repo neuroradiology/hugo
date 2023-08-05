@@ -16,19 +16,20 @@ package hugolib
 import (
 	"testing"
 
+	qt "github.com/frankban/quicktest"
 	"github.com/gohugoio/hugo/resources/page"
-	"github.com/stretchr/testify/require"
 )
 
 func TestUnwrapPage(t *testing.T) {
-	assert := require.New(t)
+	c := qt.New(t)
 
 	p := &pageState{}
 
-	assert.Equal(p, mustUnwrap(newPageForShortcode(p)))
+	c.Assert(mustUnwrap(newPageForShortcode(p)), qt.Equals, p)
+	c.Assert(mustUnwrap(newPageForRenderHook(p)), qt.Equals, p)
 }
 
-func mustUnwrap(v interface{}) page.Page {
+func mustUnwrap(v any) page.Page {
 	p, err := unwrapPage(v)
 	if err != nil {
 		panic(err)

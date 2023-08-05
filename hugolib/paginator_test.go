@@ -15,7 +15,10 @@ package hugolib
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
+
+	qt "github.com/frankban/quicktest"
 )
 
 func TestPaginator(t *testing.T) {
@@ -44,7 +47,6 @@ title: Page %d
 Content.
 `, i))
 		}
-
 	}
 
 	b.WithContent(content...)
@@ -94,5 +96,69 @@ URL: {{ $pag.URL }}
 	b.AssertFileContent("public/nn/index.xml",
 		"Page Number: 1",
 		"0: 1/1  true")
+}
 
+// Issue 6023
+func TestPaginateWithSort(t *testing.T) {
+	b := newTestSitesBuilder(t).WithSimpleConfigFile()
+	b.WithTemplatesAdded("index.html", `{{ range (.Paginate (sort .Site.RegularPages ".File.Filename" "desc")).Pages }}|{{ .File.Filename }}{{ end }}`)
+	b.Build(BuildCfg{}).AssertFileContent("public/index.html",
+		filepath.FromSlash("|content/sect/doc1.nn.md|content/sect/doc1.nb.md|content/sect/doc1.fr.md|content/sect/doc1.en.md"))
+}
+
+// https://github.com/gohugoio/hugo/issues/6797
+func TestPaginateOutputFormat(t *testing.T) {
+	b := newTestSitesBuilder(t).WithSimpleConfigFile()
+	b.WithContent("_index.md", `---
+title: "Home"
+cascade:
+  outputs:
+    - JSON
+---`)
+
+	for i := 0; i < 22; i++ {
+		b.WithContent(fmt.Sprintf("p%d.md", i+1), fmt.Sprintf(`---
+title: "Page"
+weight: %d
+---`, i+1))
+	}
+
+	b.WithTemplatesAdded("index.json", `JSON: {{ .Paginator.TotalNumberOfElements }}: {{ range .Paginator.Pages }}|{{ .RelPermalink }}{{ end }}:DONE`)
+	b.Build(BuildCfg{})
+
+	b.AssertFileContent("public/index.json",
+		`JSON: 22
+|/p1/index.json|/p2/index.json|
+`)
+
+	// This looks odd, so are most bugs.
+	b.Assert(b.CheckExists("public/page/1/index.json/index.html"), qt.Equals, false)
+	b.Assert(b.CheckExists("public/page/1/index.json"), qt.Equals, false)
+	b.AssertFileContent("public/page/2/index.json", `JSON: 22: |/p11/index.json|/p12/index.json`)
+}
+
+// Issue 10802
+func TestPaginatorEmptyPageGroups(t *testing.T) {
+	t.Parallel()
+
+	files := `
+-- config.toml --
+baseURL = "https://example.com/"
+-- content/p1.md --
+-- content/p2.md --
+-- layouts/index.html --
+{{ $empty := site.RegularPages | complement site.RegularPages }}
+Len: {{ len $empty }}: Type: {{ printf "%T" $empty }}
+{{ $pgs := $empty.GroupByPublishDate "January 2006" }}
+{{ $pag := .Paginate $pgs }}
+Len Pag: {{ len $pag.Pages }}
+`
+	b := NewIntegrationTestBuilder(
+		IntegrationTestConfig{
+			T:           t,
+			TxtarString: files,
+		},
+	).Build()
+
+	b.AssertFileContent("public/index.html", "Len: 0", "Len Pag: 0")
 }

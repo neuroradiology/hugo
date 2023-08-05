@@ -14,16 +14,16 @@
 package data
 
 import (
-	"io/ioutil"
+	"bytes"
+	"fmt"
+	"io"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/gohugoio/hugo/cache/filecache"
 
-	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/spf13/afero"
 )
@@ -36,7 +36,16 @@ var (
 // getRemote loads the content of a remote file. This method is thread safe.
 func (ns *Namespace) getRemote(cache *filecache.Cache, unmarshal func([]byte) (bool, error), req *http.Request) error {
 	url := req.URL.String()
-	id := helpers.MD5String(url)
+	if err := ns.deps.ExecHelper.Sec().CheckAllowedHTTPURL(url); err != nil {
+		return err
+	}
+	if err := ns.deps.ExecHelper.Sec().CheckAllowedHTTPMethod("GET"); err != nil {
+		return err
+	}
+
+	var headers bytes.Buffer
+	req.Header.Write(&headers)
+	id := helpers.MD5String(url + headers.String())
 	var handled bool
 	var retry bool
 
@@ -44,24 +53,23 @@ func (ns *Namespace) getRemote(cache *filecache.Cache, unmarshal func([]byte) (b
 		var err error
 		handled = true
 		for i := 0; i <= resRetries; i++ {
-			ns.deps.Log.INFO.Printf("Downloading: %s ...", url)
+			ns.deps.Log.Infof("Downloading: %s ...", url)
 			var res *http.Response
 			res, err = ns.client.Do(req)
 			if err != nil {
 				return nil, err
 			}
 
-			if isHTTPError(res) {
-				return nil, errors.Errorf("Failed to retrieve remote file: %s", http.StatusText(res.StatusCode))
-			}
-
 			var b []byte
-			b, err = ioutil.ReadAll(res.Body)
-
+			b, err = io.ReadAll(res.Body)
 			if err != nil {
 				return nil, err
 			}
 			res.Body.Close()
+
+			if isHTTPError(res) {
+				return nil, fmt.Errorf("Failed to retrieve remote file: %s, body: %q", http.StatusText(res.StatusCode), b)
+			}
 
 			retry, err = unmarshal(b)
 
@@ -74,13 +82,12 @@ func (ns *Namespace) getRemote(cache *filecache.Cache, unmarshal func([]byte) (b
 				return nil, err
 			}
 
-			ns.deps.Log.INFO.Printf("Cannot read remote resource %s: %s", url, err)
-			ns.deps.Log.INFO.Printf("Retry #%d for %s and sleeping for %s", i+1, url, resSleep)
+			ns.deps.Log.Infof("Cannot read remote resource %s: %s", url, err)
+			ns.deps.Log.Infof("Retry #%d for %s and sleeping for %s", i+1, url, resSleep)
 			time.Sleep(resSleep)
 		}
 
 		return nil, err
-
 	})
 
 	if !handled {
@@ -92,14 +99,9 @@ func (ns *Namespace) getRemote(cache *filecache.Cache, unmarshal func([]byte) (b
 }
 
 // getLocal loads the content of a local file
-func getLocal(url string, fs afero.Fs, cfg config.Provider) ([]byte, error) {
-	filename := filepath.Join(cfg.GetString("workingDir"), url)
-	if e, err := helpers.Exists(filename, fs); !e {
-		return nil, err
-	}
-
+func getLocal(workingDir, url string, fs afero.Fs) ([]byte, error) {
+	filename := filepath.Join(workingDir, url)
 	return afero.ReadFile(fs, filename)
-
 }
 
 // getResource loads the content of a local or remote file and returns its content and the
@@ -107,7 +109,11 @@ func getLocal(url string, fs afero.Fs, cfg config.Provider) ([]byte, error) {
 func (ns *Namespace) getResource(cache *filecache.Cache, unmarshal func(b []byte) (bool, error), req *http.Request) error {
 	switch req.URL.Scheme {
 	case "":
-		b, err := getLocal(req.URL.String(), ns.deps.Fs.Source, ns.deps.Cfg)
+		url, err := url.QueryUnescape(req.URL.String())
+		if err != nil {
+			return err
+		}
+		b, err := getLocal(ns.deps.Conf.BaseConfig().WorkingDir, url, ns.deps.Fs.Source)
 		if err != nil {
 			return err
 		}

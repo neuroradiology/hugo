@@ -14,16 +14,17 @@
 package page
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/gohugoio/hugo/common/types"
 
-	"github.com/stretchr/testify/require"
+	qt "github.com/frankban/quicktest"
 )
 
 func TestRelated(t *testing.T) {
-	assert := require.New(t)
+	c := qt.New(t)
 
 	t.Parallel()
 
@@ -31,50 +32,66 @@ func TestRelated(t *testing.T) {
 		&testPage{
 			title:   "Page 1",
 			pubDate: mustParseDate("2017-01-03"),
-			params: map[string]interface{}{
+			params: map[string]any{
 				"keywords": []string{"hugo", "says"},
 			},
 		},
 		&testPage{
 			title:   "Page 2",
 			pubDate: mustParseDate("2017-01-02"),
-			params: map[string]interface{}{
+			params: map[string]any{
 				"keywords": []string{"hugo", "rocks"},
 			},
 		},
 		&testPage{
 			title:   "Page 3",
 			pubDate: mustParseDate("2017-01-01"),
-			params: map[string]interface{}{
+			params: map[string]any{
 				"keywords": []string{"bep", "says"},
 			},
 		},
 	}
 
-	result, err := pages.RelatedTo(types.NewKeyValuesStrings("keywords", "hugo", "rocks"))
+	ctx := context.Background()
+	opts := map[string]any{
+		"namedSlices": types.NewKeyValuesStrings("keywords", "hugo", "rocks"),
+	}
+	result, err := pages.Related(ctx, opts)
 
-	assert.NoError(err)
-	assert.Len(result, 2)
-	assert.Equal("Page 2", result[0].Title())
-	assert.Equal("Page 1", result[1].Title())
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(result), qt.Equals, 2)
+	c.Assert(result[0].Title(), qt.Equals, "Page 2")
+	c.Assert(result[1].Title(), qt.Equals, "Page 1")
 
-	result, err = pages.Related(pages[0])
-	assert.NoError(err)
-	assert.Len(result, 2)
-	assert.Equal("Page 2", result[0].Title())
-	assert.Equal("Page 3", result[1].Title())
+	result, err = pages.Related(ctx, pages[0])
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(result), qt.Equals, 2)
+	c.Assert(result[0].Title(), qt.Equals, "Page 2")
+	c.Assert(result[1].Title(), qt.Equals, "Page 3")
 
-	result, err = pages.RelatedIndices(pages[0], "keywords")
-	assert.NoError(err)
-	assert.Len(result, 2)
-	assert.Equal("Page 2", result[0].Title())
-	assert.Equal("Page 3", result[1].Title())
+	opts = map[string]any{
+		"document": pages[0],
+		"indices":  []string{"keywords"},
+	}
+	result, err = pages.Related(ctx, opts)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(result), qt.Equals, 2)
+	c.Assert(result[0].Title(), qt.Equals, "Page 2")
+	c.Assert(result[1].Title(), qt.Equals, "Page 3")
 
-	result, err = pages.RelatedTo(types.NewKeyValuesStrings("keywords", "bep", "rocks"))
-	assert.NoError(err)
-	assert.Len(result, 2)
-	assert.Equal("Page 2", result[0].Title())
-	assert.Equal("Page 3", result[1].Title())
+	opts = map[string]any{
+		"namedSlices": []types.KeyValues{
+			{
+				Key:    "keywords",
+				Values: []any{"bep", "rocks"},
+			},
+		},
+	}
+	result, err = pages.Related(context.Background(), opts)
+	c.Assert(err, qt.IsNil)
+	c.Assert(len(result), qt.Equals, 2)
+	c.Assert(result[0].Title(), qt.Equals, "Page 2")
+	c.Assert(result[1].Title(), qt.Equals, "Page 3")
 }
 
 func mustParseDate(s string) time.Time {

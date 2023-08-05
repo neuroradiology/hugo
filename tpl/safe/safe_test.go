@@ -14,201 +14,198 @@
 package safe
 
 import (
-	"fmt"
 	"html/template"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	qt "github.com/frankban/quicktest"
 )
 
 type tstNoStringer struct{}
 
 func TestCSS(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New()
 
-	for i, test := range []struct {
-		a      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		a      any
+		expect any
 	}{
 		{`a[href =~ "//example.com"]#foo`, template.CSS(`a[href =~ "//example.com"]#foo`)},
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.CSS(test.a)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestHTML(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New()
 
-	for i, test := range []struct {
-		a      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		a      any
+		expect any
 	}{
 		{`Hello, <b>World</b> &amp;tc!`, template.HTML(`Hello, <b>World</b> &amp;tc!`)},
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.HTML(test.a)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestHTMLAttr(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New()
 
-	for i, test := range []struct {
-		a      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		a      any
+		expect any
 	}{
 		{` dir="ltr"`, template.HTMLAttr(` dir="ltr"`)},
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
-
 		result, err := ns.HTMLAttr(test.a)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestJS(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New()
 
-	for i, test := range []struct {
-		a      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		a      any
+		expect any
 	}{
 		{`c && alert("Hello, World!");`, template.JS(`c && alert("Hello, World!");`)},
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.JS(test.a)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestJSStr(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New()
 
-	for i, test := range []struct {
-		a      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		a      any
+		expect any
 	}{
 		{`Hello, World & O'Reilly\x21`, template.JSStr(`Hello, World & O'Reilly\x21`)},
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.JSStr(test.a)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestURL(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New()
 
-	for i, test := range []struct {
-		a      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		a      any
+		expect any
 	}{
 		{`greeting=H%69&addressee=(World)`, template.URL(`greeting=H%69&addressee=(World)`)},
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.URL(test.a)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }
 
 func TestSanitizeURL(t *testing.T) {
 	t.Parallel()
+	c := qt.New(t)
 
 	ns := New()
 
-	for i, test := range []struct {
-		a      interface{}
-		expect interface{}
+	for _, test := range []struct {
+		a      any
+		expect any
 	}{
 		{"http://foo/../../bar", "http://foo/bar"},
 		// errors
 		{tstNoStringer{}, false},
 	} {
-		errMsg := fmt.Sprintf("[%d] %v", i, test)
 
 		result, err := ns.SanitizeURL(test.a)
 
 		if b, ok := test.expect.(bool); ok && !b {
-			require.Error(t, err, errMsg)
+			c.Assert(err, qt.Not(qt.IsNil))
 			continue
 		}
 
-		require.NoError(t, err, errMsg)
-		assert.Equal(t, test.expect, result, errMsg)
+		c.Assert(err, qt.IsNil)
+		c.Assert(result, qt.Equals, test.expect)
 	}
 }

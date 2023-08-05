@@ -1,4 +1,4 @@
-// Copyright 2015 The Hugo Authors. All rights reserved.
+// Copyright 2023 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -11,23 +11,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package source
+package source_test
 
 import (
-	"os"
+	"fmt"
+	"path/filepath"
 	"runtime"
 	"testing"
 
+	"github.com/spf13/afero"
+
+	qt "github.com/frankban/quicktest"
+	"github.com/gohugoio/hugo/config"
+	"github.com/gohugoio/hugo/config/testconfig"
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/hugofs"
-
-	"github.com/spf13/viper"
+	"github.com/gohugoio/hugo/source"
 )
 
 func TestEmptySourceFilesystem(t *testing.T) {
+	c := qt.New(t)
 	ss := newTestSourceSpec()
-	src := ss.NewFilesystem("Empty")
-	if len(src.Files()) != 0 {
+	src := ss.NewFilesystem("")
+	files, err := src.Files()
+	c.Assert(err, qt.IsNil)
+	if len(files) != 0 {
 		t.Errorf("new filesystem should contain 0 files.")
 	}
 }
@@ -38,6 +46,8 @@ func TestUnicodeNorm(t *testing.T) {
 		return
 	}
 
+	c := qt.New(t)
+
 	paths := []struct {
 		NFC string
 		NFD string
@@ -47,38 +57,28 @@ func TestUnicodeNorm(t *testing.T) {
 	}
 
 	ss := newTestSourceSpec()
-	var fi os.FileInfo
 
-	for _, path := range paths {
-		src := ss.NewFilesystem("base")
-		_ = src.add(path.NFD, fi)
-		f := src.Files()[0]
+	for i, path := range paths {
+		base := fmt.Sprintf("base%d", i)
+		c.Assert(afero.WriteFile(ss.Fs.Source, filepath.Join(base, path.NFD), []byte("some data"), 0777), qt.IsNil)
+		src := ss.NewFilesystem(base)
+		files, err := src.Files()
+		c.Assert(err, qt.IsNil)
+		f := files[0]
 		if f.BaseFileName() != path.NFC {
-			t.Fatalf("file name in NFD form should be normalized (%s)", path.NFC)
+			t.Fatalf("file %q name in NFD form should be normalized (%s)", f.BaseFileName(), path.NFC)
 		}
 	}
-
 }
 
-func newTestConfig() *viper.Viper {
-	v := viper.New()
-	v.Set("contentDir", "content")
-	v.Set("dataDir", "data")
-	v.Set("i18nDir", "i18n")
-	v.Set("layoutDir", "layouts")
-	v.Set("archetypeDir", "archetypes")
-	v.Set("resourceDir", "resources")
-	v.Set("publishDir", "public")
-	v.Set("assetDir", "assets")
-	return v
-}
-
-func newTestSourceSpec() *SourceSpec {
-	v := newTestConfig()
-	fs := hugofs.NewMem(v)
-	ps, err := helpers.NewPathSpec(fs, v)
+func newTestSourceSpec() *source.SourceSpec {
+	v := config.New()
+	afs := hugofs.NewBaseFileDecorator(afero.NewMemMapFs())
+	conf := testconfig.GetTestConfig(afs, v)
+	fs := hugofs.NewFrom(afs, conf.BaseConfig())
+	ps, err := helpers.NewPathSpec(fs, conf, nil)
 	if err != nil {
 		panic(err)
 	}
-	return NewSourceSpec(ps, fs.Source)
+	return source.NewSourceSpec(ps, nil, fs.Source)
 }

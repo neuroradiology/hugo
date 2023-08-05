@@ -14,14 +14,16 @@
 package hugolib
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/gohugoio/hugo/resources/page"
+	"github.com/gohugoio/hugo/resources/kinds"
+	"github.com/spf13/cast"
 
-	"github.com/stretchr/testify/require"
+	qt "github.com/frankban/quicktest"
 )
 
 /*
@@ -42,7 +44,7 @@ import (
 
 func TestLanguageContentRoot(t *testing.T) {
 	t.Parallel()
-	assert := require.New(t)
+	c := qt.New(t)
 
 	config := `
 baseURL = "https://example.org/"
@@ -100,7 +102,7 @@ Content.
 	var contentFiles []string
 	section := "sect"
 
-	var contentRoot = func(lang string) string {
+	contentRoot := func(lang string) string {
 		switch lang {
 		case "nn":
 			return "content/norsk"
@@ -109,10 +111,9 @@ Content.
 		default:
 			return "content/main"
 		}
-
 	}
 
-	var contentSectionRoot = func(lang string) string {
+	contentSectionRoot := func(lang string) string {
 		return contentRoot(lang) + "/" + section
 	}
 
@@ -211,66 +212,80 @@ Content.
 
 	_ = os.Stdout
 
-	b.Build(BuildCfg{})
+	err := b.BuildE(BuildCfg{})
 
-	assert.Equal(3, len(b.H.Sites))
+	// dumpPages(b.H.Sites[1].RegularPages()...)
+
+	c.Assert(err, qt.IsNil)
+
+	c.Assert(len(b.H.Sites), qt.Equals, 3)
 
 	enSite := b.H.Sites[0]
 	nnSite := b.H.Sites[1]
 	svSite := b.H.Sites[2]
 
-	b.AssertFileContent("/my/project/public/en/mystatic/file1.yaml", "en")
-	b.AssertFileContent("/my/project/public/nn/mystatic/file1.yaml", "nn")
+	b.AssertFileContent("public/en/mystatic/file1.yaml", "en")
+	b.AssertFileContent("public/nn/mystatic/file1.yaml", "nn")
 
-	//dumpPages(nnSite.RegularPages...)
-	assert.Equal(12, len(nnSite.RegularPages()))
-	assert.Equal(13, len(enSite.RegularPages()))
+	// dumpPages(nnSite.RegularPages()...)
 
-	assert.Equal(10, len(svSite.RegularPages()))
+	c.Assert(len(nnSite.RegularPages()), qt.Equals, 12)
+	c.Assert(len(enSite.RegularPages()), qt.Equals, 13)
+
+	c.Assert(len(svSite.RegularPages()), qt.Equals, 10)
 
 	svP2, err := svSite.getPageNew(nil, "/sect/page2.md")
-	assert.NoError(err)
+	c.Assert(err, qt.IsNil)
 	nnP2, err := nnSite.getPageNew(nil, "/sect/page2.md")
-	assert.NoError(err)
+	c.Assert(err, qt.IsNil)
 
 	enP2, err := enSite.getPageNew(nil, "/sect/page2.md")
-	assert.NoError(err)
-	assert.Equal("en", enP2.Language().Lang)
-	assert.Equal("sv", svP2.Language().Lang)
-	assert.Equal("nn", nnP2.Language().Lang)
+	c.Assert(err, qt.IsNil)
+	c.Assert(enP2.Language().Lang, qt.Equals, "en")
+	c.Assert(svP2.Language().Lang, qt.Equals, "sv")
+	c.Assert(nnP2.Language().Lang, qt.Equals, "nn")
 
-	content, _ := nnP2.Content()
-	assert.Contains(content, "SVP3-REF: https://example.org/sv/sect/p-sv-3/")
-	assert.Contains(content, "SVP3-RELREF: /sv/sect/p-sv-3/")
+	content, _ := nnP2.Content(context.Background())
+	contentStr := cast.ToString(content)
+	c.Assert(contentStr, qt.Contains, "SVP3-REF: https://example.org/sv/sect/p-sv-3/")
+	c.Assert(contentStr, qt.Contains, "SVP3-RELREF: /sv/sect/p-sv-3/")
 
 	// Test RelRef with and without language indicator.
-	nn3RefArgs := map[string]interface{}{
+	nn3RefArgs := map[string]any{
 		"path": "/sect/page3.md",
 		"lang": "nn",
 	}
 	nnP3RelRef, err := svP2.RelRef(
 		nn3RefArgs,
 	)
-	assert.NoError(err)
-	assert.Equal("/nn/sect/p-nn-3/", nnP3RelRef)
+	c.Assert(err, qt.IsNil)
+	c.Assert(nnP3RelRef, qt.Equals, "/nn/sect/p-nn-3/")
 	nnP3Ref, err := svP2.Ref(
 		nn3RefArgs,
 	)
-	assert.NoError(err)
-	assert.Equal("https://example.org/nn/sect/p-nn-3/", nnP3Ref)
+	c.Assert(err, qt.IsNil)
+	c.Assert(nnP3Ref, qt.Equals, "https://example.org/nn/sect/p-nn-3/")
 
 	for i, p := range enSite.RegularPages() {
 		j := i + 1
-		msg := fmt.Sprintf("Test %d", j)
-		assert.Equal("en", p.Language().Lang, msg)
-		assert.Equal("sect", p.Section())
+		c.Assert(p.Language().Lang, qt.Equals, "en")
+		c.Assert(p.Section(), qt.Equals, "sect")
 		if j < 9 {
 			if j%4 == 0 {
-				assert.Contains(p.Title(), fmt.Sprintf("p-sv-%d.en", i+1), msg)
 			} else {
-				assert.Contains(p.Title(), "p-en", msg)
+				c.Assert(p.Title(), qt.Contains, "p-en")
 			}
 		}
+	}
+
+	for _, p := range nnSite.RegularPages() {
+		c.Assert(p.Language().Lang, qt.Equals, "nn")
+		c.Assert(p.Title(), qt.Contains, "nn")
+	}
+
+	for _, p := range svSite.RegularPages() {
+		c.Assert(p.Language().Lang, qt.Equals, "sv")
+		c.Assert(p.Title(), qt.Contains, "sv")
 	}
 
 	// Check bundles
@@ -278,28 +293,234 @@ Content.
 	bundleNn := nnSite.RegularPages()[len(nnSite.RegularPages())-1]
 	bundleSv := svSite.RegularPages()[len(svSite.RegularPages())-1]
 
-	assert.Equal("/en/sect/mybundle/", bundleEn.RelPermalink())
-	assert.Equal("/sv/sect/mybundle/", bundleSv.RelPermalink())
+	c.Assert(bundleEn.RelPermalink(), qt.Equals, "/en/sect/mybundle/")
+	c.Assert(bundleSv.RelPermalink(), qt.Equals, "/sv/sect/mybundle/")
 
-	assert.Equal(4, len(bundleEn.Resources()))
-	assert.Equal(4, len(bundleNn.Resources()))
-	assert.Equal(4, len(bundleSv.Resources()))
+	c.Assert(len(bundleNn.Resources()), qt.Equals, 4)
+	c.Assert(len(bundleSv.Resources()), qt.Equals, 4)
+	c.Assert(len(bundleEn.Resources()), qt.Equals, 4)
 
-	b.AssertFileContent("/my/project/public/en/sect/mybundle/index.html", "image/png: /en/sect/mybundle/logo.png")
-	b.AssertFileContent("/my/project/public/nn/sect/mybundle/index.html", "image/png: /nn/sect/mybundle/logo.png")
-	b.AssertFileContent("/my/project/public/sv/sect/mybundle/index.html", "image/png: /sv/sect/mybundle/logo.png")
+	b.AssertFileContent("public/en/sect/mybundle/index.html", "image/png: /en/sect/mybundle/logo.png")
+	b.AssertFileContent("public/nn/sect/mybundle/index.html", "image/png: /nn/sect/mybundle/logo.png")
+	b.AssertFileContent("public/sv/sect/mybundle/index.html", "image/png: /sv/sect/mybundle/logo.png")
 
-	b.AssertFileContent("/my/project/public/sv/sect/mybundle/featured.png", "PNG Data for sv")
-	b.AssertFileContent("/my/project/public/nn/sect/mybundle/featured.png", "PNG Data for nn")
-	b.AssertFileContent("/my/project/public/en/sect/mybundle/featured.png", "PNG Data for en")
-	b.AssertFileContent("/my/project/public/en/sect/mybundle/logo.png", "PNG Data")
-	b.AssertFileContent("/my/project/public/sv/sect/mybundle/logo.png", "PNG Data")
-	b.AssertFileContent("/my/project/public/nn/sect/mybundle/logo.png", "PNG Data")
+	b.AssertFileContent("public/sv/sect/mybundle/featured.png", "PNG Data for sv")
+	b.AssertFileContent("public/nn/sect/mybundle/featured.png", "PNG Data for nn")
+	b.AssertFileContent("public/en/sect/mybundle/featured.png", "PNG Data for en")
+	b.AssertFileContent("public/en/sect/mybundle/logo.png", "PNG Data")
+	b.AssertFileContent("public/sv/sect/mybundle/logo.png", "PNG Data")
+	b.AssertFileContent("public/nn/sect/mybundle/logo.png", "PNG Data")
 
-	nnSect := nnSite.getPage(page.KindSection, "sect")
-	assert.NotNil(nnSect)
-	assert.Equal(12, len(nnSect.Pages()))
-	nnHome, _ := nnSite.Info.Home()
-	assert.Equal("/nn/", nnHome.RelPermalink())
+	nnSect := nnSite.getPage(kinds.KindSection, "sect")
+	c.Assert(nnSect, qt.Not(qt.IsNil))
+	c.Assert(len(nnSect.Pages()), qt.Equals, 12)
+	nnHome := nnSite.Home()
+	c.Assert(nnHome.RelPermalink(), qt.Equals, "/nn/")
+}
+
+// https://github.com/gohugoio/hugo/issues/6463
+func TestLanguageRootSectionsMismatch(t *testing.T) {
+	t.Parallel()
+
+	config := `
+baseURL: "https://example.org/"
+languageCode: "en-us"
+title: "My New Hugo Site"
+theme: "mytheme"
+
+contentDir: "content/en"
+
+languages:
+    en:
+        weight: 1
+        languageName: "English"
+        contentDir: content/en
+    es:
+        weight: 2
+        languageName: "Español"
+        contentDir: content/es
+    fr:
+        weight: 4
+        languageName: "Française"
+        contentDir: content/fr
+
+        
+`
+	createPage := func(title string) string {
+		return fmt.Sprintf(`---
+title: %q
+---
+
+`, title)
+	}
+
+	b := newTestSitesBuilder(t)
+	b.WithConfigFile("yaml", config)
+
+	b.WithSourceFile("themes/mytheme/layouts/index.html", `MYTHEME`)
+	b.WithTemplates("index.html", `
+Lang: {{ .Lang }}
+{{ range .Site.RegularPages }}
+Page: {{ .RelPermalink }}|{{ .Title -}}
+{{ end }}
+
+`)
+	b.WithSourceFile("static/hello.txt", `hello`)
+	b.WithContent("en/_index.md", createPage("en home"))
+	b.WithContent("es/_index.md", createPage("es home"))
+	b.WithContent("fr/_index.md", createPage("fr home"))
+
+	for i := 1; i < 3; i++ {
+		b.WithContent(fmt.Sprintf("en/event/page%d.md", i), createPage(fmt.Sprintf("ev-en%d", i)))
+		b.WithContent(fmt.Sprintf("es/event/page%d.md", i), createPage(fmt.Sprintf("ev-es%d", i)))
+		b.WithContent(fmt.Sprintf("fr/event/page%d.md", i), createPage(fmt.Sprintf("ev-fr%d", i)))
+		b.WithContent(fmt.Sprintf("en/blog/page%d.md", i), createPage(fmt.Sprintf("blog-en%d", i)))
+		b.WithContent(fmt.Sprintf("es/blog/page%d.md", i), createPage(fmt.Sprintf("blog-es%d", i)))
+		b.WithContent(fmt.Sprintf("fr/other/page%d.md", i), createPage(fmt.Sprintf("other-fr%d", i)))
+	}
+
+	b.Build(BuildCfg{})
+
+	b.AssertFileContent("public/index.html", `
+Lang: en
+Page: /blog/page1/|blog-en1
+Page: /blog/page2/|blog-en2
+Page: /event/page1/|ev-en1
+Page: /event/page2/|ev-en2
+`)
+
+	b.AssertFileContent("public/es/index.html", `
+Lang: es
+Page: /es/blog/page1/|blog-es1
+Page: /es/blog/page2/|blog-es2
+Page: /es/event/page1/|ev-es1
+Page: /es/event/page2/|ev-es2
+`)
+	b.AssertFileContent("public/fr/index.html", `
+Lang: fr
+Page: /fr/event/page1/|ev-fr1
+Page: /fr/event/page2/|ev-fr2
+Page: /fr/other/page1/|other-fr1
+Page: /fr/other/page2/|other-fr2`)
+}
+
+// Issue 9693
+func TestContentMountMerge(t *testing.T) {
+	t.Parallel()
+
+	files := `
+-- config.toml --
+baseURL = 'https://example.org/'
+languageCode = 'en-us'
+title = 'Hugo Forum Topic #37225'
+theme = 'mytheme'
+
+disableKinds = ['sitemap','RSS','taxonomy','term']
+defaultContentLanguage = 'en'
+defaultContentLanguageInSubdir = true
+
+[languages.en]
+languageName = 'English'
+weight = 1
+[languages.de]
+languageName = 'Deutsch'
+weight = 2
+[languages.nl]
+languageName = 'Nederlands'
+weight = 3
+
+# EN content
+[[module.mounts]]
+source = 'content/en'
+target = 'content'
+lang = 'en'
+
+# DE content
+[[module.mounts]]
+source = 'content/de'
+target = 'content'
+lang = 'de'
+
+# This fills in the gaps in DE content with EN content
+[[module.mounts]]
+source = 'content/en'
+target = 'content'
+lang = 'de'
+
+# NL content
+[[module.mounts]]
+source = 'content/nl'
+target = 'content'
+lang = 'nl'
+
+# This should fill in the gaps in NL content with EN content
+[[module.mounts]]
+source = 'content/en'
+target = 'content'
+lang = 'nl'
+
+-- content/de/_index.md --
+---
+title: "home (de)"
+---
+-- content/de/p1.md --
+---
+title: "p1 (de)"
+---
+-- content/en/_index.md --
+---
+title: "home (en)"
+---
+-- content/en/p1.md --
+---
+title: "p1 (en)"
+---
+-- content/en/p2.md --
+---
+title: "p2 (en)"
+---
+-- content/en/p3.md --
+---
+title: "p3 (en)"
+---
+-- content/nl/_index.md --
+---
+title: "home (nl)"
+---
+-- content/nl/p1.md --
+---
+title: "p1 (nl)"
+---
+-- content/nl/p3.md --
+---
+title: "p3 (nl)"
+---
+-- layouts/home.html --
+{{ .Title }}: {{ site.Language.Lang }}: {{ range site.RegularPages }}{{ .Title }}|{{ end }}:END
+-- themes/mytheme/config.toml --
+[[module.mounts]]
+source = 'content/nlt'
+target = 'content'
+lang = 'nl'
+-- themes/mytheme/content/nlt/p3.md --
+---
+title: "p3 theme (nl)"
+---
+-- themes/mytheme/content/nlt/p4.md --
+---
+title: "p4 theme (nl)"
+---
+`
+
+	b := NewIntegrationTestBuilder(
+		IntegrationTestConfig{
+			T:           t,
+			TxtarString: files,
+		},
+	).Build()
+
+	b.AssertFileContent("public/nl/index.html", `home (nl): nl: p1 (nl)|p2 (en)|p3 (nl)|p4 theme (nl)|:END`)
+	b.AssertFileContent("public/de/index.html", `home (de): de: p1 (de)|p2 (en)|p3 (en)|:END`)
+	b.AssertFileContent("public/en/index.html", `home (en): en: p1 (en)|p2 (en)|p3 (en)|:END`)
 
 }

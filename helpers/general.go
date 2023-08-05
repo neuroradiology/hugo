@@ -22,44 +22,38 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
-	"sync"
 	"unicode"
 	"unicode/utf8"
 
 	"github.com/gohugoio/hugo/common/hugo"
-
-	"github.com/gohugoio/hugo/hugofs"
+	"github.com/gohugoio/hugo/common/loggers"
 
 	"github.com/spf13/afero"
 
 	"github.com/jdkato/prose/transform"
 
 	bp "github.com/gohugoio/hugo/bufferpool"
-	jww "github.com/spf13/jwalterweatherman"
 	"github.com/spf13/pflag"
 )
 
 // FilePathSeparator as defined by os.Separator.
 const FilePathSeparator = string(filepath.Separator)
 
-// Strips carriage returns from third-party / external processes (useful for Windows)
-func normalizeExternalHelperLineFeeds(content []byte) []byte {
-	return bytes.Replace(content, []byte("\r"), []byte(""), -1)
-}
-
-// FindAvailablePort returns an available and valid TCP port.
-func FindAvailablePort() (*net.TCPAddr, error) {
+// TCPListen starts listening on a valid TCP port.
+func TCPListen() (net.Listener, *net.TCPAddr, error) {
 	l, err := net.Listen("tcp", ":0")
-	if err == nil {
-		defer l.Close()
-		addr := l.Addr()
-		if a, ok := addr.(*net.TCPAddr); ok {
-			return a, nil
-		}
-		return nil, fmt.Errorf("unable to obtain a valid tcp port: %v", addr)
+	if err != nil {
+		return nil, nil, err
 	}
-	return nil, err
+	addr := l.Addr()
+	if a, ok := addr.(*net.TCPAddr); ok {
+		return l, a, nil
+	}
+	l.Close()
+	return nil, nil, fmt.Errorf("unable to obtain a valid tcp port: %v", addr)
+
 }
 
 // InStringArray checks if a string is an element of a slice of strings
@@ -73,28 +67,6 @@ func InStringArray(arr []string, el string) bool {
 	return false
 }
 
-// GuessType attempts to guess the type of file from a given string.
-func GuessType(in string) string {
-	switch strings.ToLower(in) {
-	case "md", "markdown", "mdown":
-		return "markdown"
-	case "asciidoc", "adoc", "ad":
-		return "asciidoc"
-	case "mmark":
-		return "mmark"
-	case "rst":
-		return "rst"
-	case "pandoc", "pdc":
-		return "pandoc"
-	case "html", "htm":
-		return "html"
-	case "org":
-		return "org"
-	}
-
-	return ""
-}
-
 // FirstUpper returns a string with the first character as upper case.
 func FirstUpper(s string) string {
 	if s == "" {
@@ -106,15 +78,61 @@ func FirstUpper(s string) string {
 
 // UniqueStrings returns a new slice with any duplicates removed.
 func UniqueStrings(s []string) []string {
-	var unique []string
-	set := map[string]interface{}{}
-	for _, val := range s {
-		if _, ok := set[val]; !ok {
+	unique := make([]string, 0, len(s))
+	for i, val := range s {
+		var seen bool
+		for j := 0; j < i; j++ {
+			if s[j] == val {
+				seen = true
+				break
+			}
+		}
+		if !seen {
 			unique = append(unique, val)
-			set[val] = val
 		}
 	}
 	return unique
+}
+
+// UniqueStringsReuse returns a slice with any duplicates removed.
+// It will modify the input slice.
+func UniqueStringsReuse(s []string) []string {
+	result := s[:0]
+	for i, val := range s {
+		var seen bool
+
+		for j := 0; j < i; j++ {
+			if s[j] == val {
+				seen = true
+				break
+			}
+		}
+
+		if !seen {
+			result = append(result, val)
+		}
+	}
+	return result
+}
+
+// UniqueStringsSorted returns a sorted slice with any duplicates removed.
+// It will modify the input slice.
+func UniqueStringsSorted(s []string) []string {
+	if len(s) == 0 {
+		return nil
+	}
+	ss := sort.StringSlice(s)
+	ss.Sort()
+	i := 0
+	for j := 1; j < len(s); j++ {
+		if !ss.Less(i, j) {
+			continue
+		}
+		i++
+		s[i] = s[j]
+	}
+
+	return s[:i+1]
 }
 
 // ReaderToBytes takes an io.Reader argument, reads from it
@@ -146,7 +164,6 @@ func ReaderToString(lines io.Reader) string {
 
 // ReaderContains reports whether subslice is within r.
 func ReaderContains(r io.Reader, subslice []byte) bool {
-
 	if r == nil || len(subslice) == 0 {
 		return false
 	}
@@ -183,11 +200,13 @@ func ReaderContains(r io.Reader, subslice []byte) bool {
 // GetTitleFunc returns a func that can be used to transform a string to
 // title case.
 //
-// The supported styles are
+// # The supported styles are
 //
 // - "Go" (strings.Title)
 // - "AP" (see https://www.apstylebook.com/)
 // - "Chicago" (see http://www.chicagomanualofstyle.org/home.html)
+// - "FirstUpper" (only the first character is upper case)
+// - "None" (no transformation)
 //
 // If an unknown or empty style is provided, AP style is what you get.
 func GetTitleFunc(style string) func(s string) string {
@@ -197,6 +216,10 @@ func GetTitleFunc(style string) func(s string) string {
 	case "chicago":
 		tc := transform.NewTitleConverter(transform.ChicagoStyle)
 		return tc.Title
+	case "none":
+		return func(s string) string { return s }
+	case "firstupper":
+		return FirstUpper
 	default:
 		tc := transform.NewTitleConverter(transform.APStyle)
 		return tc.Title
@@ -235,105 +258,16 @@ func compareStringSlices(a, b []string) bool {
 	return true
 }
 
-// LogPrinter is the common interface of the JWWs loggers.
-type LogPrinter interface {
-	// Println is the only common method that works in all of JWWs loggers.
-	Println(a ...interface{})
-}
-
-// DistinctLogger ignores duplicate log statements.
-type DistinctLogger struct {
-	sync.RWMutex
-	logger LogPrinter
-	m      map[string]bool
-}
-
-// Println will log the string returned from fmt.Sprintln given the arguments,
-// but not if it has been logged before.
-func (l *DistinctLogger) Println(v ...interface{}) {
-	// fmt.Sprint doesn't add space between string arguments
-	logStatement := strings.TrimSpace(fmt.Sprintln(v...))
-	l.print(logStatement)
-}
-
-// Printf will log the string returned from fmt.Sprintf given the arguments,
-// but not if it has been logged before.
-// Note: A newline is appended.
-func (l *DistinctLogger) Printf(format string, v ...interface{}) {
-	logStatement := fmt.Sprintf(format, v...)
-	l.print(logStatement)
-}
-
-func (l *DistinctLogger) print(logStatement string) {
-	l.RLock()
-	if l.m[logStatement] {
-		l.RUnlock()
-		return
-	}
-	l.RUnlock()
-
-	l.Lock()
-	if !l.m[logStatement] {
-		l.logger.Println(logStatement)
-		l.m[logStatement] = true
-	}
-	l.Unlock()
-}
-
-// NewDistinctErrorLogger creates a new DistinctLogger that logs ERRORs
-func NewDistinctErrorLogger() *DistinctLogger {
-	return &DistinctLogger{m: make(map[string]bool), logger: jww.ERROR}
-}
-
-// NewDistinctLogger creates a new DistinctLogger that logs to the provided logger.
-func NewDistinctLogger(logger LogPrinter) *DistinctLogger {
-	return &DistinctLogger{m: make(map[string]bool), logger: logger}
-}
-
-// NewDistinctWarnLogger creates a new DistinctLogger that logs WARNs
-func NewDistinctWarnLogger() *DistinctLogger {
-	return &DistinctLogger{m: make(map[string]bool), logger: jww.WARN}
-}
-
-// NewDistinctFeedbackLogger creates a new DistinctLogger that can be used
-// to give feedback to the user while not spamming with duplicates.
-func NewDistinctFeedbackLogger() *DistinctLogger {
-	return &DistinctLogger{m: make(map[string]bool), logger: jww.FEEDBACK}
-}
-
-var (
-	// DistinctErrorLog can be used to avoid spamming the logs with errors.
-	DistinctErrorLog = NewDistinctErrorLogger()
-
-	// DistinctWarnLog can be used to avoid spamming the logs with warnings.
-	DistinctWarnLog = NewDistinctWarnLogger()
-
-	// DistinctFeedbackLog can be used to avoid spamming the logs with info messages.
-	DistinctFeedbackLog = NewDistinctFeedbackLogger()
-)
-
-// InitLoggers sets up the global distinct loggers.
-func InitLoggers() {
-	DistinctErrorLog = NewDistinctErrorLogger()
-	DistinctWarnLog = NewDistinctWarnLogger()
-	DistinctFeedbackLog = NewDistinctFeedbackLogger()
-}
-
 // Deprecated informs about a deprecation, but only once for a given set of arguments' values.
 // If the err flag is enabled, it logs as an ERROR (will exit with -1) and the text will
 // point at the next Hugo release.
 // The idea is two remove an item in two Hugo releases to give users and theme authors
 // plenty of time to fix their templates.
-func Deprecated(object, item, alternative string, err bool) {
-	if !strings.HasSuffix(alternative, ".") {
-		alternative += "."
-	}
-
+func Deprecated(item, alternative string, err bool) {
 	if err {
-		DistinctErrorLog.Printf("%s's %s is deprecated and will be removed in Hugo %s. %s", object, item, hugo.CurrentVersion.Next().ReleaseVersion(), alternative)
-
+		loggers.Log().Errorf("%s is deprecated and will be removed in Hugo %s. %s", item, hugo.CurrentVersion.Next().ReleaseVersion(), alternative)
 	} else {
-		DistinctWarnLog.Printf("%s's %s is deprecated and will be removed in a future release. %s", object, item, alternative)
+		loggers.Log().Warnf("%s is deprecated and will be removed in a future release. %s", item, alternative)
 	}
 }
 
@@ -423,53 +357,15 @@ func NormalizeHugoFlags(f *pflag.FlagSet, name string) pflag.NormalizedName {
 	return pflag.NormalizedName(name)
 }
 
-// DiffStringSlices returns the difference between two string slices.
-// Useful in tests.
-// See:
-// http://stackoverflow.com/questions/19374219/how-to-find-the-difference-between-two-slices-of-strings-in-golang
-func DiffStringSlices(slice1 []string, slice2 []string) []string {
-	diffStr := []string{}
-	m := map[string]int{}
-
-	for _, s1Val := range slice1 {
-		m[s1Val] = 1
-	}
-	for _, s2Val := range slice2 {
-		m[s2Val] = m[s2Val] + 1
-	}
-
-	for mKey, mVal := range m {
-		if mVal == 1 {
-			diffStr = append(diffStr, mKey)
-		}
-	}
-
-	return diffStr
-}
-
-// DiffStrings splits the strings into fields and runs it into DiffStringSlices.
-// Useful for tests.
-func DiffStrings(s1, s2 string) []string {
-	return DiffStringSlices(strings.Fields(s1), strings.Fields(s2))
-}
-
 // PrintFs prints the given filesystem to the given writer starting from the given path.
 // This is useful for debugging.
 func PrintFs(fs afero.Fs, path string, w io.Writer) {
 	if fs == nil {
 		return
 	}
+
 	afero.Walk(fs, path, func(path string, info os.FileInfo, err error) error {
-		if info != nil && !info.IsDir() {
-			s := path
-			if lang, ok := info.(hugofs.LanguageAnnouncer); ok {
-				s = s + "\tLANG: " + lang.Lang()
-			}
-			if fp, ok := info.(hugofs.FilePather); ok {
-				s = s + "\tRF: " + fp.Filename() + "\tBP: " + fp.BaseDir()
-			}
-			fmt.Fprintln(w, "    ", s)
-		}
+		fmt.Println(path)
 		return nil
 	})
 }

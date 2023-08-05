@@ -1,159 +1,225 @@
 ---
-title: Quick Start
-linktitle: Quick Start
-description: Create a Hugo site using the beautiful Ananke theme.
-date: 2013-07-01
-publishdate: 2013-07-01
+title: Quick start
+description: Learn to create a Hugo site in minutes.
 categories: [getting started]
 keywords: [quick start,usage]
-authors: [Shekhar Gulati, Ryan Watters]
 menu:
   docs:
-    parent: "getting-started"
-    weight: 10
-weight: 10
-sections_weight: 10
-draft: false
-aliases: [/quickstart/,/overview/quickstart/]
+    parent: getting-started
+    weight: 20
+weight: 20
 toc: true
+aliases: [/quickstart/,/overview/quickstart/]
 ---
 
-{{% note %}}
-This quick start uses `macOS` in the examples. For instructions about how to install Hugo on other operating systems, see [install](/getting-started/installing).
+In this tutorial you will:
 
-It is recommended to have [Git installed](https://git-scm.com/downloads) to run this tutorial.
+1. Create a site
+2. Add content
+3. Configure the site
+4. Publish the site
+
+## Prerequisites
+
+Before you begin this tutorial you must:
+
+1. [Install Hugo] (extended edition, v0.112.0 or later)
+1. [Install Git]
+
+You must also be comfortable working from the command line.
+
+## Create a site
+
+### Commands
+
+{{% note %}}
+**If you are a Windows user:**
+
+- Do not use the Command Prompt
+- Do not use Windows PowerShell
+- Run these commands from [PowerShell] or a Linux terminal such as WSL or Git Bash
+
+PowerShell and Windows PowerShell [are different applications].
+
+[PowerShell]: https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows
+[are different applications]: https://learn.microsoft.com/en-us/powershell/scripting/whats-new/differences-from-windows-powershell?view=powershell-7.3
 {{% /note %}}
 
+Run these commands to create a Hugo site with the [Ananke] theme. The next section provides an explanation of each command.
 
-
-## Step 1: Install Hugo
-
-{{% note %}}
-`Homebrew`, a package manager for `macOS`,  can be installed from [brew.sh](https://brew.sh/). See [install](/getting-started/installing) if you are running Windows etc.
-{{% /note %}}
-
-```bash
-brew install hugo
+```text
+hugo new site quickstart
+cd quickstart
+git init
+git submodule add https://github.com/theNewDynamic/gohugo-theme-ananke.git themes/ananke
+echo "theme = 'ananke'" >> hugo.toml
+hugo server
 ```
 
-To verify your new install:
+View your site at the URL displayed in your terminal. Press `Ctrl + C` to stop Hugo's development server.
 
-```bash
-hugo version
-```
+### Explanation of commands
 
+Create the [directory structure] for your project in the `quickstart` directory.
 
-{{< asciicast ItACREbFgvJ0HjnSNeTknxWy9 >}}
-
-
-## Step 2: Create a New Site
-
-```bash
+```text
 hugo new site quickstart
 ```
 
-The above will create a new Hugo site in a folder named `quickstart`.
+Change the current directory to the root of your project.
 
-{{< asciicast 3mf1JGaN0AX0Z7j5kLGl3hSh8 >}}
-
-
-## Step 3: Add a Theme
-
-See [themes.gohugo.io](https://themes.gohugo.io/) for a list of themes to consider. This quickstart uses the beautiful [Ananke theme](https://themes.gohugo.io/gohugo-theme-ananke/).
-
-```bash
+```text
 cd quickstart
+```
 
-# Download the theme
+Initialize an empty Git repository in the current directory.
+
+```text
 git init
-git submodule add https://github.com/budparr/gohugo-theme-ananke.git themes/ananke
-# Note for non-git users:
-#   - If you do not have git installed, you can download the archive of the latest
-#     version of this theme from:
-#       https://github.com/budparr/gohugo-theme-ananke/archive/master.zip
-#   - Extract that .zip file to get a "gohugo-theme-ananke-master" directory.
-#   - Rename that directory to "ananke", and move it into the "themes/" directory.
-# End of note for non-git users.
-
-# Edit your config.toml configuration file
-# and add the Ananke theme.
-echo 'theme = "ananke"' >> config.toml
 ```
 
+Clone the [Ananke] theme into the `themes` directory, adding it to your project as a [Git submodule].
 
-{{< asciicast 7naKerRYUGVPj8kiDmdh5k5h9 >}}
-
-## Step 4: Add Some Content
-
+```text
+git submodule add https://github.com/theNewDynamic/gohugo-theme-ananke.git themes/ananke
 ```
+
+Append a line to the site configuration file, indicating the current theme.
+
+```text
+echo "theme = 'ananke'" >> hugo.toml
+```
+
+Start Hugo's development server to view the site.
+
+```text
+hugo server
+```
+
+Press `Ctrl + C` to stop Hugo's development server.
+
+## Add content
+
+Add a new page to your site.
+
+```text
 hugo new posts/my-first-post.md
 ```
 
-{{< asciicast eUojYCfRTZvkEiqc52fUsJRBR >}}
+Hugo created the file in the `content/posts` directory. Open the file with your editor.
 
-
-Edit the newly created content file if you want.
-
-
-## Step 5: Start the Hugo server
-
-Now, start the Hugo server with [drafts](/getting-started/usage/#draft-future-and-expired-content) enabled:
-
-{{< asciicast BvJBsF6egk9c163bMsObhuNXj >}}
-
-
-
-```
-▶ hugo server -D
-
-                   | EN
-+------------------+----+
-  Pages            | 10
-  Paginator pages  |  0
-  Non-page files   |  0
-  Static files     |  3
-  Processed images |  0
-  Aliases          |  1
-  Sitemaps         |  1
-  Cleaned          |  0
-
-Total in 11 ms
-Watching for changes in /Users/bep/quickstart/{content,data,layouts,static,themes}
-Watching for config changes in /Users/bep/quickstart/config.toml
-Environment: "development"
-Serving pages from memory
-Running in Fast Render Mode. For full rebuilds on change: hugo server --disableFastRender
-Web Server is available at http://localhost:1313/ (bind address 127.0.0.1)
-Press Ctrl+C to stop
+```text
+---
+title: "My First Post"
+date: 2022-11-20T09:03:20-08:00
+draft: true
+---
 ```
 
+Notice the `draft` value in the [front matter] is `true`. By default, Hugo does not publish draft content when you build the site. Learn more about [draft, future, and expired content].
 
-**Navigate to your new site at [http://localhost:1313/](http://localhost:1313/).**
+Add some [markdown] to the body of the post, but do not change the `draft` value.
 
+[markdown]: https://commonmark.org/help/
 
-## Step 6: Customize the Theme
+```text
+---
+title: "My First Post"
+date: 2022-11-20T09:03:20-08:00
+draft: true
+---
+## Introduction
 
-Your new site already looks great, but you will want to tweak it a little before you release it to the public.
+This is **bold** text, and this is *emphasized* text.
 
-### Site Configuration
-
-Open up `config.toml` in a text editor:
-
+Visit the [Hugo](https://gohugo.io) website!
 ```
-baseURL = "https://example.org/"
-languageCode = "en-us"
-title = "My New Hugo Site"
-theme = "ananke"
+
+Save the file, then start Hugo’s development server to view the site. You can run either of the following commands to include draft content.
+
+```text
+hugo server --buildDrafts
+hugo server -D
 ```
 
-Replace the `title` above with something more personal. Also, if you already have a domain ready, set the `baseURL`. Note that this value is not needed when running the local development server.
+View your site at the URL displayed in your terminal. Keep the development server running as you continue to add and change content.
 
 {{% note %}}
-**Tip:** Make the changes to the site configuration or any other file in your site while the Hugo server is running, and you will see the changes in the browser right away, though you may need to [clear your cache](https://kb.iu.edu/d/ahic).
+Hugo's rendering engine conforms to the CommonMark [specification] for markdown. The CommonMark organization provides a useful [live testing tool] powered by the reference implementation.
+
+[live testing tool]: https://spec.commonmark.org/dingus/
+[specification]: https://spec.commonmark.org/
 {{% /note %}}
 
+## Configure the site
 
-For theme specific configuration options, see the [theme site](https://github.com/budparr/gohugo-theme-ananke).
+With your editor, open the [site configuration] file (`hugo.toml`) in the root of your project.
 
-**For further theme customization, see [Customize a Theme](/themes/customizing/).**
+```text
+baseURL = 'http://example.org/'
+languageCode = 'en-us'
+title = 'My New Hugo Site'
+theme = 'ananke'
+```
 
+Make the following changes:
+
+1. Set the `baseURL` for your production site. This value must begin with the protocol and end with a slash, as shown above.
+
+2. Set the `languageCode` to your language and region.
+
+3. Set the `title` for your production site.
+
+Start Hugo's development server to see your changes, remembering to include draft content.
+
+```text
+hugo server -D
+```
+
+{{% note %}}
+Most theme authors provide configuration guidelines and options. Make sure to visit your theme's repository or documentation site for details.
+
+[The New Dynamic], authors of the Ananke theme, provide [documentation] for configuration and usage. They also provide a [demonstration site].
+
+[demonstration site]: https://gohugo-ananke-theme-demo.netlify.app/
+[documentation]: https://github.com/theNewDynamic/gohugo-theme-ananke#readme
+[The New Dynamic]: https://www.thenewdynamic.com/
+{{% /note %}}
+
+## Publish the site
+
+In this step you will _publish_ your site, but you will not _deploy_ it.
+
+When you _publish_ your site, Hugo creates the entire static site in the `public` directory in the root of your project. This includes the HTML files, and assets such as images, CSS files, and JavaScript files.
+
+When you publish your site, you typically do _not_ want to include [draft, future, or expired content]. The command is simple.
+
+```text
+hugo
+```
+
+To learn how to _deploy_ your site, see the [hosting and deployment] section.
+
+## Ask for help
+
+Hugo's [forum] is an active community of users and developers who answer questions, share knowledge, and provide examples. A quick search of over 20,000 topics will often answer your question. Please be sure to read about [requesting help] before asking your first question.
+
+## Other resources
+
+For other resources to help you learn Hugo, including books and video tutorials, see the [external learning resources](/getting-started/external-learning-resources/) page.
+
+[Ananke]: https://github.com/theNewDynamic/gohugo-theme-ananke
+[directory structure]: /getting-started/directory-structure
+[draft, future, and expired content]: /getting-started/usage/#draft-future-and-expired-content
+[draft, future, or expired content]: /getting-started/usage/#draft-future-and-expired-content
+[external learning resources]:/getting-started/external-learning-resources/
+[forum]: https://discourse.gohugo.io/
+[forum]: https://discourse.gohugo.io/
+[front matter]: /content-management/front-matter
+[Git submodule]: https://git-scm.com/book/en/v2/Git-Tools-Submodules
+[hosting and deployment]: /hosting-and-deployment/
+[Install Git]: https://git-scm.com/book/en/v2/Getting-Started-Installing-Git
+[Install Hugo]: /installation/
+[Requesting Help]: https://discourse.gohugo.io/t/requesting-help/9132
+[Requesting Help]: https://discourse.gohugo.io/t/requesting-help/9132
+[site configuration]: /getting-started/configuration/

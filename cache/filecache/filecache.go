@@ -15,8 +15,8 @@ package filecache
 
 import (
 	"bytes"
+	"errors"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,8 +31,11 @@ import (
 	"github.com/spf13/afero"
 )
 
+// ErrFatal can be used to signal an unrecoverable error.
+var ErrFatal = errors.New("fatal filecache error")
+
 const (
-	filecacheRootDirname = "filecache"
+	FilecacheRootDirname = "filecache"
 )
 
 // Cache caches a set of files in a directory. This is usually a file on
@@ -43,6 +46,9 @@ type Cache struct {
 	// Max age for items in this cache. Negative duration means forever,
 	// 0 is effectively turning this cache off.
 	maxAge time.Duration
+
+	// When set, we just remove this entire root directory on expiration.
+	pruneAllRootDir string
 
 	nlocker *lockTracker
 }
@@ -77,11 +83,12 @@ type ItemInfo struct {
 }
 
 // NewCache creates a new file cache with the given filesystem and max age.
-func NewCache(fs afero.Fs, maxAge time.Duration) *Cache {
+func NewCache(fs afero.Fs, maxAge time.Duration, pruneAllRootDir string) *Cache {
 	return &Cache{
-		Fs:      fs,
-		nlocker: &lockTracker{Locker: locker.NewLocker(), seen: make(map[string]struct{})},
-		maxAge:  maxAge,
+		Fs:              fs,
+		nlocker:         &lockTracker{Locker: locker.NewLocker(), seen: make(map[string]struct{})},
+		maxAge:          maxAge,
+		pruneAllRootDir: pruneAllRootDir,
 	}
 }
 
@@ -121,7 +128,7 @@ func (c *Cache) WriteCloser(id string) (ItemInfo, io.WriteCloser, error) {
 // If not found a new file is created and passed to create, which should close
 // it when done.
 func (c *Cache) ReadOrCreate(id string,
-	read func(info ItemInfo, r io.Reader) error,
+	read func(info ItemInfo, r io.ReadSeeker) error,
 	create func(info ItemInfo, w io.WriteCloser) error) (info ItemInfo, err error) {
 	id = cleanID(id)
 
@@ -133,7 +140,13 @@ func (c *Cache) ReadOrCreate(id string,
 	if r := c.getOrRemove(id); r != nil {
 		err = read(info, r)
 		defer r.Close()
-		return
+		if err == nil || err == ErrFatal {
+			// See https://github.com/gohugoio/hugo/issues/6401
+			// To recover from file corruption we handle read errors
+			// as the cache item was not found.
+			// Any file permission issue will also fail in the next step.
+			return
+		}
 	}
 
 	f, err := helpers.OpenFileForWriting(c.Fs, id)
@@ -144,7 +157,6 @@ func (c *Cache) ReadOrCreate(id string,
 	err = create(info, f)
 
 	return
-
 }
 
 // GetOrCreate tries to get the file with the given id from cache. If not found or expired, create will
@@ -162,7 +174,12 @@ func (c *Cache) GetOrCreate(id string, create func() (io.ReadCloser, error)) (It
 		return info, r, nil
 	}
 
-	r, err := create()
+	var (
+		r   io.ReadCloser
+		err error
+	)
+
+	r, err = create()
 	if err != nil {
 		return info, nil, err
 	}
@@ -189,11 +206,16 @@ func (c *Cache) GetOrCreateBytes(id string, create func() ([]byte, error)) (Item
 
 	if r := c.getOrRemove(id); r != nil {
 		defer r.Close()
-		b, err := ioutil.ReadAll(r)
+		b, err := io.ReadAll(r)
 		return info, b, err
 	}
 
-	b, err := create()
+	var (
+		b   []byte
+		err error
+	)
+
+	b, err = create()
 	if err != nil {
 		return info, nil, err
 	}
@@ -206,10 +228,9 @@ func (c *Cache) GetOrCreateBytes(id string, create func() ([]byte, error)) (Item
 		return info, nil, err
 	}
 	return info, b, nil
-
 }
 
-// GetBytes gets the file content with the given id from the cahce, nil if none found.
+// GetBytes gets the file content with the given id from the cache, nil if none found.
 func (c *Cache) GetBytes(id string) (ItemInfo, []byte, error) {
 	id = cleanID(id)
 
@@ -220,14 +241,14 @@ func (c *Cache) GetBytes(id string) (ItemInfo, []byte, error) {
 
 	if r := c.getOrRemove(id); r != nil {
 		defer r.Close()
-		b, err := ioutil.ReadAll(r)
+		b, err := io.ReadAll(r)
 		return info, b, err
 	}
 
 	return info, nil, nil
 }
 
-// Get gets the file with the given id from the cahce, nil if none found.
+// Get gets the file with the given id from the cache, nil if none found.
 func (c *Cache) Get(id string) (ItemInfo, io.ReadCloser, error) {
 	id = cleanID(id)
 
@@ -262,7 +283,6 @@ func (c *Cache) getOrRemove(id string) hugio.ReadSeekCloser {
 	}
 
 	f, err := c.Fs.Open(id)
-
 	if err != nil {
 		return nil
 	}
@@ -274,26 +294,27 @@ func (c *Cache) isExpired(modTime time.Time) bool {
 	if c.maxAge < 0 {
 		return false
 	}
+
+	// Note the use of time.Since here.
+	// We cannot use Hugo's global Clock for this.
 	return c.maxAge == 0 || time.Since(modTime) > c.maxAge
 }
 
 // For testing
-func (c *Cache) getString(id string) string {
+func (c *Cache) GetString(id string) string {
 	id = cleanID(id)
 
 	c.nlocker.Lock(id)
 	defer c.nlocker.Unlock(id)
 
 	f, err := c.Fs.Open(id)
-
 	if err != nil {
 		return ""
 	}
 	defer f.Close()
 
-	b, _ := ioutil.ReadAll(f)
+	b, _ := io.ReadAll(f)
 	return string(b)
-
 }
 
 // Caches is a named set of caches.
@@ -307,42 +328,37 @@ func (f Caches) Get(name string) *Cache {
 // NewCaches creates a new set of file caches from the given
 // configuration.
 func NewCaches(p *helpers.PathSpec) (Caches, error) {
-	dcfg, err := decodeConfig(p)
-	if err != nil {
-		return nil, err
-	}
-
+	dcfg := p.Cfg.GetConfigSection("caches").(Configs)
 	fs := p.Fs.Source
 
 	m := make(Caches)
 	for k, v := range dcfg {
 		var cfs afero.Fs
 
-		if v.isResourceDir {
-			cfs = p.BaseFs.Resources.Fs
+		if v.IsResourceDir {
+			cfs = p.BaseFs.ResourcesCache
 		} else {
 			cfs = fs
 		}
 
-		var baseDir string
-		if !strings.HasPrefix(v.Dir, "_gen") {
-			// We do cache eviction (file removes) and since the user can set
-			// his/hers own cache directory, we really want to make sure
-			// we do not delete any files that do not belong to this cache.
-			// We do add the cache name as the root, but this is an extra safe
-			// guard. We skip the files inside /resources/_gen/ because
-			// that would be breaking.
-			baseDir = filepath.Join(v.Dir, filecacheRootDirname, k)
-		} else {
-			baseDir = filepath.Join(v.Dir, k)
+		if cfs == nil {
+			panic("nil fs")
 		}
-		if err = cfs.MkdirAll(baseDir, 0777); err != nil && !os.IsExist(err) {
+
+		baseDir := v.DirCompiled
+
+		if err := cfs.MkdirAll(baseDir, 0777); err != nil && !os.IsExist(err) {
 			return nil, err
 		}
 
 		bfs := afero.NewBasePathFs(cfs, baseDir)
 
-		m[k] = NewCache(bfs, v.MaxAge)
+		var pruneAllRootDir string
+		if k == CacheKeyModules {
+			pruneAllRootDir = "pkg"
+		}
+
+		m[k] = NewCache(bfs, v.MaxAge, pruneAllRootDir)
 	}
 
 	return m, nil

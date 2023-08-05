@@ -20,19 +20,17 @@ import (
 )
 
 func newPageOutput(
-	cp *pageContentOutput, // may be nil
 	ps *pageState,
 	pp pagePaths,
 	f output.Format,
 	render bool) *pageOutput {
-
 	var targetPathsProvider targetPathsHolder
 	var linksProvider resource.ResourceLinksProvider
 
 	ft, found := pp.targetPaths[f.Name]
 	if !found {
 		// Link to the main output format
-		ft = pp.targetPaths[pp.OutputFormats()[0].Format.Name]
+		ft = pp.targetPaths[pp.firstOutputFormat.Format.Name]
 	}
 	targetPathsProvider = ft
 	linksProvider = ft
@@ -45,38 +43,27 @@ func newPageOutput(
 		paginatorProvider = pag
 	}
 
-	var contentProvider page.ContentProvider = page.NopPage
-	var tableOfContentsProvider page.TableOfContentsProvider = page.NopPage
-
-	if cp != nil {
-		contentProvider = cp
-		tableOfContentsProvider = cp
-	}
-
 	providers := struct {
-		page.ContentProvider
-		page.TableOfContentsProvider
 		page.PaginatorProvider
 		resource.ResourceLinksProvider
 		targetPather
 	}{
-		contentProvider,
-		tableOfContentsProvider,
 		paginatorProvider,
 		linksProvider,
 		targetPathsProvider,
 	}
 
 	po := &pageOutput{
-		f:                      f,
-		cp:                     cp,
-		pagePerOutputProviders: providers,
-		render:                 render,
-		paginator:              pag,
+		f:                       f,
+		pagePerOutputProviders:  providers,
+		ContentProvider:         page.NopPage,
+		PageRenderProvider:      page.NopPage,
+		TableOfContentsProvider: page.NopPage,
+		render:                  render,
+		paginator:               pag,
 	}
 
 	return po
-
 }
 
 // We create a pageOutput for every output format combination, even if this
@@ -92,12 +79,30 @@ type pageOutput struct {
 	// used in template(s).
 	paginator *pagePaginator
 
-	// This interface provides the functionality that is specific for this
+	// These interface provides the functionality that is specific for this
 	// output format.
+	contentRenderer page.ContentRenderer
 	pagePerOutputProviders
+	page.ContentProvider
+	page.PageRenderProvider
+	page.TableOfContentsProvider
+	page.RenderShortcodesProvider
 
-	// This may be nil.
+	// May be nil.
 	cp *pageContentOutput
+}
+
+func (p *pageOutput) initContentProvider(cp *pageContentOutput) {
+	if cp == nil {
+		return
+	}
+	p.contentRenderer = cp
+	p.ContentProvider = cp
+	p.PageRenderProvider = cp
+	p.TableOfContentsProvider = cp
+	p.RenderShortcodesProvider = cp
+	p.cp = cp
+
 }
 
 func (p *pageOutput) enablePlaceholders() {

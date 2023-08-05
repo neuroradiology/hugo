@@ -18,7 +18,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	qt "github.com/frankban/quicktest"
 )
 
 func TestChainZeroTransformers(t *testing.T) {
@@ -30,7 +30,7 @@ func TestChainZeroTransformers(t *testing.T) {
 	}
 }
 
-func TestChaingMultipleTransformers(t *testing.T) {
+func TestChainingMultipleTransformers(t *testing.T) {
 	f1 := func(ct FromTo) error {
 		_, err := ct.To().Write(bytes.Replace(ct.From().Bytes(), []byte("f1"), []byte("f1r"), -1))
 		return err
@@ -64,6 +64,7 @@ func TestChaingMultipleTransformers(t *testing.T) {
 }
 
 func TestNewEmptyTransforms(t *testing.T) {
+	c := qt.New(t)
 	transforms := NewEmpty()
-	assert.Equal(t, 20, cap(transforms))
+	c.Assert(cap(transforms), qt.Equals, 20)
 }

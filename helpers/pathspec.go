@@ -16,6 +16,7 @@ package helpers
 import (
 	"strings"
 
+	"github.com/gohugoio/hugo/common/loggers"
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/hugofs"
 	"github.com/gohugoio/hugo/hugolib/filesystems"
@@ -33,18 +34,17 @@ type PathSpec struct {
 	Fs *hugofs.Fs
 
 	// The config provider to use
-	Cfg config.Provider
+	Cfg config.AllProvider
 }
 
-// NewPathSpec creats a new PathSpec from the given filesystems and language.
-func NewPathSpec(fs *hugofs.Fs, cfg config.Provider) (*PathSpec, error) {
-	return NewPathSpecWithBaseBaseFsProvided(fs, cfg, nil)
+// NewPathSpec creates a new PathSpec from the given filesystems and language.
+func NewPathSpec(fs *hugofs.Fs, cfg config.AllProvider, logger loggers.Logger) (*PathSpec, error) {
+	return NewPathSpecWithBaseBaseFsProvided(fs, cfg, logger, nil)
 }
 
-// NewPathSpecWithBaseBaseFsProvided creats a new PathSpec from the given filesystems and language.
+// NewPathSpecWithBaseBaseFsProvided creates a new PathSpec from the given filesystems and language.
 // If an existing BaseFs is provided, parts of that is reused.
-func NewPathSpecWithBaseBaseFsProvided(fs *hugofs.Fs, cfg config.Provider, baseBaseFs *filesystems.BaseFs) (*PathSpec, error) {
-
+func NewPathSpecWithBaseBaseFsProvided(fs *hugofs.Fs, cfg config.AllProvider, logger loggers.Logger, baseBaseFs *filesystems.BaseFs) (*PathSpec, error) {
 	p, err := paths.New(fs, cfg)
 	if err != nil {
 		return nil, err
@@ -56,7 +56,7 @@ func NewPathSpecWithBaseBaseFsProvided(fs *hugofs.Fs, cfg config.Provider, baseB
 			filesystems.WithBaseFs(baseBaseFs),
 		}
 	}
-	bfs, err := filesystems.NewBase(p, options...)
+	bfs, err := filesystems.NewBase(p, logger, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -69,11 +69,6 @@ func NewPathSpecWithBaseBaseFsProvided(fs *hugofs.Fs, cfg config.Provider, baseB
 		ProcessingStats: NewProcessingStats(p.Lang()),
 	}
 
-	basePath := ps.BaseURL.Path()
-	if basePath != "" && basePath != "/" {
-		ps.BasePath = basePath
-	}
-
 	return ps, nil
 }
 
@@ -84,5 +79,4 @@ func (p *PathSpec) PermalinkForBaseURL(link, baseURL string) string {
 		baseURL += "/"
 	}
 	return baseURL + link
-
 }

@@ -17,33 +17,21 @@ package page
 
 import (
 	"encoding/json"
-	"github.com/bep/gitmap"
+	"github.com/gohugoio/hugo/common/maps"
 	"github.com/gohugoio/hugo/config"
+	"github.com/gohugoio/hugo/hugofs/files"
+	"github.com/gohugoio/hugo/identity"
 	"github.com/gohugoio/hugo/langs"
 	"github.com/gohugoio/hugo/media"
 	"github.com/gohugoio/hugo/navigation"
 	"github.com/gohugoio/hugo/source"
-	"html/template"
 	"time"
 )
 
 func MarshalPageToJSON(p Page) ([]byte, error) {
-	content, err := p.Content()
-	if err != nil {
-		return nil, err
-	}
-	plain := p.Plain()
-	plainWords := p.PlainWords()
-	summary := p.Summary()
-	truncated := p.Truncated()
-	fuzzyWordCount := p.FuzzyWordCount()
-	wordCount := p.WordCount()
-	readingTime := p.ReadingTime()
-	length := p.Len()
-	tableOfContents := p.TableOfContents()
 	rawContent := p.RawContent()
-	mediaType := p.MediaType()
 	resourceType := p.ResourceType()
+	mediaType := p.MediaType()
 	permalink := p.Permalink()
 	relPermalink := p.RelPermalink()
 	name := p.Name()
@@ -66,6 +54,7 @@ func MarshalPageToJSON(p Page) ([]byte, error) {
 	isNode := p.IsNode()
 	isPage := p.IsPage()
 	path := p.Path()
+	pathc := p.Pathc()
 	slug := p.Slug()
 	lang := p.Lang()
 	isSection := p.IsSection()
@@ -78,6 +67,7 @@ func MarshalPageToJSON(p Page) ([]byte, error) {
 	language := p.Language()
 	file := p.File()
 	gitInfo := p.GitInfo()
+	codeOwners := p.CodeOwners()
 	outputFormats := p.OutputFormats()
 	alternativeOutputFormats := p.AlternativeOutputFormats()
 	menus := p.Menus()
@@ -85,33 +75,25 @@ func MarshalPageToJSON(p Page) ([]byte, error) {
 	isTranslated := p.IsTranslated()
 	allTranslations := p.AllTranslations()
 	translations := p.Translations()
+	store := p.Store()
+	getIdentity := p.GetIdentity()
 
 	s := struct {
-		Content                  interface{}
-		Plain                    string
-		PlainWords               []string
-		Summary                  template.HTML
-		Truncated                bool
-		FuzzyWordCount           int
-		WordCount                int
-		ReadingTime              int
-		Len                      int
-		TableOfContents          template.HTML
 		RawContent               string
-		MediaType                media.Type
 		ResourceType             string
+		MediaType                media.Type
 		Permalink                string
 		RelPermalink             string
 		Name                     string
 		Title                    string
-		Params                   map[string]interface{}
+		Params                   maps.Params
 		Data                     interface{}
 		Date                     time.Time
 		Lastmod                  time.Time
 		PublishDate              time.Time
 		ExpiryDate               time.Time
 		Aliases                  []string
-		BundleType               string
+		BundleType               files.ContentClass
 		Description              string
 		Draft                    bool
 		IsHome                   bool
@@ -122,18 +104,20 @@ func MarshalPageToJSON(p Page) ([]byte, error) {
 		IsNode                   bool
 		IsPage                   bool
 		Path                     string
+		Pathc                    string
 		Slug                     string
 		Lang                     string
 		IsSection                bool
 		Section                  string
 		SectionsEntries          []string
 		SectionsPath             string
-		Sitemap                  config.Sitemap
+		Sitemap                  config.SitemapConfig
 		Type                     string
 		Weight                   int
 		Language                 *langs.Language
 		File                     source.File
-		GitInfo                  *gitmap.GitInfo
+		GitInfo                  source.GitInfo
+		CodeOwners               []string
 		OutputFormats            OutputFormats
 		AlternativeOutputFormats OutputFormats
 		Menus                    navigation.PageMenus
@@ -141,20 +125,12 @@ func MarshalPageToJSON(p Page) ([]byte, error) {
 		IsTranslated             bool
 		AllTranslations          Pages
 		Translations             Pages
+		Store                    *maps.Scratch
+		GetIdentity              identity.Identity
 	}{
-		Content:                  content,
-		Plain:                    plain,
-		PlainWords:               plainWords,
-		Summary:                  summary,
-		Truncated:                truncated,
-		FuzzyWordCount:           fuzzyWordCount,
-		WordCount:                wordCount,
-		ReadingTime:              readingTime,
-		Len:                      length,
-		TableOfContents:          tableOfContents,
 		RawContent:               rawContent,
-		MediaType:                mediaType,
 		ResourceType:             resourceType,
+		MediaType:                mediaType,
 		Permalink:                permalink,
 		RelPermalink:             relPermalink,
 		Name:                     name,
@@ -177,6 +153,7 @@ func MarshalPageToJSON(p Page) ([]byte, error) {
 		IsNode:                   isNode,
 		IsPage:                   isPage,
 		Path:                     path,
+		Pathc:                    pathc,
 		Slug:                     slug,
 		Lang:                     lang,
 		IsSection:                isSection,
@@ -189,6 +166,7 @@ func MarshalPageToJSON(p Page) ([]byte, error) {
 		Language:                 language,
 		File:                     file,
 		GitInfo:                  gitInfo,
+		CodeOwners:               codeOwners,
 		OutputFormats:            outputFormats,
 		AlternativeOutputFormats: alternativeOutputFormats,
 		Menus:                    menus,
@@ -196,6 +174,8 @@ func MarshalPageToJSON(p Page) ([]byte, error) {
 		IsTranslated:             isTranslated,
 		AllTranslations:          allTranslations,
 		Translations:             translations,
+		Store:                    store,
+		GetIdentity:              getIdentity,
 	}
 
 	return json.Marshal(&s)

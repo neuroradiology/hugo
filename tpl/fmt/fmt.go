@@ -16,40 +16,93 @@ package fmt
 
 import (
 	_fmt "fmt"
+	"sort"
 
+	"github.com/bep/logg"
+	"github.com/gohugoio/hugo/common/loggers"
 	"github.com/gohugoio/hugo/deps"
-	"github.com/gohugoio/hugo/helpers"
+	"github.com/spf13/cast"
 )
 
 // New returns a new instance of the fmt-namespaced template functions.
 func New(d *deps.Deps) *Namespace {
-	return &Namespace{helpers.NewDistinctLogger(d.Log.ERROR)}
+	ns := &Namespace{
+		logger: d.Log,
+	}
+
+	d.BuildStartListeners.Add(func() {
+		ns.logger.Reset()
+	})
+
+	return ns
 }
 
 // Namespace provides template functions for the "fmt" namespace.
 type Namespace struct {
-	errorLogger *helpers.DistinctLogger
+	logger loggers.Logger
 }
 
-// Print returns string representation of the passed arguments.
-func (ns *Namespace) Print(a ...interface{}) string {
-	return _fmt.Sprint(a...)
+// Print returns a string representation of args.
+func (ns *Namespace) Print(args ...any) string {
+	return _fmt.Sprint(args...)
 }
 
-// Printf returns a formatted string representation of the passed arguments.
-func (ns *Namespace) Printf(format string, a ...interface{}) string {
-	return _fmt.Sprintf(format, a...)
-
+// Printf returns string representation of args formatted with the layouut in format.
+func (ns *Namespace) Printf(format string, args ...any) string {
+	return _fmt.Sprintf(format, args...)
 }
 
-// Println returns string representation of the passed arguments ending with a newline.
-func (ns *Namespace) Println(a ...interface{}) string {
-	return _fmt.Sprintln(a...)
+// Println returns string representation of args  ending with a newline.
+func (ns *Namespace) Println(args ...any) string {
+	return _fmt.Sprintln(args...)
 }
 
-// Errorf formats according to a format specifier and returns the string as a
-// value that satisfies error.
-func (ns *Namespace) Errorf(format string, a ...interface{}) string {
-	ns.errorLogger.Printf(format, a...)
-	return _fmt.Sprintf(format, a...)
+// Errorf formats args according to a format specifier and logs an ERROR.
+// It returns an empty string.
+func (ns *Namespace) Errorf(format string, args ...any) string {
+	ns.logger.Errorf(format, args...)
+	return ""
+}
+
+// Erroridf formats args according to a format specifier and logs an ERROR and
+// an information text that the error with the given id can be suppressed in config.
+// It returns an empty string.
+func (ns *Namespace) Erroridf(id, format string, args ...any) string {
+	ns.logger.Errorsf(id, format, args...)
+	return ""
+}
+
+// Warnf formats args according to a format specifier and logs a WARNING.
+// It returns an empty string.
+func (ns *Namespace) Warnf(format string, args ...any) string {
+	ns.logger.Warnf(format, args...)
+	return ""
+}
+
+// Warnmf is epxermimental and subject to change at any time.
+func (ns *Namespace) Warnmf(m any, format string, args ...any) string {
+	return ns.logmf(ns.logger.Warn(), m, format, args...)
+}
+
+// Errormf is epxermimental and subject to change at any time.
+func (ns *Namespace) Errormf(m any, format string, args ...any) string {
+	return ns.logmf(ns.logger.Error(), m, format, args...)
+}
+
+func (ns *Namespace) logmf(l logg.LevelLogger, m any, format string, args ...any) string {
+	mm := cast.ToStringMap(m)
+	fields := make(logg.Fields, len(mm))
+	i := 0
+	for k, v := range mm {
+		fields[i] = logg.Field{Name: k, Value: v}
+		i++
+	}
+	// Sort the fields to make the output deterministic.
+	sort.Slice(fields, func(i, j int) bool {
+		return fields[i].Name < fields[j].Name
+	})
+
+	l.WithFields(fields).Logf(format, args...)
+
+	return ""
 }

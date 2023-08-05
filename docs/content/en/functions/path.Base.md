@@ -1,20 +1,13 @@
 ---
 title: path.Base
 description: Base returns the last element of a path.
-godocref:
-date: 2018-11-28
-publishdate: 2018-11-28
-lastmod: 2018-11-28
 categories: [functions]
 menu:
   docs:
-    parent: "functions"
+    parent: functions
 keywords: [path, base]
 signature: ["path.Base PATH"]
-workson: []
-hugoversion: "0.40"
-relatedfuncs: [path.Dir, path.Ext, path.Split]
-deprecated: false
+relatedfuncs: [path.BaseName, path.Clean, path.Dir, path.Ext, path.Join, path.Split]
 ---
 
 `path.Base` returns the last element of `PATH`.
@@ -23,7 +16,7 @@ If `PATH` is empty, `.` is returned.
 
 **Note:** On Windows, `PATH` is converted to slash (`/`) separators.
 
-```
+```go-html-template
 {{ path.Base "a/news.html" }} → "news.html"
 {{ path.Base "news.html" }} → "news.html"
 {{ path.Base "a/b/c" }} → "c"

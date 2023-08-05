@@ -16,6 +16,8 @@ package hugolib
 import (
 	"sync"
 
+	"github.com/gohugoio/hugo/common/herrors"
+	"github.com/gohugoio/hugo/resources/kinds"
 	"github.com/gohugoio/hugo/resources/page"
 )
 
@@ -41,10 +43,10 @@ func (p *pagePaginator) reset() {
 	p.pagePaginatorInit = &pagePaginatorInit{}
 }
 
-func (p *pagePaginator) Paginate(seq interface{}, options ...interface{}) (*page.Pager, error) {
+func (p *pagePaginator) Paginate(seq any, options ...any) (*page.Pager, error) {
 	var initErr error
 	p.init.Do(func() {
-		pagerSize, err := page.ResolvePagerSize(p.source.s.Cfg, options...)
+		pagerSize, err := page.ResolvePagerSize(p.source.s.Conf, options...)
 		if err != nil {
 			initErr = err
 			return
@@ -59,7 +61,6 @@ func (p *pagePaginator) Paginate(seq interface{}, options ...interface{}) (*page
 		}
 
 		p.current = paginator.Pagers()[0]
-
 	})
 
 	if initErr != nil {
@@ -69,10 +70,12 @@ func (p *pagePaginator) Paginate(seq interface{}, options ...interface{}) (*page
 	return p.current, nil
 }
 
-func (p *pagePaginator) Paginator(options ...interface{}) (*page.Pager, error) {
+func (p *pagePaginator) Paginator(options ...any) (*page.Pager, error) {
+	defer herrors.Recover()
+
 	var initErr error
 	p.init.Do(func() {
-		pagerSize, err := page.ResolvePagerSize(p.source.s.Cfg, options...)
+		pagerSize, err := page.ResolvePagerSize(p.source.s.Conf, options...)
 		if err != nil {
 			initErr = err
 			return
@@ -80,14 +83,28 @@ func (p *pagePaginator) Paginator(options ...interface{}) (*page.Pager, error) {
 
 		pd := p.source.targetPathDescriptor
 		pd.Type = p.source.outputFormat()
-		paginator, err := page.Paginate(pd, p.source.Pages(), pagerSize)
+
+		var pages page.Pages
+
+		switch p.source.Kind() {
+		case kinds.KindHome:
+			// From Hugo 0.57 we made home.Pages() work like any other
+			// section. To avoid the default paginators for the home page
+			// changing in the wild, we make this a special case.
+			pages = p.source.s.RegularPages()
+		case kinds.KindTerm, kinds.KindTaxonomy:
+			pages = p.source.Pages()
+		default:
+			pages = p.source.RegularPages()
+		}
+
+		paginator, err := page.Paginate(pd, pages, pagerSize)
 		if err != nil {
 			initErr = err
 			return
 		}
 
 		p.current = paginator.Pagers()[0]
-
 	})
 
 	if initErr != nil {

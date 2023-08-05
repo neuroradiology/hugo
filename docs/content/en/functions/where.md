@@ -1,23 +1,14 @@
 ---
 title: where
-# linktitle: where
 description: Filters an array to only the elements containing a matching value for a given field.
-godocref:
-date: 2017-02-01
-publishdate: 2017-02-01
-lastmod: 2017-02-01
 categories: [functions]
 menu:
   docs:
-    parent: "functions"
+    parent: functions
 keywords: [filtering]
 signature: ["where COLLECTION KEY [OPERATOR] MATCH"]
-workson: [lists,taxonomies,terms,groups]
-hugoversion:
 relatedfuncs: [intersect,first,after,last]
-deprecated: false
 toc: true
-needsexample: true
 ---
 
 `where` filters an array to only the elements containing a matching
@@ -34,11 +25,10 @@ SQL][wherekeyword].
 
 It can be used by dot-chaining the second argument to refer to a nested element of a value.
 
-```
-+++
+{{< code-toggle file="content/example.md" fm=true copy=false >}}
+title: Example
 series: golang
-+++
-```
+{{< /code-toggle >}}
 
 ```go-html-template
 {{ range where .Site.Pages "Params.series" "golang" }}
@@ -83,19 +73,21 @@ The following logical operators are available with `where`:
 `intersect`
 : `true` if a given field value that is a slice/array of strings or integers contains elements in common with the matching value; it follows the same rules as the [`intersect` function][intersect].
 
-## Use `where` with `Booleans`
+`like`
+: `true` if a given field value matches a regular expression. Use the `like` operator to compare `string` values. Returns `false` when comparing other data types to the regular expression.
+
+## Use `where` with boolean values
 When using booleans you should not put quotation marks.
 ```go-html-template
-{{range where .Pages ".Draft" true}}
-        <p>{{.Title}}</p>
-{{end}}
+{{ range where .Pages "Draft" true }}
+        <p>{{ .Title }}</p>
+{{ end }}
 ```
-  
 
 ## Use `where` with `intersect`
 
 ```go-html-template
-{{ range where .Site.Pages ".Params.tags" "intersect" .Params.tags }}
+{{ range where .Site.Pages "Params.tags" "intersect" .Params.tags }}
   {{ if ne .Permalink $.Permalink }}
     {{ .Render "summary" }}
   {{ end }}
@@ -112,9 +104,34 @@ You can also put the returned value of the `where` clauses into a variable:
 {{ end }}
 {{< /code >}}
 
+## Use `where` with `like`
+
+This example matches pages where the "foo" parameter begins with "ab":
+
+```go-html-template
+{{ range where site.RegularPages "Params.foo" "like" "^ab" }}
+  <h2><a href="{{ .RelPermalink }}">{{ .LinkTitle }}</a></h2>
+{{ end }}
+```
+
+When specifying the regular expression, use a raw [string literal] (backticks) instead of an interpreted string literal (double quotes) to simplify the syntax. With an interpreted string literal you must escape backslashes.
+
+[string literal]: https://go.dev/ref/spec#String_literals
+
+Go's regular expression package implements the [RE2 syntax]. Note that the RE2 `\C` escape sequence is not supported.
+
+[RE2 syntax]: https://github.com/google/re2/wiki/Syntax/
+
+{{% note %}}
+The RE2 syntax is a subset of that accepted by [PCRE], roughly speaking, and with various [caveats].
+
+[caveats]: https://swtch.com/~rsc/regexp/regexp3.html#caveats
+[PCRE]: https://www.pcre.org/
+{{% /note %}}
+
 ## Use `where` with `first`
 
-Using `first` and [`where`][wherefunction] together can be very
+Using `first` and `where` together can be very
 powerful. Below snippet gets a list of posts only from [**main
 sections**](#mainsections), sorts it using the [default
 ordering](/templates/lists/) for lists (i.e., `weight => date`), and
@@ -126,19 +143,19 @@ then ranges through only the first 5 posts in that list:
 {{ end }}
 {{< /code >}}
 
-## Nest `where` Clauses
+## Nest `where` clauses
 
 You can also nest `where` clauses to drill down on lists of content by more than one parameter. The following first grabs all pages in the "blog" section and then ranges through the result of the first `where` clause and finds all pages that are *not* featured:
 
 ```go-html-template
-{{ range where (where .Pages "Section" "blog" ) ".Params.featured" "!=" true }}
+{{ range where (where .Pages "Section" "blog" ) "Params.featured" "!=" true }}
 ```
 
-## Unset Fields
+## Unset fields
 
 Filtering only works for set fields. To check whether a field is set or exists, you can use the operand `nil`.
 
-This can be useful to filter a small amount of pages from a large pool. Instead of set field on all pages, you can set field on required pages only.
+This can be useful to filter a small amount of pages from a large pool. Instead of setting a field on all pages, you can set that field on required pages only.
 
 Only the following operators are available for `nil`
 
@@ -146,7 +163,7 @@ Only the following operators are available for `nil`
 * `!=`, `<>`, `ne`: True if the given field is set.
 
 ```go-html-template
-{{ range where .Pages ".Params.specialpost" "!=" nil }}
+{{ range where .Pages "Params.specialpost" "!=" nil }}
    {{ .Content }}
 {{ end }}
 ```
@@ -163,15 +180,14 @@ section names to hard-coded values like `"posts"` or `"post"`.
 {{ $pages := where site.RegularPages "Type" "in" site.Params.mainSections }}
 ```
 
-If the user has not set this config parameter in their site config, it
-will default to the _section with the most pages_.
+If the user has not set this configuration parameter in their site configuration, it will default to the *section with the most pages*.
 
-The user can override the default in `config.toml`:
+The user can override the default:
 
-```toml
+{{< code-toggle file="hugo" >}}
 [params]
   mainSections = ["blog", "docs"]
-```
+{{< /code-toggle >}}
 
 [intersect]: /functions/intersect/
 [wherekeyword]: https://www.techonthenet.com/sql/where.php

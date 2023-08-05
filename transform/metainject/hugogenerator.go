@@ -19,19 +19,21 @@ import (
 	"regexp"
 
 	"github.com/gohugoio/hugo/common/hugo"
-	"github.com/gohugoio/hugo/helpers"
+	"github.com/gohugoio/hugo/common/loggers"
 	"github.com/gohugoio/hugo/transform"
 )
 
-var metaTagsCheck = regexp.MustCompile(`(?i)<meta\s+name=['|"]?generator['|"]?`)
-var hugoGeneratorTag = fmt.Sprintf(`<meta name="generator" content="Hugo %s" />`, hugo.CurrentVersion)
+var (
+	metaTagsCheck    = regexp.MustCompile(`(?i)<meta\s+name=['|"]?generator['|"]?`)
+	hugoGeneratorTag = fmt.Sprintf(`<meta name="generator" content="Hugo %s">`, hugo.CurrentVersion)
+)
 
 // HugoGenerator injects a meta generator tag for Hugo if none present.
 func HugoGenerator(ft transform.FromTo) error {
 	b := ft.From().Bytes()
 	if metaTagsCheck.Match(b) {
 		if _, err := ft.To().Write(b); err != nil {
-			helpers.DistinctWarnLog.Println("Failed to inject Hugo generator tag:", err)
+			loggers.Log().Warnf("Failed to inject Hugo generator tag: %s", err)
 		}
 		return nil
 	}
@@ -47,9 +49,8 @@ func HugoGenerator(ft transform.FromTo) error {
 	}
 
 	if _, err := ft.To().Write(newcontent); err != nil {
-		helpers.DistinctWarnLog.Println("Failed to inject Hugo generator tag:", err)
+		loggers.Log().Warnf("Failed to inject Hugo generator tag: %s", err)
 	}
 
 	return nil
-
 }

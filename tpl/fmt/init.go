@@ -14,6 +14,8 @@
 package fmt
 
 import (
+	"context"
+
 	"github.com/gohugoio/hugo/deps"
 	"github.com/gohugoio/hugo/tpl/internal"
 )
@@ -26,7 +28,7 @@ func init() {
 
 		ns := &internal.TemplateFuncsNamespace{
 			Name:    name,
-			Context: func(args ...interface{}) interface{} { return ctx },
+			Context: func(cctx context.Context, args ...any) (any, error) { return ctx, nil },
 		}
 
 		ns.AddMethodMapping(ctx.Print,
@@ -53,10 +55,23 @@ func init() {
 		ns.AddMethodMapping(ctx.Errorf,
 			[]string{"errorf"},
 			[][2]string{
-				{`{{ errorf "%s." "failed" }}`, `failed.`},
+				{`{{ errorf "%s." "failed" }}`, ``},
 			},
 		)
 
+		ns.AddMethodMapping(ctx.Erroridf,
+			[]string{"erroridf"},
+			[][2]string{
+				{`{{ erroridf "my-err-id" "%s." "failed" }}`, ``},
+			},
+		)
+
+		ns.AddMethodMapping(ctx.Warnf,
+			[]string{"warnf"},
+			[][2]string{
+				{`{{ warnf "%s." "warning" }}`, ``},
+			},
+		)
 		return ns
 	}
 

@@ -16,6 +16,7 @@ package hugolib
 import (
 	"sync"
 
+	"github.com/gohugoio/hugo/resources/kinds"
 	"github.com/gohugoio/hugo/resources/page"
 )
 
@@ -26,36 +27,33 @@ type pageData struct {
 	data     page.Data
 }
 
-func (p *pageData) Data() interface{} {
+func (p *pageData) Data() any {
 	p.dataInit.Do(func() {
 		p.data = make(page.Data)
 
-		if p.Kind() == page.KindPage {
+		if p.Kind() == kinds.KindPage {
 			return
 		}
 
 		switch p.Kind() {
-		case page.KindTaxonomy:
-			termInfo := p.getTaxonomyNodeInfo()
-			pluralInfo := termInfo.parent
+		case kinds.KindTerm:
+			b := p.treeRef.n
+			name := b.viewInfo.name
+			termKey := b.viewInfo.termKey
 
-			singular := pluralInfo.singular
-			plural := pluralInfo.plural
-			term := termInfo.term
-			taxonomy := p.s.Taxonomies[plural].Get(termInfo.termKey)
+			taxonomy := p.s.Taxonomies()[name.plural].Get(termKey)
 
-			p.data[singular] = taxonomy
-			p.data["Singular"] = singular
-			p.data["Plural"] = plural
-			p.data["Term"] = term
-		case page.KindTaxonomyTerm:
-			info := p.getTaxonomyNodeInfo()
-			plural := info.plural
-			singular := info.singular
+			p.data[name.singular] = taxonomy
+			p.data["Singular"] = name.singular
+			p.data["Plural"] = name.plural
+			p.data["Term"] = b.viewInfo.term()
+		case kinds.KindTaxonomy:
+			b := p.treeRef.n
+			name := b.viewInfo.name
 
-			p.data["Singular"] = singular
-			p.data["Plural"] = plural
-			p.data["Terms"] = p.s.Taxonomies[plural]
+			p.data["Singular"] = name.singular
+			p.data["Plural"] = name.plural
+			p.data["Terms"] = p.s.Taxonomies()[name.plural]
 			// keep the following just for legacy reasons
 			p.data["OrderedIndex"] = p.data["Terms"]
 			p.data["Index"] = p.data["Terms"]
@@ -63,7 +61,6 @@ func (p *pageData) Data() interface{} {
 
 		// Assign the function to the map to make sure it is lazily initialized
 		p.data["pages"] = p.Pages
-
 	})
 
 	return p.data

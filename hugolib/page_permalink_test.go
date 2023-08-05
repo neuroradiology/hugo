@@ -16,12 +16,11 @@ package hugolib
 import (
 	"fmt"
 	"html/template"
-	"path/filepath"
 	"testing"
 
-	"github.com/stretchr/testify/require"
+	qt "github.com/frankban/quicktest"
 
-	"github.com/gohugoio/hugo/deps"
+	"github.com/gohugoio/hugo/config"
 )
 
 func TestPermalink(t *testing.T) {
@@ -63,30 +62,43 @@ func TestPermalink(t *testing.T) {
 	}
 
 	for i, test := range tests {
+		i := i
+		test := test
 		t.Run(fmt.Sprintf("%s-%d", test.file, i), func(t *testing.T) {
-
-			cfg, fs := newTestCfg()
-
+			t.Parallel()
+			c := qt.New(t)
+			cfg := config.New()
 			cfg.Set("uglyURLs", test.uglyURLs)
 			cfg.Set("canonifyURLs", test.canonifyURLs)
-			cfg.Set("baseURL", test.base)
 
-			pageContent := fmt.Sprintf(`---
+			files := fmt.Sprintf(`
+-- hugo.toml --
+baseURL = %q
+-- content/%s --
+---
 title: Page
 slug: %q
-url: %q
+url: %q	
 output: ["HTML"]
 ---
-Content
-`, test.slug, test.url)
+`, test.base, test.file, test.slug, test.url)
 
-			writeSource(t, fs, filepath.Join("content", filepath.FromSlash(test.file)), pageContent)
+			if i > 0 {
+				t.Skip()
+			}
 
-			s := buildSingleSite(t, deps.DepsCfg{Fs: fs, Cfg: cfg}, BuildCfg{SkipRender: true})
-			require.Len(t, s.RegularPages(), 1)
+			b := NewIntegrationTestBuilder(
+				IntegrationTestConfig{
+					T:           t,
+					TxtarString: files,
+					BaseCfg:     cfg,
+				},
+			)
 
+			b.Build()
+			s := b.H.Sites[0]
+			c.Assert(len(s.RegularPages()), qt.Equals, 1)
 			p := s.RegularPages()[0]
-
 			u := p.Permalink()
 
 			expected := test.expectedAbs
@@ -102,11 +114,9 @@ Content
 			}
 		})
 	}
-
 }
 
 func TestRelativeURLInFrontMatter(t *testing.T) {
-
 	config := `
 baseURL = "https://example.com"
 defaultContentLanguage = "en"
@@ -146,5 +156,4 @@ Some content.
 	b.AssertFileContent("public/myblog/p1/index.html", "Single: A page|Hello|en|RelPermalink: /myblog/p1/|Permalink: https://example.com/myblog/p1/|")
 	b.AssertFileContent("public/myblog/p2/index.html", "Single: A page|Hello|en|RelPermalink: /myblog/p2/|Permalink: https://example.com/myblog/p2/|")
 	b.AssertFileContent("public/myblog/p3/index.html", "Single: A page|Hello|en|RelPermalink: /myblog/p3/|Permalink: https://example.com/myblog/p3/|")
-
 }

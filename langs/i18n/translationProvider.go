@@ -14,17 +14,23 @@
 package i18n
 
 import (
-	"errors"
+	"encoding/json"
+	"fmt"
+	"strings"
+
+	"github.com/gohugoio/hugo/common/paths"
 
 	"github.com/gohugoio/hugo/common/herrors"
+	"golang.org/x/text/language"
+	yaml "gopkg.in/yaml.v2"
+
+	"github.com/gohugoio/go-i18n/v2/i18n"
+	"github.com/gohugoio/hugo/helpers"
+	toml "github.com/pelletier/go-toml/v2"
 
 	"github.com/gohugoio/hugo/deps"
-	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/hugofs"
 	"github.com/gohugoio/hugo/source"
-	"github.com/nicksnyder/go-i18n/i18n/bundle"
-	"github.com/nicksnyder/go-i18n/i18n/language"
-	_errors "github.com/pkg/errors"
 )
 
 // TranslationProvider provides translation handling, i.e. loading
@@ -39,87 +45,104 @@ func NewTranslationProvider() *TranslationProvider {
 }
 
 // Update updates the i18n func in the provided Deps.
-func (tp *TranslationProvider) Update(d *deps.Deps) error {
-	sp := source.NewSourceSpec(d.PathSpec, d.BaseFs.SourceFilesystems.I18n.Fs)
-	src := sp.NewFilesystem("")
+func (tp *TranslationProvider) NewResource(dst *deps.Deps) error {
+	spec := source.NewSourceSpec(dst.PathSpec, nil, nil)
 
-	i18nBundle := bundle.New()
-
-	en := language.GetPluralSpec("en")
-	if en == nil {
-		return errors.New("the English language has vanished like an old oak table")
+	var defaultLangTag, err = language.Parse(dst.Conf.DefaultContentLanguage())
+	if err != nil {
+		defaultLangTag = language.English
 	}
-	var newLangs []string
+	bundle := i18n.NewBundle(defaultLangTag)
 
-	for _, r := range src.Files() {
-		currentSpec := language.GetPluralSpec(r.BaseFileName())
-		if currentSpec == nil {
-			// This may is a language code not supported by go-i18n, it may be
-			// Klingon or ... not even a fake language. Make sure it works.
-			newLangs = append(newLangs, r.BaseFileName())
-		}
-	}
+	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
+	bundle.RegisterUnmarshalFunc("yaml", yaml.Unmarshal)
+	bundle.RegisterUnmarshalFunc("yml", yaml.Unmarshal)
+	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 
-	if len(newLangs) > 0 {
-		language.RegisterPluralSpec(newLangs, en)
-	}
-
-	// The source files are ordered so the most important comes first. Since this is a
+	// The source dirs are ordered so the most important comes first. Since this is a
 	// last key win situation, we have to reverse the iteration order.
-	files := src.Files()
-	for i := len(files) - 1; i >= 0; i-- {
-		if err := addTranslationFile(i18nBundle, files[i]); err != nil {
+	dirs := dst.BaseFs.I18n.Dirs
+	for i := len(dirs) - 1; i >= 0; i-- {
+		dir := dirs[i]
+		src := spec.NewFilesystemFromFileMetaInfo(dir)
+		files, err := src.Files()
+		if err != nil {
 			return err
 		}
+		for _, file := range files {
+			if err := addTranslationFile(bundle, file); err != nil {
+				return err
+			}
+		}
 	}
 
-	tp.t = NewTranslator(i18nBundle, d.Cfg, d.Log)
+	tp.t = NewTranslator(bundle, dst.Conf, dst.Log)
 
-	d.Translate = tp.t.Func(d.Language.Lang)
+	dst.Translate = tp.t.Func(dst.Conf.Language().Lang)
 
 	return nil
 
 }
 
-func addTranslationFile(bundle *bundle.Bundle, r source.ReadableFile) error {
-	f, err := r.Open()
+const artificialLangTagPrefix = "art-x-"
+
+func addTranslationFile(bundle *i18n.Bundle, r source.File) error {
+	f, err := r.FileInfo().Meta().Open()
 	if err != nil {
-		return _errors.Wrapf(err, "failed to open translations file %q:", r.LogicalName())
+		return fmt.Errorf("failed to open translations file %q:: %w", r.LogicalName(), err)
 	}
-	err = bundle.ParseTranslationFileBytes(r.LogicalName(), helpers.ReaderToBytes(f))
+
+	b := helpers.ReaderToBytes(f)
 	f.Close()
-	if err != nil {
-		return errWithFileContext(_errors.Wrapf(err, "failed to load translations"), r)
+
+	name := r.LogicalName()
+	lang := paths.Filename(name)
+	tag := language.Make(lang)
+	if tag == language.Und {
+		try := artificialLangTagPrefix + lang
+		_, err = language.Parse(try)
+		if err != nil {
+			return fmt.Errorf("%q: %s", try, err)
+		}
+		name = artificialLangTagPrefix + name
 	}
+
+	_, err = bundle.ParseMessageFileBytes(b, name)
+	if err != nil {
+		if strings.Contains(err.Error(), "no plural rule") {
+			// https://github.com/gohugoio/hugo/issues/7798
+			name = artificialLangTagPrefix + name
+			_, err = bundle.ParseMessageFileBytes(b, name)
+			if err == nil {
+				return nil
+			}
+		}
+		return errWithFileContext(fmt.Errorf("failed to load translations: %w", err), r)
+	}
+
 	return nil
 }
 
-// Clone sets the language func for the new language.
-func (tp *TranslationProvider) Clone(d *deps.Deps) error {
-	d.Translate = tp.t.Func(d.Language.Lang)
-
+// CloneResource sets the language func for the new language.
+func (tp *TranslationProvider) CloneResource(dst, src *deps.Deps) error {
+	dst.Translate = tp.t.Func(dst.Conf.Language().Lang)
 	return nil
 }
 
-func errWithFileContext(inerr error, r source.ReadableFile) error {
-	rfi, ok := r.FileInfo().(hugofs.RealFilenameInfo)
+func errWithFileContext(inerr error, r source.File) error {
+	fim, ok := r.FileInfo().(hugofs.FileMetaInfo)
 	if !ok {
 		return inerr
 	}
 
-	realFilename := rfi.RealFilename()
-	f, err := r.Open()
+	meta := fim.Meta()
+	realFilename := meta.Filename
+	f, err := meta.Open()
 	if err != nil {
 		return inerr
 	}
 	defer f.Close()
 
-	err, _ = herrors.WithFileContext(
-		inerr,
-		realFilename,
-		f,
-		herrors.SimpleLineMatcher)
-
-	return err
+	return herrors.NewFileErrorFromName(inerr, realFilename).UpdateContent(f, nil)
 
 }

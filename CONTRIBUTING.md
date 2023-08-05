@@ -1,3 +1,5 @@
+>**Note:** We would apprecitate if you hold on with any big refactorings (like renaming deprecated Go packages), mainly because of potential for extra merge work for future coming in in the near future.
+
 # Contributing to Hugo
 
 We welcome contributions to Hugo of any kind including documentation, themes,
@@ -29,11 +31,15 @@ Please don't use the GitHub issue tracker to ask questions.
 ## Reporting Issues
 
 If you believe you have found a defect in Hugo or its documentation, use
-the GitHub [issue tracker](https://github.com/gohugoio/hugo/issues) to report
+the GitHub issue tracker to report
 the problem to the Hugo maintainers. If you're not sure if it's a bug or not,
 start by asking in the [discussion forum](https://discourse.gohugo.io).
 When reporting the issue, please provide the version of Hugo in use (`hugo
 version`) and your operating system.
+
+- [Hugo Issues · gohugoio/hugo](https://github.com/gohugoio/hugo/issues)
+- [Hugo Documentation Issues · gohugoio/hugoDocs](https://github.com/gohugoio/hugoDocs/issues)
+- [Hugo Website Theme Issues · gohugoio/hugoThemesSite](https://github.com/gohugoio/hugoThemesSite/issues)
 
 ## Code Contribution
 
@@ -44,14 +50,14 @@ Hugo has become a fully featured static site generator, so any new functionality
 * strive not to break existing sites.
 * close or update an open [Hugo issue](https://github.com/gohugoio/hugo/issues)
 
-If it is of some complexity, the contributor is expected to maintain and support the new future (answer questions on the forum, fix any bugs etc.).
+If it is of some complexity, the contributor is expected to maintain and support the new feature in the future (answer questions on the forum, fix any bugs etc.).
 
-It is recommended to open up a discussion on the [Hugo Forum](https://discourse.gohugo.io/) to get feedback on your idea before you begin. If you are submitting a complex feature, create a small design proposal on the [Hugo issue tracker](https://github.com/gohugoio/hugo/issues) before you start.
+Any non-trivial code change needs to update an open [issue](https://github.com/gohugoio/hugo/issues). A non-trivial code change without an issue reference with one of the labels `bug` or `enhancement` will not be merged.
 
+Note that we do not accept new features that require [CGO](https://github.com/golang/go/wiki/cgo).
+We have one exception to this rule which is LibSASS.
 
 **Bug fixes are, of course, always welcome.**
-
-
 
 ## Submitting Patches
 
@@ -75,18 +81,21 @@ To make the contribution process as seamless as possible, we ask for the followi
 
 ### Git Commit Message Guidelines
 
-This [blog article](http://chris.beams.io/posts/git-commit/) is a good resource for learning how to write good commit messages,
+This [blog article](https://cbea.ms/git-commit/) is a good resource for learning how to write good commit messages,
 the most important part being that each commit message should have a title/subject in imperative mood starting with a capital letter and no trailing period:
-*"Return error on wrong use of the Paginator"*, **NOT** *"returning some error."*
+*"js: Return error when option x is not set"*, **NOT** *"returning some error."*
+
+Most title/subjects should have a lower-cased prefix with a colon and one whitespace. The prefix can be:
+
+* The name of the package where (most of) the changes are made (e.g. `media: Add text/calendar`)
+* If the package name is deeply nested/long, try to shorten it from the left side, e.g. `markup/goldmark` is OK, `resources/resource_transformers/js` can be shortened to `js`.
+* If this commit touches several packages with a common functional topic, use that as a prefix, e.g. `errors: Resolve correct line numbers`)
+* If this commit touches many packages without a common functional topic, prefix with `all:` (e.g. `all: Reformat Go code`)
+* If this is a documentation update, prefix with `docs:`.
+* If nothing of the above applies, just leave the prefix out.
 
 Also, if your commit references one or more GitHub issues, always end your commit message body with *See #1234* or *Fixes #1234*.
 Replace *1234* with the GitHub issue ID. The last example will close the issue when the commit is merged into *master*.
-
-Sometimes it makes sense to prefix the commit message with the package name (or docs folder) all lowercased ending with a colon.
-That is fine, but the rest of the rules above apply.
-So it is "tpl: Add emojify template func", not "tpl: add emojify template func.", and "docs: Document emoji", not "doc: document emoji."
-
-Please use a short and descriptive branch name, e.g. **NOT** "patch-1". It's very common but creates a naming conflict each time when a submission is pulled for a review.
 
 An example:
 
@@ -118,7 +127,7 @@ go install
 For some convenient build and test targets, you also will want to install Mage:
 
 ```bash
-go get github.com/magefile/mage
+go install github.com/magefile/mage
 ```
 
 Now, to make a change to Hugo's source:
@@ -140,7 +149,7 @@ Now, to make a change to Hugo's source:
 1. Add your fork as a new remote (the remote name, "fork" in this example, is arbitrary):
 
     ```bash
-    git remote add fork git://github.com/USERNAME/hugo.git
+    git remote add fork git@github.com:USERNAME/hugo.git
     ```
 
 1. Push the changes to your new remote:

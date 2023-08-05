@@ -9,7 +9,7 @@
 // distributed under the License is distributed on an "AS IS" BASIS,
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
-// limitatio	ns under the License.
+// limitations under the License.
 
 package herrors
 
@@ -20,17 +20,14 @@ import (
 
 var lineNumberExtractors = []lineNumberExtractor{
 	// Template/shortcode parse errors
-	newLineNumberErrHandlerFromRegexp(".*:(\\d+):(\\d*):"),
-	newLineNumberErrHandlerFromRegexp(".*:(\\d+):"),
-
-	// TOML parse errors
-	newLineNumberErrHandlerFromRegexp(".*Near line (\\d+)(\\s.*)"),
+	newLineNumberErrHandlerFromRegexp(`:(\d+):(\d*):`),
+	newLineNumberErrHandlerFromRegexp(`:(\d+):`),
 
 	// YAML parse errors
-	newLineNumberErrHandlerFromRegexp("line (\\d+):"),
+	newLineNumberErrHandlerFromRegexp(`line (\d+):`),
 
 	// i18n bundle errors
-	newLineNumberErrHandlerFromRegexp("\\((\\d+),\\s(\\d*)"),
+	newLineNumberErrHandlerFromRegexp(`\((\d+),\s(\d*)`),
 }
 
 type lineNumberExtractor func(e error) (int, int)
@@ -61,6 +58,6 @@ func extractLineNo(re *regexp.Regexp) lineNumberExtractor {
 			return lno, col
 		}
 
-		return -1, col
+		return 0, col
 	}
 }

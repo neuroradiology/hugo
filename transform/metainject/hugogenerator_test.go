@@ -39,10 +39,10 @@ func TestHugoGeneratorInject(t *testing.T) {
 	META
 	<foo />
 </HEAD>`},
-		{`<head><meta name="generator" content="Jekyll" /></head>`, `<head><meta name="generator" content="Jekyll" /></head>`},
-		{`<head><meta name='generator' content='Jekyll' /></head>`, `<head><meta name='generator' content='Jekyll' /></head>`},
-		{`<head><meta name=generator content=Jekyll /></head>`, `<head><meta name=generator content=Jekyll /></head>`},
-		{`<head><META     NAME="GENERATOR" content="Jekyll" /></head>`, `<head><META     NAME="GENERATOR" content="Jekyll" /></head>`},
+		{`<head><meta name="generator" content="Jekyll"></head>`, `<head><meta name="generator" content="Jekyll"></head>`},
+		{`<head><meta name='generator' content='Jekyll'></head>`, `<head><meta name='generator' content='Jekyll'></head>`},
+		{`<head><meta name=generator content=Jekyll></head>`, `<head><meta name=generator content=Jekyll></head>`},
+		{`<head><META     NAME="GENERATOR" content="Jekyll"></head>`, `<head><META     NAME="GENERATOR" content="Jekyll"></head>`},
 		{"", ""},
 		{"</head>", "</head>"},
 		{"<head>", "<head>\n\tMETA"},
@@ -57,5 +57,4 @@ func TestHugoGeneratorInject(t *testing.T) {
 			t.Errorf("[%d] Expected \n%q got \n%q", i, this.expect, out.String())
 		}
 	}
-
 }

@@ -17,7 +17,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gohugoio/hugo/common/htime"
 	"github.com/gohugoio/hugo/common/loggers"
+	"github.com/gohugoio/hugo/common/paths"
+
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/resources/resource"
 
@@ -28,7 +31,7 @@ import (
 // FrontMatterHandler maps front matter into Page fields and .Params.
 // Note that we currently have only extracted the date logic.
 type FrontMatterHandler struct {
-	fmConfig frontmatterConfig
+	fmConfig FrontmatterConfig
 
 	dateHandler        frontMatterFieldHandler
 	lastModHandler     frontMatterFieldHandler
@@ -38,7 +41,7 @@ type FrontMatterHandler struct {
 	// A map of all date keys configured, including any custom.
 	allDateKeys map[string]bool
 
-	logger *loggers.Logger
+	logger loggers.Logger
 }
 
 // FrontMatterDescriptor describes how to handle front matter for a given Page.
@@ -46,7 +49,7 @@ type FrontMatterHandler struct {
 type FrontMatterDescriptor struct {
 
 	// This the Page's front matter.
-	Frontmatter map[string]interface{}
+	Frontmatter map[string]any
 
 	// This is the Page's base filename (BaseFilename), e.g. page.md., or
 	// if page is a leaf bundle, the bundle folder name (ContentBaseName).
@@ -61,23 +64,24 @@ type FrontMatterDescriptor struct {
 	// The below are pointers to values on Page and will be modified.
 
 	// This is the Page's params.
-	Params map[string]interface{}
+	Params map[string]any
 
 	// This is the Page's dates.
 	Dates *resource.Dates
 
 	// This is the Page's Slug etc.
 	PageURLs *URLPath
+
+	// The Location to use to parse dates without time zone info.
+	Location *time.Location
 }
 
-var (
-	dateFieldAliases = map[string][]string{
-		fmDate:       {},
-		fmLastmod:    {"modified"},
-		fmPubDate:    {"pubdate", "published"},
-		fmExpiryDate: {"unpublishdate"},
-	}
-)
+var dateFieldAliases = map[string][]string{
+	fmDate:       {},
+	fmLastmod:    {"modified"},
+	fmPubDate:    {"pubdate", "published"},
+	fmExpiryDate: {"unpublishdate"},
+}
 
 // HandleDates updates all the dates given the current configuration and the
 // supplied front matter params. Note that this requires all lower-case keys
@@ -119,17 +123,15 @@ func (f FrontMatterHandler) IsDateKey(key string) bool {
 // A Zero date is a signal that the name can not be parsed.
 // This follows the format as outlined in Jekyll, https://jekyllrb.com/docs/posts/:
 // "Where YEAR is a four-digit number, MONTH and DAY are both two-digit numbers"
-func dateAndSlugFromBaseFilename(name string) (time.Time, string) {
-	withoutExt, _ := helpers.FileAndExt(name)
+func dateAndSlugFromBaseFilename(location *time.Location, name string) (time.Time, string) {
+	withoutExt, _ := paths.FileAndExt(name)
 
 	if len(withoutExt) < 10 {
 		// This can not be a date.
 		return time.Time{}, ""
 	}
 
-	// Note: Hugo currently have no custom timezone support.
-	// We will have to revisit this when that is in place.
-	d, err := time.Parse("2006-01-02", withoutExt[:10])
+	d, err := htime.ToTimeInDefaultLocationE(withoutExt[:10], location)
 	if err != nil {
 		return time.Time{}, ""
 	}
@@ -148,7 +150,7 @@ func (f FrontMatterHandler) newChainedFrontMatterFieldHandler(handlers ...frontM
 			// First successful handler wins.
 			success, err := h(d)
 			if err != nil {
-				f.logger.ERROR.Println(err)
+				f.logger.Errorln(err)
 			} else if success {
 				return true, nil
 			}
@@ -157,11 +159,15 @@ func (f FrontMatterHandler) newChainedFrontMatterFieldHandler(handlers ...frontM
 	}
 }
 
-type frontmatterConfig struct {
-	date        []string
-	lastmod     []string
-	publishDate []string
-	expiryDate  []string
+type FrontmatterConfig struct {
+	// Controls how the Date is set from front matter.
+	Date []string
+	// Controls how the Lastmod is set from front matter.
+	Lastmod []string
+	// Controls how the PublishDate is set from front matter.
+	PublishDate []string
+	// Controls how the ExpiryDate is set from front matter.
+	ExpiryDate []string
 }
 
 const (
@@ -183,16 +189,16 @@ const (
 )
 
 // This is the config you get when doing nothing.
-func newDefaultFrontmatterConfig() frontmatterConfig {
-	return frontmatterConfig{
-		date:        []string{fmDate, fmPubDate, fmLastmod},
-		lastmod:     []string{fmGitAuthorDate, fmLastmod, fmDate, fmPubDate},
-		publishDate: []string{fmPubDate, fmDate},
-		expiryDate:  []string{fmExpiryDate},
+func newDefaultFrontmatterConfig() FrontmatterConfig {
+	return FrontmatterConfig{
+		Date:        []string{fmDate, fmPubDate, fmLastmod},
+		Lastmod:     []string{fmGitAuthorDate, fmLastmod, fmDate, fmPubDate},
+		PublishDate: []string{fmPubDate, fmDate},
+		ExpiryDate:  []string{fmExpiryDate},
 	}
 }
 
-func newFrontmatterConfig(cfg config.Provider) (frontmatterConfig, error) {
+func DecodeFrontMatterConfig(cfg config.Provider) (FrontmatterConfig, error) {
 	c := newDefaultFrontmatterConfig()
 	defaultConfig := c
 
@@ -202,13 +208,13 @@ func newFrontmatterConfig(cfg config.Provider) (frontmatterConfig, error) {
 			loki := strings.ToLower(k)
 			switch loki {
 			case fmDate:
-				c.date = toLowerSlice(v)
+				c.Date = toLowerSlice(v)
 			case fmPubDate:
-				c.publishDate = toLowerSlice(v)
+				c.PublishDate = toLowerSlice(v)
 			case fmLastmod:
-				c.lastmod = toLowerSlice(v)
+				c.Lastmod = toLowerSlice(v)
 			case fmExpiryDate:
-				c.expiryDate = toLowerSlice(v)
+				c.ExpiryDate = toLowerSlice(v)
 			}
 		}
 	}
@@ -219,10 +225,10 @@ func newFrontmatterConfig(cfg config.Provider) (frontmatterConfig, error) {
 		return out
 	}
 
-	c.date = expander(c.date, defaultConfig.date)
-	c.publishDate = expander(c.publishDate, defaultConfig.publishDate)
-	c.lastmod = expander(c.lastmod, defaultConfig.lastmod)
-	c.expiryDate = expander(c.expiryDate, defaultConfig.expiryDate)
+	c.Date = expander(c.Date, defaultConfig.Date)
+	c.PublishDate = expander(c.PublishDate, defaultConfig.PublishDate)
+	c.Lastmod = expander(c.Lastmod, defaultConfig.Lastmod)
+	c.ExpiryDate = expander(c.ExpiryDate, defaultConfig.ExpiryDate)
 
 	return c, nil
 }
@@ -236,7 +242,7 @@ func addDateFieldAliases(values []string) []string {
 			complete = append(complete, aliases...)
 		}
 	}
-	return helpers.UniqueStrings(complete)
+	return helpers.UniqueStringsReuse(complete)
 }
 
 func expandDefaultValues(values []string, defaults []string) []string {
@@ -251,7 +257,7 @@ func expandDefaultValues(values []string, defaults []string) []string {
 	return out
 }
 
-func toLowerSlice(in interface{}) []string {
+func toLowerSlice(in any) []string {
 	out := cast.ToStringSlice(in)
 	for i := 0; i < len(out); i++ {
 		out[i] = strings.ToLower(out[i])
@@ -262,15 +268,9 @@ func toLowerSlice(in interface{}) []string {
 
 // NewFrontmatterHandler creates a new FrontMatterHandler with the given logger and configuration.
 // If no logger is provided, one will be created.
-func NewFrontmatterHandler(logger *loggers.Logger, cfg config.Provider) (FrontMatterHandler, error) {
-
+func NewFrontmatterHandler(logger loggers.Logger, frontMatterConfig FrontmatterConfig) (FrontMatterHandler, error) {
 	if logger == nil {
-		logger = loggers.NewErrorLogger()
-	}
-
-	frontMatterConfig, err := newFrontmatterConfig(cfg)
-	if err != nil {
-		return FrontMatterHandler{}, err
+		logger = loggers.NewDefault()
 	}
 
 	allDateKeys := make(map[string]bool)
@@ -282,10 +282,10 @@ func NewFrontmatterHandler(logger *loggers.Logger, cfg config.Provider) (FrontMa
 		}
 	}
 
-	addKeys(frontMatterConfig.date)
-	addKeys(frontMatterConfig.expiryDate)
-	addKeys(frontMatterConfig.lastmod)
-	addKeys(frontMatterConfig.publishDate)
+	addKeys(frontMatterConfig.Date)
+	addKeys(frontMatterConfig.ExpiryDate)
+	addKeys(frontMatterConfig.Lastmod)
+	addKeys(frontMatterConfig.PublishDate)
 
 	f := FrontMatterHandler{logger: logger, fmConfig: frontMatterConfig, allDateKeys: allDateKeys}
 
@@ -299,7 +299,7 @@ func NewFrontmatterHandler(logger *loggers.Logger, cfg config.Provider) (FrontMa
 func (f *FrontMatterHandler) createHandlers() error {
 	var err error
 
-	if f.dateHandler, err = f.createDateHandler(f.fmConfig.date,
+	if f.dateHandler, err = f.createDateHandler(f.fmConfig.Date,
 		func(d *FrontMatterDescriptor, t time.Time) {
 			d.Dates.FDate = t
 			setParamIfNotSet(fmDate, t, d)
@@ -307,7 +307,7 @@ func (f *FrontMatterHandler) createHandlers() error {
 		return err
 	}
 
-	if f.lastModHandler, err = f.createDateHandler(f.fmConfig.lastmod,
+	if f.lastModHandler, err = f.createDateHandler(f.fmConfig.Lastmod,
 		func(d *FrontMatterDescriptor, t time.Time) {
 			setParamIfNotSet(fmLastmod, t, d)
 			d.Dates.FLastmod = t
@@ -315,7 +315,7 @@ func (f *FrontMatterHandler) createHandlers() error {
 		return err
 	}
 
-	if f.publishDateHandler, err = f.createDateHandler(f.fmConfig.publishDate,
+	if f.publishDateHandler, err = f.createDateHandler(f.fmConfig.PublishDate,
 		func(d *FrontMatterDescriptor, t time.Time) {
 			setParamIfNotSet(fmPubDate, t, d)
 			d.Dates.FPublishDate = t
@@ -323,7 +323,7 @@ func (f *FrontMatterHandler) createHandlers() error {
 		return err
 	}
 
-	if f.expiryDateHandler, err = f.createDateHandler(f.fmConfig.expiryDate,
+	if f.expiryDateHandler, err = f.createDateHandler(f.fmConfig.ExpiryDate,
 		func(d *FrontMatterDescriptor, t time.Time) {
 			setParamIfNotSet(fmExpiryDate, t, d)
 			d.Dates.FExpiryDate = t
@@ -334,7 +334,7 @@ func (f *FrontMatterHandler) createHandlers() error {
 	return nil
 }
 
-func setParamIfNotSet(key string, value interface{}, d *FrontMatterDescriptor) {
+func setParamIfNotSet(key string, value any, d *FrontMatterDescriptor) {
 	if _, found := d.Params[key]; found {
 		return
 	}
@@ -359,7 +359,6 @@ func (f FrontMatterHandler) createDateHandler(identifiers []string, setter func(
 	}
 
 	return f.newChainedFrontMatterFieldHandler(handlers...), nil
-
 }
 
 type frontmatterFieldHandlers int
@@ -372,7 +371,7 @@ func (f *frontmatterFieldHandlers) newDateFieldHandler(key string, setter func(d
 			return false, nil
 		}
 
-		date, err := cast.ToTimeE(v)
+		date, err := htime.ToTimeInDefaultLocationE(v, d.Location)
 		if err != nil {
 			return false, nil
 		}
@@ -390,7 +389,7 @@ func (f *frontmatterFieldHandlers) newDateFieldHandler(key string, setter func(d
 
 func (f *frontmatterFieldHandlers) newDateFilenameHandler(setter func(d *FrontMatterDescriptor, t time.Time)) frontMatterFieldHandler {
 	return func(d *FrontMatterDescriptor) (bool, error) {
-		date, slug := dateAndSlugFromBaseFilename(d.BaseFilename)
+		date, slug := dateAndSlugFromBaseFilename(d.Location, d.BaseFilename)
 		if date.IsZero() {
 			return false, nil
 		}

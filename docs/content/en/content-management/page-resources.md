@@ -1,26 +1,48 @@
 ---
-title : "Page Resources"
-description : "Page Resources -- images, other pages, documents etc. -- have page-relative URLs and their own metadata."
-date: 2018-01-24
-categories: ["content management"]
+title: Page resources
+description: Page resources -- images, other pages, documents, etc. -- have page-relative URLs and their own metadata.
+categories: [content management]
 keywords: [bundle,content,resources]
-weight: 4003
-draft: false
-toc: true
-linktitle: "Page Resources"
 menu:
   docs:
-    parent: "content-management"
-    weight: 31
+    parent: content-management
+    weight: 80
+toc: true
+weight: 80
 ---
+Page resources are only accessible from [page bundles](/content-management/page-bundles), those directories with `index.md` or
+`_index.md` files at their root. Page resources are only available to the
+page with which they are bundled.
+
+In this example, `first-post` is a page bundle with access to 10 page resources including audio, data, documents, images, and video. Although `second-post` is also a page bundle, it has no page resources and is unable to directly access the page resources associated with `first-post`.
+
+```text
+content
+└── post
+    ├── first-post
+    │   ├── images
+    │   │   ├── a.jpg
+    │   │   ├── b.jpg
+    │   │   └── c.jpg
+    │   ├── index.md (root of page bundle)
+    │   ├── latest.html
+    │   ├── manual.json
+    │   ├── notice.md
+    │   ├── office.mp3
+    │   ├── pocket.mp4
+    │   ├── rating.pdf
+    │   └── safety.txt
+    └── second-post
+        └── index.md (root of page bundle)
+```
 
 ## Properties
 
 ResourceType
-: The main type of the resource. For example, a file of MIME type `image/jpg` has the ResourceType `image`.
+: The main type of the resource's [Media Type](/templates/output-formats/#media-types). For example, a file of MIME type `image/jpeg` has the ResourceType `image`. A `Page` will have `ResourceType` with value `page`.
 
 Name
-: Default value is the filename (relative to the owning page). Can be set in front matter.
+: Default value is the file name (relative to the owning page). Can be set in front matter.
 
 Title
 : Default value is the same as `.Name`. Can be set in front matter.
@@ -32,42 +54,59 @@ RelPermalink
 : The relative URL to the resource. Resources of type `page` will have no value.
 
 Content
-: The content of the resource itself. For most resources, this returns a string with the contents of the file. This can be used to inline some resources, such as `<script>{{ (.Resources.GetMatch "myscript.js").Content | safeJS }}</script>` or `<img src="{{ (.Resources.GetMatch "mylogo.png").Content | base64Encode }}">`.
+: The content of the resource itself. For most resources, this returns a string
+with the contents of the file. Use this to create inline resources.
 
-MediaType
-: The MIME type of the resource, such as `image/jpg`.
+```go-html-template
+{{ with .Resources.GetMatch "script.js" }}
+  <script>{{ .Content | safeJS }}</script>
+{{ end }}
+
+{{ with .Resources.GetMatch "style.css" }}
+  <style>{{ .Content | safeCSS }}</style>
+{{ end }}
+
+{{ with .Resources.GetMatch "img.png" }}
+  <img src="data:{{ .MediaType.Type }};base64,{{ .Content | base64Encode }}">
+{{ end }}
+```
+
+MediaType.Type
+: The media type (formerly known as a MIME type) of the resource (e.g., `image/jpeg`).
 
 MediaType.MainType
-: The main type of the resource's MIME type. For example, a file of MIME type `application/pdf` has for MainType `application`.
+: The main type of the resource's media type (e.g., `image`).
 
 MediaType.SubType
-: The subtype of the resource's MIME type. For example, a file of MIME type `application/pdf` has for SubType `pdf`. Note that this is not the same as the file extension - PowerPoint files have a subtype of `vnd.mspowerpoint`.
+: The subtype of the resource's type (e.g., `jpeg`). This may or may not correspond to the file suffix.
 
 MediaType.Suffixes
-: A slice of possible suffixes for the resource's MIME type.
+: A slice of possible file suffixes for the resource's media type (e.g., `[jpg jpeg jpe jif jfif]`).
 
 ## Methods
+
 ByType
 : Returns the page resources of the given type.
 
-```go
+```go-html-template
 {{ .Resources.ByType "image" }}
 ```
 Match
 : Returns all the page resources (as a slice) whose `Name` matches the given Glob pattern ([examples](https://github.com/gobwas/glob/blob/master/readme.md)). The matching is case-insensitive.
 
-```go
+```go-html-template
 {{ .Resources.Match "images/*" }}
 ```
 
 GetMatch
 : Same as `Match` but will return the first match.
 
-### Pattern Matching
+### Pattern matching
+
 ```go
 // Using Match/GetMatch to find this images/sunset.jpg ?
 .Resources.Match "images/sun*" ✅
-.Resources.Match "**/Sunset.jpg" ✅
+.Resources.Match "**/sunset.jpg" ✅
 .Resources.Match "images/*.jpg" ✅
 .Resources.Match "**.jpg" ✅
 .Resources.Match "*" 🚫
@@ -76,9 +115,9 @@ GetMatch
 
 ```
 
-## Page Resources Metadata
+## Page resources metadata
 
-Page Resources' metadata is managed from their page's front matter with an array/table parameter named `resources`. You can batch assign values using a [wildcards](http://tldp.org/LDP/GNU-Linux-Tools-Summary/html/x11655.htm).
+The page resources' metadata is managed from the corresponding page's front matter with an array/table parameter named `resources`. You can batch assign values using [wildcards](https://tldp.org/LDP/GNU-Linux-Tools-Summary/html/x11655.htm).
 
 {{% note %}}
 Resources of type `page` get `Title` etc. from their own front matter.
@@ -87,9 +126,9 @@ Resources of type `page` get `Title` etc. from their own front matter.
 name
 : Sets the value returned in `Name`.
 
-{{% warning %}}
-The methods `Match` and `GetMatch` use `Name` to match the resources.
-{{%/ warning %}}
+{{% note %}}
+The methods `Match`, `Get` and `GetMatch` use `Name` to match the resources.
+{{% /note %}}
 
 title
 : Sets the value returned in `Title`
@@ -97,10 +136,9 @@ title
 params
 : A map of custom key/values.
 
+### Resources metadata example
 
-###  Resources metadata example
-
-{{< code-toggle copy="false">}}
+{{< code-toggle copy=false >}}
 title: Application
 date : 2018-01-25
 resources :
@@ -134,9 +172,9 @@ From the example above:
 - All `PDF` files will get a new `Name`. The `name` parameter contains a special placeholder [`:counter`](#the-counter-placeholder-in-name-and-title), so the `Name` will be `pdf-file-1`, `pdf-file-2`, `pdf-file-3`.
 - Every docx in the bundle will receive the `word` icon.
 
-{{% warning %}}
-The __order matters__ --- Only the **first set** values of the `title`, `name` and `params`-**keys** will be used. Consecutive parameters will be set only for the ones not already set. For example, in the above example, `.Params.icon` is already first set to `"photo"` in `src = "documents/photo_specs.pdf"`. So that would not get overridden to `"pdf"` by the later set `src = "**.pdf"` rule.
-{{%/ warning %}}
+{{% note %}}
+The __order matters__ --- Only the **first set** values of the `title`, `name` and `params`-**keys** will be used. Consecutive parameters will be set only for the ones not already set. In the above example, `.Params.icon` is first set to `"photo"` in `src = "documents/photo_specs.pdf"`. So that would not get overridden to `"pdf"` by the later set `src = "**.pdf"` rule.
+{{% /note %}}
 
 ### The `:counter` placeholder in `name` and `title`
 
@@ -146,7 +184,7 @@ The counter starts at 1 the first time they are used in either `name` or `title`
 
 For example, if a bundle has the resources `photo_specs.pdf`, `other_specs.pdf`, `guide.pdf` and `checklist.pdf`, and the front matter has specified the `resources` as:
 
-{{< code-toggle copy="false">}}
+{{< code-toggle copy=false >}}
 [[resources]]
   src = "*specs.pdf"
   title = "Specification #:counter"

@@ -2,46 +2,43 @@
   "chroma": {
     "lexers": [
       {
+        "Name": "ABAP",
+        "Aliases": [
+          "abap"
+        ]
+      },
+      {
         "Name": "ABNF",
         "Aliases": [
           "abnf"
         ]
       },
       {
-        "Name": "ANTLR",
-        "Aliases": [
-          "antlr"
-        ]
-      },
-      {
-        "Name": "APL",
-        "Aliases": [
-          "apl"
-        ]
-      },
-      {
         "Name": "ActionScript",
         "Aliases": [
-          "actionscript",
-          "as"
+          "as",
+          "actionscript"
         ]
       },
       {
         "Name": "ActionScript 3",
         "Aliases": [
-          "actionscript3",
-          "as",
-          "as3"
+          "as3",
+          "actionscript3"
         ]
       },
       {
         "Name": "Ada",
         "Aliases": [
           "ada",
-          "ada2005",
           "ada95",
-          "adb",
-          "ads"
+          "ada2005"
+        ]
+      },
+      {
+        "Name": "AL",
+        "Aliases": [
+          "al"
         ]
       },
       {
@@ -51,13 +48,23 @@
         ]
       },
       {
+        "Name": "ANTLR",
+        "Aliases": [
+          "antlr"
+        ]
+      },
+      {
         "Name": "ApacheConf",
         "Aliases": [
-          "aconf",
-          "apache",
           "apacheconf",
-          "conf",
-          "htaccess"
+          "aconf",
+          "apache"
+        ]
+      },
+      {
+        "Name": "APL",
+        "Aliases": [
+          "apl"
         ]
       },
       {
@@ -67,10 +74,34 @@
         ]
       },
       {
+        "Name": "ArangoDB AQL",
+        "Aliases": [
+          "aql"
+        ]
+      },
+      {
         "Name": "Arduino",
         "Aliases": [
-          "arduino",
-          "ino"
+          "arduino"
+        ]
+      },
+      {
+        "Name": "ArmAsm",
+        "Aliases": [
+          "armasm"
+        ]
+      },
+      {
+        "Name": "AutoHotkey",
+        "Aliases": [
+          "autohotkey",
+          "ahk"
+        ]
+      },
+      {
+        "Name": "AutoIt",
+        "Aliases": [
+          "autoit"
         ]
       },
       {
@@ -83,45 +114,27 @@
         ]
       },
       {
-        "Name": "BNF",
-        "Aliases": [
-          "bnf"
-        ]
-      },
-      {
         "Name": "Ballerina",
         "Aliases": [
-          "bal",
           "ballerina"
-        ]
-      },
-      {
-        "Name": "Base Makefile",
-        "Aliases": [
-          "*",
-          "bsdmake",
-          "mak",
-          "make",
-          "makefile",
-          "mf",
-          "mk"
         ]
       },
       {
         "Name": "Bash",
         "Aliases": [
           "bash",
-          "bash_*",
-          "bashrc",
-          "ebuild",
-          "eclass",
-          "exheres-0",
-          "exlib",
-          "ksh",
           "sh",
-          "shell",
+          "ksh",
           "zsh",
-          "zshrc"
+          "shell"
+        ]
+      },
+      {
+        "Name": "BashSession",
+        "Aliases": [
+          "bash-session",
+          "console",
+          "shell-session"
         ]
       },
       {
@@ -129,91 +142,83 @@
         "Aliases": [
           "bat",
           "batch",
-          "cmd",
           "dosbatch",
           "winbatch"
         ]
       },
       {
+        "Name": "BibTeX",
+        "Aliases": [
+          "bib",
+          "bibtex"
+        ]
+      },
+      {
+        "Name": "Bicep",
+        "Aliases": [
+          "bicep"
+        ]
+      },
+      {
         "Name": "BlitzBasic",
         "Aliases": [
-          "b3d",
-          "bb",
           "blitzbasic",
-          "bplus",
-          "decls"
+          "b3d",
+          "bplus"
+        ]
+      },
+      {
+        "Name": "BNF",
+        "Aliases": [
+          "bnf"
+        ]
+      },
+      {
+        "Name": "BQN",
+        "Aliases": [
+          "bqn"
         ]
       },
       {
         "Name": "Brainfuck",
         "Aliases": [
-          "b",
-          "bf",
-          "brainfuck"
+          "brainfuck",
+          "bf"
         ]
       },
       {
         "Name": "C",
         "Aliases": [
-          "c",
-          "h",
-          "idc"
+          "c"
         ]
       },
       {
         "Name": "C#",
         "Aliases": [
-          "c#",
-          "cs",
-          "csharp"
+          "csharp",
+          "c#"
         ]
       },
       {
         "Name": "C++",
         "Aliases": [
-          "C",
-          "CPP",
-          "H",
-          "c++",
-          "cc",
-          "cp",
           "cpp",
-          "cxx",
-          "h++",
-          "hh",
-          "hpp",
-          "hxx"
+          "c++"
         ]
       },
       {
-        "Name": "CFEngine3",
+        "Name": "Caddyfile",
         "Aliases": [
-          "cf",
-          "cf3",
-          "cfengine3"
+          "caddyfile",
+          "caddy"
         ]
       },
       {
-        "Name": "CMake",
+        "Name": "Caddyfile Directives",
         "Aliases": [
-          "cmake",
-          "txt"
-        ]
-      },
-      {
-        "Name": "COBOL",
-        "Aliases": [
-          "COB",
-          "CPY",
-          "cob",
-          "cobol",
-          "cpy"
-        ]
-      },
-      {
-        "Name": "CSS",
-        "Aliases": [
-          "css"
+          "caddyfile-directives",
+          "caddyfile-d",
+          "caddy-d"
         ]
       },
       {
@@ -236,6 +241,19 @@
         ]
       },
       {
+        "Name": "CFEngine3",
+        "Aliases": [
+          "cfengine3",
+          "cf3"
+        ]
+      },
+      {
+        "Name": "cfstatement",
+        "Aliases": [
+          "cfs"
+        ]
+      },
+      {
         "Name": "ChaiScript",
         "Aliases": [
           "chai",
@@ -243,42 +261,66 @@
         ]
       },
       {
+        "Name": "Chapel",
+        "Aliases": [
+          "chapel",
+          "chpl"
+        ]
+      },
+      {
         "Name": "Cheetah",
         "Aliases": [
           "cheetah",
-          "spitfire",
-          "spt",
-          "tmpl"
+          "spitfire"
         ]
       },
       {
         "Name": "Clojure",
         "Aliases": [
-          "clj",
-          "clojure"
+          "clojure",
+          "clj"
+        ]
+      },
+      {
+        "Name": "CMake",
+        "Aliases": [
+          "cmake"
+        ]
+      },
+      {
+        "Name": "COBOL",
+        "Aliases": [
+          "cobol"
         ]
       },
       {
         "Name": "CoffeeScript",
         "Aliases": [
-          "coffee",
           "coffee-script",
-          "coffeescript"
+          "coffeescript",
+          "coffee"
         ]
       },
       {
         "Name": "Common Lisp",
         "Aliases": [
-          "cl",
           "common-lisp",
+          "cl",
+          "lisp"
+        ]
+      },
+      {
+        "Name": "Common Lisp",
+        "Aliases": [
+          "common-lisp",
+          "cl",
           "lisp"
         ]
       },
       {
         "Name": "Coq",
         "Aliases": [
-          "coq",
-          "v"
+          "coq"
         ]
       },
       {
@@ -289,19 +331,23 @@
         ]
       },
       {
-        "Name": "Cython",
+        "Name": "CSS",
         "Aliases": [
-          "cython",
-          "pxd",
-          "pxi",
-          "pyrex",
-          "pyx"
+          "css"
         ]
       },
       {
-        "Name": "DTD",
+        "Name": "Cython",
         "Aliases": [
-          "dtd"
+          "cython",
+          "pyx",
+          "pyrex"
+        ]
+      },
+      {
+        "Name": "D",
+        "Aliases": [
+          "d"
         ]
       },
       {
@@ -314,7 +360,6 @@
         "Name": "Diff",
         "Aliases": [
           "diff",
-          "patch",
           "udiff"
         ]
       },
@@ -326,10 +371,29 @@
         ]
       },
       {
+        "Name": "dns",
+        "Aliases": [
+          "zone",
+          "bind"
+        ]
+      },
+      {
         "Name": "Docker",
         "Aliases": [
           "docker",
           "dockerfile"
+        ]
+      },
+      {
+        "Name": "DTD",
+        "Aliases": [
+          "dtd"
+        ]
+      },
+      {
+        "Name": "Dylan",
+        "Aliases": [
+          "dylan"
         ]
       },
       {
@@ -355,28 +419,23 @@
       {
         "Name": "EmacsLisp",
         "Aliases": [
-          "el",
-          "elisp",
           "emacs",
+          "elisp",
+          "emacs-lisp"
+        ]
+      },
+      {
+        "Name": "EmacsLisp",
+        "Aliases": [
+          "emacs",
+          "elisp",
           "emacs-lisp"
         ]
       },
       {
         "Name": "Erlang",
         "Aliases": [
-          "erl",
-          "erlang",
-          "es",
-          "escript",
-          "hrl"
-        ]
-      },
-      {
-        "Name": "FSharp",
-        "Aliases": [
-          "fs",
-          "fsharp",
-          "fsi"
+          "erlang"
         ]
       },
       {
@@ -386,54 +445,56 @@
         ]
       },
       {
+        "Name": "Fennel",
+        "Aliases": [
+          "fennel",
+          "fnl"
+        ]
+      },
+      {
         "Name": "Fish",
         "Aliases": [
           "fish",
-          "fishshell",
-          "load"
+          "fishshell"
         ]
       },
       {
         "Name": "Forth",
         "Aliases": [
-          "forth",
-          "frt",
-          "fs"
+          "forth"
         ]
       },
       {
         "Name": "Fortran",
         "Aliases": [
-          "F03",
-          "F90",
-          "f03",
-          "f90",
-          "fortran"
+          "fortran",
+          "f90"
+        ]
+      },
+      {
+        "Name": "FortranFixed",
+        "Aliases": [
+          "fortranfixed"
+        ]
+      },
+      {
+        "Name": "FSharp",
+        "Aliases": [
+          "fsharp"
         ]
       },
       {
         "Name": "GAS",
         "Aliases": [
-          "S",
-          "asm",
           "gas",
-          "s"
+          "asm"
         ]
       },
       {
         "Name": "GDScript",
         "Aliases": [
-          "gd",
-          "gdscript"
-        ]
-      },
-      {
-        "Name": "GLSL",
-        "Aliases": [
-          "frag",
-          "geo",
-          "glsl",
-          "vert"
+          "gdscript",
+          "gd"
         ]
       },
       {
@@ -459,11 +520,24 @@
         ]
       },
       {
+        "Name": "Gherkin",
+        "Aliases": [
+          "cucumber",
+          "Cucumber",
+          "gherkin",
+          "Gherkin"
+        ]
+      },
+      {
+        "Name": "GLSL",
+        "Aliases": [
+          "glsl"
+        ]
+      },
+      {
         "Name": "Gnuplot",
         "Aliases": [
-          "gnuplot",
-          "plot",
-          "plt"
+          "gnuplot"
         ]
       },
       {
@@ -471,6 +545,12 @@
         "Aliases": [
           "go",
           "golang"
+        ]
+      },
+      {
+        "Name": "Go HTML Template",
+        "Aliases": [
+          "go-html-template"
         ]
       },
       {
@@ -488,37 +568,30 @@
       {
         "Name": "GraphQL",
         "Aliases": [
-          "gql",
           "graphql",
-          "graphqls"
+          "graphqls",
+          "gql"
+        ]
+      },
+      {
+        "Name": "Groff",
+        "Aliases": [
+          "groff",
+          "nroff",
+          "man"
         ]
       },
       {
         "Name": "Groovy",
         "Aliases": [
-          "gradle",
           "groovy"
-        ]
-      },
-      {
-        "Name": "HTML",
-        "Aliases": [
-          "htm",
-          "html",
-          "xhtml",
-          "xslt"
-        ]
-      },
-      {
-        "Name": "HTTP",
-        "Aliases": [
-          "http"
         ]
       },
       {
         "Name": "Handlebars",
         "Aliases": [
-          "handlebars"
+          "handlebars",
+          "hbs"
         ]
       },
       {
@@ -531,9 +604,15 @@
       {
         "Name": "Haxe",
         "Aliases": [
-          "haxe",
           "hx",
+          "haxe",
           "hxsl"
+        ]
+      },
+      {
+        "Name": "HCL",
+        "Aliases": [
+          "hcl"
         ]
       },
       {
@@ -543,27 +622,61 @@
         ]
       },
       {
-        "Name": "Hy",
+        "Name": "HLB",
         "Aliases": [
-          "hy",
-          "hylang"
+          "hlb"
         ]
       },
       {
-        "Name": "INI",
+        "Name": "HLSL",
         "Aliases": [
-          "cfg",
-          "dosini",
-          "gitconfig",
-          "inf",
-          "ini"
+          "hlsl"
+        ]
+      },
+      {
+        "Name": "HolyC",
+        "Aliases": [
+          "holyc"
+        ]
+      },
+      {
+        "Name": "HTML",
+        "Aliases": [
+          "html"
+        ]
+      },
+      {
+        "Name": "HTTP",
+        "Aliases": [
+          "http"
+        ]
+      },
+      {
+        "Name": "Hy",
+        "Aliases": [
+          "hylang"
         ]
       },
       {
         "Name": "Idris",
         "Aliases": [
-          "idr",
-          "idris"
+          "idris",
+          "idr"
+        ]
+      },
+      {
+        "Name": "Igor",
+        "Aliases": [
+          "igor",
+          "igorpro"
+        ]
+      },
+      {
+        "Name": "INI",
+        "Aliases": [
+          "ini",
+          "cfg",
+          "dosini"
         ]
       },
       {
@@ -573,16 +686,15 @@
         ]
       },
       {
-        "Name": "JSON",
+        "Name": "ISCdhcpd",
         "Aliases": [
-          "json"
+          "iscdhcpd"
         ]
       },
       {
-        "Name": "JSX",
+        "Name": "J",
         "Aliases": [
-          "jsx",
-          "react"
+          "j"
         ]
       },
       {
@@ -594,16 +706,21 @@
       {
         "Name": "JavaScript",
         "Aliases": [
-          "javascript",
           "js",
-          "jsm"
+          "javascript"
+        ]
+      },
+      {
+        "Name": "JSON",
+        "Aliases": [
+          "json"
         ]
       },
       {
         "Name": "Julia",
         "Aliases": [
-          "jl",
-          "julia"
+          "julia",
+          "jl"
         ]
       },
       {
@@ -615,89 +732,113 @@
       {
         "Name": "Kotlin",
         "Aliases": [
-          "kotlin",
-          "kt"
-        ]
-      },
-      {
-        "Name": "LLVM",
-        "Aliases": [
-          "ll",
-          "llvm"
+          "kotlin"
         ]
       },
       {
         "Name": "Lighttpd configuration file",
         "Aliases": [
-          "lighttpd",
-          "lighty"
+          "lighty",
+          "lighttpd"
+        ]
+      },
+      {
+        "Name": "LLVM",
+        "Aliases": [
+          "llvm"
         ]
       },
       {
         "Name": "Lua",
         "Aliases": [
-          "lua",
-          "wlua"
+          "lua"
+        ]
+      },
+      {
+        "Name": "Makefile",
+        "Aliases": [
+          "make",
+          "makefile",
+          "mf",
+          "bsdmake"
         ]
       },
       {
         "Name": "Mako",
         "Aliases": [
-          "mako",
-          "mao"
+          "mako"
+        ]
+      },
+      {
+        "Name": "markdown",
+        "Aliases": [
+          "md",
+          "mkd"
         ]
       },
       {
         "Name": "Mason",
         "Aliases": [
-          "m",
-          "mason",
-          "mc",
-          "mhtml",
-          "mi"
+          "mason"
         ]
       },
       {
         "Name": "Mathematica",
         "Aliases": [
-          "cdf",
-          "ma",
           "mathematica",
           "mma",
-          "nb",
-          "nbp"
+          "nb"
         ]
       },
       {
         "Name": "Matlab",
         "Aliases": [
-          "m",
           "matlab"
+        ]
+      },
+      {
+        "Name": "mcfunction",
+        "Aliases": [
+          "mcfunction"
+        ]
+      },
+      {
+        "Name": "Meson",
+        "Aliases": [
+          "meson",
+          "meson.build"
+        ]
+      },
+      {
+        "Name": "Metal",
+        "Aliases": [
+          "metal"
         ]
       },
       {
         "Name": "MiniZinc",
         "Aliases": [
-          "MZN",
-          "dzn",
-          "fzn",
           "minizinc",
+          "MZN",
           "mzn"
+        ]
+      },
+      {
+        "Name": "MLIR",
+        "Aliases": [
+          "mlir"
         ]
       },
       {
         "Name": "Modula-2",
         "Aliases": [
-          "def",
-          "m2",
-          "mod",
-          "modula2"
+          "modula2",
+          "m2"
         ]
       },
       {
         "Name": "MonkeyC",
         "Aliases": [
-          "mc",
           "monkeyc"
         ]
       },
@@ -709,38 +850,39 @@
         ]
       },
       {
-        "Name": "MySQL",
+        "Name": "Myghty",
         "Aliases": [
-          "mysql",
-          "sql"
+          "myghty"
         ]
       },
       {
-        "Name": "Myghty",
+        "Name": "MySQL",
         "Aliases": [
-          "myghty",
-          "myt"
+          "mysql",
+          "mariadb"
         ]
       },
       {
         "Name": "NASM",
         "Aliases": [
-          "ASM",
-          "asm",
           "nasm"
+        ]
+      },
+      {
+        "Name": "Natural",
+        "Aliases": [
+          "natural"
         ]
       },
       {
         "Name": "Newspeak",
         "Aliases": [
-          "newspeak",
-          "ns2"
+          "newspeak"
         ]
       },
       {
         "Name": "Nginx configuration file",
         "Aliases": [
-          "conf",
           "nginx"
         ]
       },
@@ -754,43 +896,53 @@
       {
         "Name": "Nix",
         "Aliases": [
-          "nix",
-          "nixos"
-        ]
-      },
-      {
-        "Name": "OCaml",
-        "Aliases": [
-          "ml",
-          "mli",
-          "mll",
-          "mly",
-          "ocaml"
+          "nixos",
+          "nix"
         ]
       },
       {
         "Name": "Objective-C",
         "Aliases": [
-          "h",
-          "m",
-          "obj-c",
-          "objc",
           "objective-c",
-          "objectivec"
+          "objectivec",
+          "obj-c",
+          "objc"
+        ]
+      },
+      {
+        "Name": "OCaml",
+        "Aliases": [
+          "ocaml"
         ]
       },
       {
         "Name": "Octave",
         "Aliases": [
-          "m",
           "octave"
+        ]
+      },
+      {
+        "Name": "OnesEnterprise",
+        "Aliases": [
+          "ones",
+          "onesenterprise",
+          "1S",
+          "1S:Enterprise"
+        ]
+      },
+      {
+        "Name": "OpenEdge ABL",
+        "Aliases": [
+          "openedge",
+          "abl",
+          "progress",
+          "openedgeabl"
         ]
       },
       {
         "Name": "OpenSCAD",
         "Aliases": [
-          "openscad",
-          "scad"
+          "openscad"
         ]
       },
       {
@@ -801,33 +953,8 @@
         ]
       },
       {
-        "Name": "PHP",
-        "Aliases": [
-          "inc",
-          "php",
-          "php3",
-          "php4",
-          "php5",
-          "php[345]"
-        ]
-      },
-      {
-        "Name": "PL/pgSQL",
-        "Aliases": [
-          "plpgsql"
-        ]
-      },
-      {
-        "Name": "POVRay",
-        "Aliases": [
-          "inc",
-          "pov"
-        ]
-      },
-      {
         "Name": "PacmanConf",
         "Aliases": [
-          "conf",
           "pacmanconf"
         ]
       },
@@ -835,9 +962,22 @@
         "Name": "Perl",
         "Aliases": [
           "perl",
-          "pl",
-          "pm",
-          "t"
+          "pl"
+        ]
+      },
+      {
+        "Name": "PHP",
+        "Aliases": [
+          "php",
+          "php3",
+          "php4",
+          "php5"
+        ]
+      },
+      {
+        "Name": "PHTML",
+        "Aliases": [
+          "phtml"
         ]
       },
       {
@@ -849,105 +989,155 @@
       {
         "Name": "PkgConfig",
         "Aliases": [
-          "pc",
           "pkgconfig"
         ]
       },
       {
-        "Name": "PostScript",
+        "Name": "PL/pgSQL",
         "Aliases": [
-          "eps",
-          "postscr",
-          "postscript",
-          "ps"
+          "plpgsql"
+        ]
+      },
+      {
+        "Name": "plaintext",
+        "Aliases": [
+          "text",
+          "plain",
+          "no-highlight"
+        ]
+      },
+      {
+        "Name": "Plutus Core",
+        "Aliases": [
+          "plutus-core",
+          "plc"
+        ]
+      },
+      {
+        "Name": "Pony",
+        "Aliases": [
+          "pony"
         ]
       },
       {
         "Name": "PostgreSQL SQL dialect",
         "Aliases": [
-          "postgres",
-          "postgresql"
+          "postgresql",
+          "postgres"
+        ]
+      },
+      {
+        "Name": "PostScript",
+        "Aliases": [
+          "postscript",
+          "postscr"
+        ]
+      },
+      {
+        "Name": "POVRay",
+        "Aliases": [
+          "pov"
+        ]
+      },
+      {
+        "Name": "PowerQuery",
+        "Aliases": [
+          "powerquery",
+          "pq"
         ]
       },
       {
         "Name": "PowerShell",
         "Aliases": [
-          "posh",
           "powershell",
+          "posh",
           "ps1",
-          "psm1"
+          "psm1",
+          "psd1",
+          "pwsh"
         ]
       },
       {
         "Name": "Prolog",
         "Aliases": [
-          "ecl",
-          "pl",
-          "pro",
           "prolog"
+        ]
+      },
+      {
+        "Name": "PromQL",
+        "Aliases": [
+          "promql"
+        ]
+      },
+      {
+        "Name": "properties",
+        "Aliases": [
+          "java-properties"
         ]
       },
       {
         "Name": "Protocol Buffer",
         "Aliases": [
-          "proto",
-          "protobuf"
+          "protobuf",
+          "proto"
+        ]
+      },
+      {
+        "Name": "PSL",
+        "Aliases": [
+          "psl"
         ]
       },
       {
         "Name": "Puppet",
         "Aliases": [
-          "pp",
           "puppet"
         ]
       },
       {
         "Name": "Python",
         "Aliases": [
-          "py",
           "python",
-          "pyw",
+          "py",
           "sage",
-          "sc",
-          "tac"
+          "python3",
+          "py3"
         ]
       },
       {
-        "Name": "Python 3",
+        "Name": "Python 2",
         "Aliases": [
-          "py3",
-          "python3"
+          "python2",
+          "py2"
         ]
       },
       {
         "Name": "QBasic",
         "Aliases": [
-          "BAS",
-          "bas",
-          "basic",
-          "qbasic"
+          "qbasic",
+          "basic"
+        ]
+      },
+      {
+        "Name": "QML",
+        "Aliases": [
+          "qml",
+          "qbs"
         ]
       },
       {
         "Name": "R",
         "Aliases": [
-          "R",
-          "Renviron",
-          "Rhistory",
-          "Rprofile",
-          "S",
-          "r",
+          "splus",
           "s",
-          "splus"
+          "r"
         ]
       },
       {
         "Name": "Racket",
         "Aliases": [
           "racket",
-          "rkt",
-          "rktd",
-          "rktl"
+          "rkt"
         ]
       },
       {
@@ -957,58 +1147,67 @@
         ]
       },
       {
+        "Name": "Raku",
+        "Aliases": [
+          "perl6",
+          "pl6",
+          "raku"
+        ]
+      },
+      {
+        "Name": "react",
+        "Aliases": [
+          "jsx",
+          "react"
+        ]
+      },
+      {
+        "Name": "ReasonML",
+        "Aliases": [
+          "reason",
+          "reasonml"
+        ]
+      },
+      {
+        "Name": "reg",
+        "Aliases": [
+          "registry"
+        ]
+      },
+      {
+        "Name": "reStructuredText",
+        "Aliases": [
+          "rst",
+          "rest",
+          "restructuredtext"
+        ]
+      },
+      {
         "Name": "Rexx",
         "Aliases": [
-          "arexx",
-          "rex",
           "rexx",
-          "rx"
+          "arexx"
         ]
       },
       {
         "Name": "Ruby",
         "Aliases": [
-          "duby",
-          "gemspec",
-          "rake",
           "rb",
-          "rbw",
-          "rbx",
-          "ruby"
+          "ruby",
+          "duby"
         ]
       },
       {
         "Name": "Rust",
         "Aliases": [
-          "in",
-          "rs",
-          "rust"
+          "rust",
+          "rs"
         ]
       },
       {
-        "Name": "SCSS",
+        "Name": "SAS",
         "Aliases": [
-          "scss"
-        ]
-      },
-      {
-        "Name": "SPARQL",
-        "Aliases": [
-          "rq",
-          "sparql"
-        ]
-      },
-      {
-        "Name": "SQL",
-        "Aliases": [
-          "sql"
-        ]
-      },
-      {
-        "Name": "SYSTEMD",
-        "Aliases": [
-          "service",
-          "systemd"
+          "sas"
         ]
       },
       {
@@ -1027,17 +1226,39 @@
         "Name": "Scheme",
         "Aliases": [
           "scheme",
-          "scm",
-          "ss"
+          "scm"
         ]
       },
       {
         "Name": "Scilab",
         "Aliases": [
-          "sce",
-          "sci",
-          "scilab",
-          "tst"
+          "scilab"
+        ]
+      },
+      {
+        "Name": "SCSS",
+        "Aliases": [
+          "scss"
+        ]
+      },
+      {
+        "Name": "Sed",
+        "Aliases": [
+          "sed",
+          "gsed",
+          "ssed"
+        ]
+      },
+      {
+        "Name": "Sieve",
+        "Aliases": [
+          "sieve"
+        ]
+      },
+      {
+        "Name": "Smali",
+        "Aliases": [
+          "smali"
         ]
       },
       {
@@ -1051,8 +1272,7 @@
       {
         "Name": "Smarty",
         "Aliases": [
-          "smarty",
-          "tpl"
+          "smarty"
         ]
       },
       {
@@ -1069,12 +1289,45 @@
         ]
       },
       {
+        "Name": "SPARQL",
+        "Aliases": [
+          "sparql"
+        ]
+      },
+      {
+        "Name": "SQL",
+        "Aliases": [
+          "sql"
+        ]
+      },
+      {
         "Name": "SquidConf",
         "Aliases": [
-          "conf",
-          "squid",
+          "squidconf",
           "squid.conf",
-          "squidconf"
+          "squid"
+        ]
+      },
+      {
+        "Name": "Standard ML",
+        "Aliases": [
+          "sml"
+        ]
+      },
+      {
+        "Name": "stas",
+        "Aliases": null
+      },
+      {
+        "Name": "Stylus",
+        "Aliases": [
+          "stylus"
+        ]
+      },
+      {
+        "Name": "Svelte",
+        "Aliases": [
+          "svelte"
         ]
       },
       {
@@ -1084,53 +1337,59 @@
         ]
       },
       {
-        "Name": "TASM",
+        "Name": "SYSTEMD",
         "Aliases": [
-          "ASM",
-          "asm",
-          "tasm"
+          "systemd"
         ]
       },
       {
-        "Name": "TOML",
+        "Name": "systemverilog",
         "Aliases": [
-          "toml"
+          "systemverilog",
+          "sv"
+        ]
+      },
+      {
+        "Name": "TableGen",
+        "Aliases": [
+          "tablegen"
+        ]
+      },
+      {
+        "Name": "Tal",
+        "Aliases": [
+          "tal",
+          "uxntal"
+        ]
+      },
+      {
+        "Name": "TASM",
+        "Aliases": [
+          "tasm"
         ]
       },
       {
         "Name": "Tcl",
         "Aliases": [
-          "rvt",
           "tcl"
         ]
       },
       {
         "Name": "Tcsh",
         "Aliases": [
-          "csh",
-          "tcsh"
-        ]
-      },
-      {
-        "Name": "TeX",
-        "Aliases": [
-          "aux",
-          "latex",
-          "tex",
-          "toc"
+          "tcsh",
+          "csh"
         ]
       },
       {
         "Name": "Termcap",
         "Aliases": [
-          "src",
           "termcap"
         ]
       },
       {
         "Name": "Terminfo",
         "Aliases": [
-          "src",
           "terminfo"
         ]
       },
@@ -1142,9 +1401,22 @@
         ]
       },
       {
+        "Name": "TeX",
+        "Aliases": [
+          "tex",
+          "latex"
+        ]
+      },
+      {
         "Name": "Thrift",
         "Aliases": [
           "thrift"
+        ]
+      },
+      {
+        "Name": "TOML",
+        "Aliases": [
+          "toml"
         ]
       },
       {
@@ -1157,21 +1429,19 @@
       {
         "Name": "Transact-SQL",
         "Aliases": [
-          "t-sql",
-          "tsql"
+          "tsql",
+          "t-sql"
         ]
       },
       {
         "Name": "Turing",
         "Aliases": [
-          "tu",
           "turing"
         ]
       },
       {
         "Name": "Turtle",
         "Aliases": [
-          "ttl",
           "turtle"
         ]
       },
@@ -1192,8 +1462,6 @@
       {
         "Name": "TypoScript",
         "Aliases": [
-          "ts",
-          "txt",
           "typoscript"
         ]
       },
@@ -1210,288 +1478,715 @@
         ]
       },
       {
+        "Name": "V",
+        "Aliases": [
+          "v",
+          "vlang"
+        ]
+      },
+      {
+        "Name": "V shell",
+        "Aliases": [
+          "vsh",
+          "vshell"
+        ]
+      },
+      {
+        "Name": "Vala",
+        "Aliases": [
+          "vala",
+          "vapi"
+        ]
+      },
+      {
         "Name": "VB.net",
         "Aliases": [
-          "bas",
-          "vb",
           "vb.net",
           "vbnet"
         ]
       },
       {
+        "Name": "verilog",
+        "Aliases": [
+          "verilog",
+          "v"
+        ]
+      },
+      {
         "Name": "VHDL",
         "Aliases": [
-          "vhd",
           "vhdl"
+        ]
+      },
+      {
+        "Name": "VHS",
+        "Aliases": [
+          "vhs",
+          "tape",
+          "cassette"
         ]
       },
       {
         "Name": "VimL",
         "Aliases": [
-          "exrc",
-          "gvimrc",
-          "vim",
-          "vimrc"
+          "vim"
+        ]
+      },
+      {
+        "Name": "vue",
+        "Aliases": [
+          "vue",
+          "vuejs"
         ]
       },
       {
         "Name": "WDTE",
+        "Aliases": null
+      },
+      {
+        "Name": "WebGPU Shading Language",
         "Aliases": [
-          "wdte"
+          "wgsl"
+        ]
+      },
+      {
+        "Name": "Whiley",
+        "Aliases": [
+          "whiley"
         ]
       },
       {
         "Name": "XML",
         "Aliases": [
-          "rss",
-          "svg",
-          "wsdl",
-          "wsf",
-          "xml",
-          "xsd",
-          "xsl",
-          "xslt"
+          "xml"
         ]
       },
       {
         "Name": "Xorg",
         "Aliases": [
-          "conf",
           "xorg.conf"
         ]
       },
       {
         "Name": "YAML",
         "Aliases": [
-          "yaml",
-          "yml"
+          "yaml"
         ]
       },
       {
-        "Name": "cfstatement",
+        "Name": "YANG",
         "Aliases": [
-          "cfs"
+          "yang"
         ]
       },
       {
-        "Name": "markdown",
+        "Name": "Z80 Assembly",
         "Aliases": [
-          "markdown",
-          "md",
-          "mkd"
+          "z80"
         ]
       },
       {
-        "Name": "plaintext",
+        "Name": "Zed",
         "Aliases": [
-          "no-highlight",
-          "plain",
-          "text",
-          "txt"
+          "zed"
         ]
       },
       {
-        "Name": "reStructuredText",
+        "Name": "Zig",
         "Aliases": [
-          "rest",
-          "restructuredtext",
-          "rst"
-        ]
-      },
-      {
-        "Name": "reg",
-        "Aliases": [
-          "reg",
-          "registry"
-        ]
-      },
-      {
-        "Name": "systemverilog",
-        "Aliases": [
-          "sv",
-          "svh",
-          "systemverilog"
-        ]
-      },
-      {
-        "Name": "verilog",
-        "Aliases": [
-          "v",
-          "verilog"
+          "zig"
         ]
       }
     ]
   },
+  "config": {
+    "markup": {
+      "defaultMarkdownHandler": "goldmark",
+      "highlight": {
+        "style": "monokai",
+        "codeFences": true,
+        "noClasses": true,
+        "noHl": false,
+        "lineNos": false,
+        "lineNumbersInTable": true,
+        "anchorLineNos": false,
+        "lineAnchors": "",
+        "lineNoStart": 1,
+        "hl_Lines": "",
+        "hl_inline": false,
+        "tabWidth": 4,
+        "guessSyntax": false
+      },
+      "tableOfContents": {
+        "startLevel": 2,
+        "endLevel": 3,
+        "ordered": false
+      },
+      "goldmark": {
+        "renderer": {
+          "hardWraps": false,
+          "xhtml": false,
+          "unsafe": false
+        },
+        "parser": {
+          "autoHeadingID": true,
+          "autoHeadingIDType": "github",
+          "attribute": {
+            "title": true,
+            "block": false
+          },
+          "wrapStandAloneImageWithinParagraph": true
+        },
+        "extensions": {
+          "typographer": {
+            "disable": false,
+            "leftSingleQuote": "\u0026lsquo;",
+            "rightSingleQuote": "\u0026rsquo;",
+            "leftDoubleQuote": "\u0026ldquo;",
+            "rightDoubleQuote": "\u0026rdquo;",
+            "enDash": "\u0026ndash;",
+            "emDash": "\u0026mdash;",
+            "ellipsis": "\u0026hellip;",
+            "leftAngleQuote": "\u0026laquo;",
+            "rightAngleQuote": "\u0026raquo;",
+            "apostrophe": "\u0026rsquo;"
+          },
+          "footnote": true,
+          "definitionList": true,
+          "table": true,
+          "strikethrough": true,
+          "linkify": true,
+          "linkifyProtocol": "https",
+          "taskList": true
+        }
+      },
+      "asciidocExt": {
+        "backend": "html5",
+        "extensions": [],
+        "attributes": {},
+        "noHeaderOrFooter": true,
+        "safeMode": "unsafe",
+        "sectionNumbers": false,
+        "verbose": false,
+        "trace": false,
+        "failureLevel": "fatal",
+        "workingFolderCurrent": false,
+        "preserveTOC": false
+      }
+    },
+    "mergeStrategy": {
+      "build": {
+        "_merge": "none"
+      },
+      "caches": {
+        "_merge": "none"
+      },
+      "cascade": {
+        "_merge": "none"
+      },
+      "frontmatter": {
+        "_merge": "none"
+      },
+      "imaging": {
+        "_merge": "none"
+      },
+      "languages": {
+        "_merge": "none",
+        "en": {
+          "_merge": "none",
+          "menus": {
+            "_merge": "shallow"
+          },
+          "params": {
+            "_merge": "deep"
+          }
+        }
+      },
+      "markup": {
+        "_merge": "none"
+      },
+      "mediatypes": {
+        "_merge": "shallow"
+      },
+      "menus": {
+        "_merge": "shallow"
+      },
+      "minify": {
+        "_merge": "none"
+      },
+      "module": {
+        "_merge": "none"
+      },
+      "outputformats": {
+        "_merge": "shallow"
+      },
+      "params": {
+        "_merge": "deep"
+      },
+      "permalinks": {
+        "_merge": "none"
+      },
+      "privacy": {
+        "_merge": "none"
+      },
+      "related": {
+        "_merge": "none"
+      },
+      "security": {
+        "_merge": "none"
+      },
+      "sitemap": {
+        "_merge": "none"
+      },
+      "taxonomies": {
+        "_merge": "none"
+      }
+    },
+    "minify": {
+      "minifyOutput": false,
+      "disableHTML": false,
+      "disableCSS": false,
+      "disableJS": false,
+      "disableJSON": false,
+      "disableSVG": false,
+      "disableXML": false,
+      "tdewolff": {
+        "html": {
+          "keepComments": false,
+          "keepConditionalComments": true,
+          "keepDefaultAttrVals": true,
+          "keepDocumentTags": true,
+          "keepEndTags": true,
+          "keepQuotes": false,
+          "keepWhitespace": false
+        },
+        "css": {
+          "keepCSS2": true,
+          "precision": 0
+        },
+        "js": {
+          "precision": 0,
+          "keepVarNames": false,
+          "version": 2022
+        },
+        "json": {
+          "precision": 0,
+          "keepNumbers": false
+        },
+        "svg": {
+          "keepComments": false,
+          "precision": 0
+        },
+        "xml": {
+          "keepWhitespace": false
+        }
+      }
+    },
+    "security": {
+      "enableInlineShortcodes": false,
+      "exec": {
+        "allow": [
+          "^(dart-)?sass(-embedded)?$",
+          "^go$",
+          "^npx$",
+          "^postcss$"
+        ],
+        "osEnv": [
+          "(?i)^((HTTPS?|NO)_PROXY|PATH(EXT)?|APPDATA|TE?MP|TERM|GO\\w+|(XDG_CONFIG_)?HOME|USERPROFILE|SSH_AUTH_SOCK|DISPLAY|LANG)$"
+        ]
+      },
+      "funcs": {
+        "getenv": [
+          "^HUGO_",
+          "^CI$"
+        ]
+      },
+      "goTemplates": {
+        "AllowActionJSTmpl": false
+      },
+      "http": {
+        "mediaTypes": null,
+        "methods": [
+          "(?i)GET|POST"
+        ],
+        "urls": [
+          ".*"
+        ]
+      }
+    }
+  },
   "media": {
     "types": [
       {
-        "type": "application/javascript",
-        "string": "application/javascript",
-        "mainType": "application",
-        "subType": "javascript",
-        "delimiter": ".",
-        "suffixes": [
-          "js"
-        ]
-      },
-      {
-        "type": "application/json",
-        "string": "application/json",
         "mainType": "application",
         "subType": "json",
         "delimiter": ".",
+        "type": "application/json",
+        "string": "application/json",
         "suffixes": [
           "json"
         ]
       },
       {
-        "type": "application/octet-stream",
-        "string": "application/octet-stream",
         "mainType": "application",
-        "subType": "octet-stream",
-        "delimiter": "",
-        "suffixes": null
-      },
-      {
-        "type": "application/rss+xml",
-        "string": "application/rss+xml",
-        "mainType": "application",
-        "subType": "rss",
+        "subType": "manifest",
         "delimiter": ".",
+        "type": "application/manifest+json",
+        "string": "application/manifest+json",
         "suffixes": [
-          "xml"
+          "webmanifest"
         ]
       },
       {
-        "type": "application/toml",
-        "string": "application/toml",
+        "mainType": "application",
+        "subType": "octet-stream",
+        "delimiter": ".",
+        "type": "application/octet-stream",
+        "string": "application/octet-stream",
+        "suffixes": [
+          ""
+        ]
+      },
+      {
+        "mainType": "application",
+        "subType": "pdf",
+        "delimiter": ".",
+        "type": "application/pdf",
+        "string": "application/pdf",
+        "suffixes": [
+          "pdf"
+        ]
+      },
+      {
+        "mainType": "application",
+        "subType": "rss",
+        "delimiter": ".",
+        "type": "application/rss+xml",
+        "string": "application/rss+xml",
+        "suffixes": [
+          "xml",
+          "rss"
+        ]
+      },
+      {
         "mainType": "application",
         "subType": "toml",
         "delimiter": ".",
+        "type": "application/toml",
+        "string": "application/toml",
         "suffixes": [
           "toml"
         ]
       },
       {
-        "type": "application/xml",
-        "string": "application/xml",
+        "mainType": "application",
+        "subType": "wasm",
+        "delimiter": ".",
+        "type": "application/wasm",
+        "string": "application/wasm",
+        "suffixes": [
+          "wasm"
+        ]
+      },
+      {
         "mainType": "application",
         "subType": "xml",
         "delimiter": ".",
+        "type": "application/xml",
+        "string": "application/xml",
         "suffixes": [
           "xml"
         ]
       },
       {
-        "type": "application/yaml",
-        "string": "application/yaml",
         "mainType": "application",
         "subType": "yaml",
         "delimiter": ".",
+        "type": "application/yaml",
+        "string": "application/yaml",
         "suffixes": [
           "yaml",
           "yml"
         ]
       },
       {
-        "type": "image/jpg",
-        "string": "image/jpg",
-        "mainType": "image",
-        "subType": "jpg",
+        "mainType": "font",
+        "subType": "otf",
         "delimiter": ".",
+        "type": "font/otf",
+        "string": "font/otf",
         "suffixes": [
-          "jpg",
-          "jpeg"
+          "otf"
         ]
       },
       {
-        "type": "image/png",
-        "string": "image/png",
+        "mainType": "font",
+        "subType": "ttf",
+        "delimiter": ".",
+        "type": "font/ttf",
+        "string": "font/ttf",
+        "suffixes": [
+          "ttf"
+        ]
+      },
+      {
+        "mainType": "image",
+        "subType": "bmp",
+        "delimiter": ".",
+        "type": "image/bmp",
+        "string": "image/bmp",
+        "suffixes": [
+          "bmp"
+        ]
+      },
+      {
+        "mainType": "image",
+        "subType": "gif",
+        "delimiter": ".",
+        "type": "image/gif",
+        "string": "image/gif",
+        "suffixes": [
+          "gif"
+        ]
+      },
+      {
+        "mainType": "image",
+        "subType": "jpeg",
+        "delimiter": ".",
+        "type": "image/jpeg",
+        "string": "image/jpeg",
+        "suffixes": [
+          "jpg",
+          "jpeg",
+          "jpe",
+          "jif",
+          "jfif"
+        ]
+      },
+      {
         "mainType": "image",
         "subType": "png",
         "delimiter": ".",
+        "type": "image/png",
+        "string": "image/png",
         "suffixes": [
           "png"
         ]
       },
       {
-        "type": "image/svg+xml",
-        "string": "image/svg+xml",
         "mainType": "image",
         "subType": "svg",
         "delimiter": ".",
+        "type": "image/svg+xml",
+        "string": "image/svg+xml",
         "suffixes": [
           "svg"
         ]
       },
       {
-        "type": "text/calendar",
-        "string": "text/calendar",
+        "mainType": "image",
+        "subType": "tiff",
+        "delimiter": ".",
+        "type": "image/tiff",
+        "string": "image/tiff",
+        "suffixes": [
+          "tif",
+          "tiff"
+        ]
+      },
+      {
+        "mainType": "image",
+        "subType": "webp",
+        "delimiter": ".",
+        "type": "image/webp",
+        "string": "image/webp",
+        "suffixes": [
+          "webp"
+        ]
+      },
+      {
         "mainType": "text",
         "subType": "calendar",
         "delimiter": ".",
+        "type": "text/calendar",
+        "string": "text/calendar",
         "suffixes": [
           "ics"
         ]
       },
       {
-        "type": "text/css",
-        "string": "text/css",
         "mainType": "text",
         "subType": "css",
         "delimiter": ".",
+        "type": "text/css",
+        "string": "text/css",
         "suffixes": [
           "css"
         ]
       },
       {
-        "type": "text/csv",
-        "string": "text/csv",
         "mainType": "text",
         "subType": "csv",
         "delimiter": ".",
+        "type": "text/csv",
+        "string": "text/csv",
         "suffixes": [
           "csv"
         ]
       },
       {
-        "type": "text/html",
-        "string": "text/html",
         "mainType": "text",
         "subType": "html",
         "delimiter": ".",
+        "type": "text/html",
+        "string": "text/html",
         "suffixes": [
           "html"
         ]
       },
       {
-        "type": "text/plain",
-        "string": "text/plain",
+        "mainType": "text",
+        "subType": "javascript",
+        "delimiter": ".",
+        "type": "text/javascript",
+        "string": "text/javascript",
+        "suffixes": [
+          "js",
+          "jsm",
+          "mjs"
+        ]
+      },
+      {
+        "mainType": "text",
+        "subType": "jsx",
+        "delimiter": ".",
+        "type": "text/jsx",
+        "string": "text/jsx",
+        "suffixes": [
+          "jsx"
+        ]
+      },
+      {
+        "mainType": "text",
+        "subType": "markdown",
+        "delimiter": ".",
+        "type": "text/markdown",
+        "string": "text/markdown",
+        "suffixes": [
+          "md",
+          "markdown"
+        ]
+      },
+      {
         "mainType": "text",
         "subType": "plain",
         "delimiter": ".",
+        "type": "text/plain",
+        "string": "text/plain",
         "suffixes": [
           "txt"
         ]
       },
       {
-        "type": "text/x-sass",
-        "string": "text/x-sass",
+        "mainType": "text",
+        "subType": "tsx",
+        "delimiter": ".",
+        "type": "text/tsx",
+        "string": "text/tsx",
+        "suffixes": [
+          "tsx"
+        ]
+      },
+      {
+        "mainType": "text",
+        "subType": "typescript",
+        "delimiter": ".",
+        "type": "text/typescript",
+        "string": "text/typescript",
+        "suffixes": [
+          "ts"
+        ]
+      },
+      {
         "mainType": "text",
         "subType": "x-sass",
         "delimiter": ".",
+        "type": "text/x-sass",
+        "string": "text/x-sass",
         "suffixes": [
           "sass"
         ]
       },
       {
-        "type": "text/x-scss",
-        "string": "text/x-scss",
         "mainType": "text",
         "subType": "x-scss",
         "delimiter": ".",
+        "type": "text/x-scss",
+        "string": "text/x-scss",
         "suffixes": [
           "scss"
+        ]
+      },
+      {
+        "mainType": "video",
+        "subType": "3gpp",
+        "delimiter": ".",
+        "type": "video/3gpp",
+        "string": "video/3gpp",
+        "suffixes": [
+          "3gpp",
+          "3gp"
+        ]
+      },
+      {
+        "mainType": "video",
+        "subType": "mp4",
+        "delimiter": ".",
+        "type": "video/mp4",
+        "string": "video/mp4",
+        "suffixes": [
+          "mp4"
+        ]
+      },
+      {
+        "mainType": "video",
+        "subType": "mpeg",
+        "delimiter": ".",
+        "type": "video/mpeg",
+        "string": "video/mpeg",
+        "suffixes": [
+          "mpg",
+          "mpeg"
+        ]
+      },
+      {
+        "mainType": "video",
+        "subType": "ogg",
+        "delimiter": ".",
+        "type": "video/ogg",
+        "string": "video/ogg",
+        "suffixes": [
+          "ogv"
+        ]
+      },
+      {
+        "mainType": "video",
+        "subType": "webm",
+        "delimiter": ".",
+        "type": "video/webm",
+        "string": "video/webm",
+        "suffixes": [
+          "webm"
+        ]
+      },
+      {
+        "mainType": "video",
+        "subType": "x-msvideo",
+        "delimiter": ".",
+        "type": "video/x-msvideo",
+        "string": "video/x-msvideo",
+        "suffixes": [
+          "avi"
         ]
       }
     ]
@@ -1499,18 +2194,8 @@
   "output": {
     "formats": [
       {
-        "MediaType": "text/html",
-        "name": "HTML",
-        "mediaType": {
-          "type": "text/html",
-          "string": "text/html",
-          "mainType": "text",
-          "subType": "html",
-          "delimiter": ".",
-          "suffixes": [
-            "html"
-          ]
-        },
+        "mediaType": "text/html",
+        "name": "html",
         "path": "",
         "baseName": "index",
         "rel": "canonical",
@@ -1523,18 +2208,8 @@
         "weight": 10
       },
       {
-        "MediaType": "text/html",
-        "name": "AMP",
-        "mediaType": {
-          "type": "text/html",
-          "string": "text/html",
-          "mainType": "text",
-          "subType": "html",
-          "delimiter": ".",
-          "suffixes": [
-            "html"
-          ]
-        },
+        "mediaType": "text/html",
+        "name": "amp",
         "path": "amp",
         "baseName": "index",
         "rel": "amphtml",
@@ -1547,66 +2222,8 @@
         "weight": 0
       },
       {
-        "MediaType": "text/css",
-        "name": "CSS",
-        "mediaType": {
-          "type": "text/css",
-          "string": "text/css",
-          "mainType": "text",
-          "subType": "css",
-          "delimiter": ".",
-          "suffixes": [
-            "css"
-          ]
-        },
-        "path": "",
-        "baseName": "styles",
-        "rel": "stylesheet",
-        "protocol": "",
-        "isPlainText": true,
-        "isHTML": false,
-        "noUgly": false,
-        "notAlternative": true,
-        "permalinkable": false,
-        "weight": 0
-      },
-      {
-        "MediaType": "text/csv",
-        "name": "CSV",
-        "mediaType": {
-          "type": "text/csv",
-          "string": "text/csv",
-          "mainType": "text",
-          "subType": "csv",
-          "delimiter": ".",
-          "suffixes": [
-            "csv"
-          ]
-        },
-        "path": "",
-        "baseName": "index",
-        "rel": "alternate",
-        "protocol": "",
-        "isPlainText": true,
-        "isHTML": false,
-        "noUgly": false,
-        "notAlternative": false,
-        "permalinkable": false,
-        "weight": 0
-      },
-      {
-        "MediaType": "text/calendar",
-        "name": "Calendar",
-        "mediaType": {
-          "type": "text/calendar",
-          "string": "text/calendar",
-          "mainType": "text",
-          "subType": "calendar",
-          "delimiter": ".",
-          "suffixes": [
-            "ics"
-          ]
-        },
+        "mediaType": "text/calendar",
+        "name": "calendar",
         "path": "",
         "baseName": "index",
         "rel": "alternate",
@@ -1619,18 +2236,22 @@
         "weight": 0
       },
       {
-        "MediaType": "application/json",
-        "name": "JSON",
-        "mediaType": {
-          "type": "application/json",
-          "string": "application/json",
-          "mainType": "application",
-          "subType": "json",
-          "delimiter": ".",
-          "suffixes": [
-            "json"
-          ]
-        },
+        "mediaType": "text/css",
+        "name": "css",
+        "path": "",
+        "baseName": "styles",
+        "rel": "stylesheet",
+        "protocol": "",
+        "isPlainText": true,
+        "isHTML": false,
+        "noUgly": false,
+        "notAlternative": true,
+        "permalinkable": false,
+        "weight": 0
+      },
+      {
+        "mediaType": "text/csv",
+        "name": "csv",
         "path": "",
         "baseName": "index",
         "rel": "alternate",
@@ -1643,18 +2264,36 @@
         "weight": 0
       },
       {
-        "MediaType": "text/plain",
-        "name": "ROBOTS",
-        "mediaType": {
-          "type": "text/plain",
-          "string": "text/plain",
-          "mainType": "text",
-          "subType": "plain",
-          "delimiter": ".",
-          "suffixes": [
-            "txt"
-          ]
-        },
+        "mediaType": "application/json",
+        "name": "json",
+        "path": "",
+        "baseName": "index",
+        "rel": "alternate",
+        "protocol": "",
+        "isPlainText": true,
+        "isHTML": false,
+        "noUgly": false,
+        "notAlternative": false,
+        "permalinkable": false,
+        "weight": 0
+      },
+      {
+        "mediaType": "text/markdown",
+        "name": "markdown",
+        "path": "",
+        "baseName": "index",
+        "rel": "alternate",
+        "protocol": "",
+        "isPlainText": true,
+        "isHTML": false,
+        "noUgly": false,
+        "notAlternative": false,
+        "permalinkable": false,
+        "weight": 0
+      },
+      {
+        "mediaType": "text/plain",
+        "name": "robots",
         "path": "",
         "baseName": "robots",
         "rel": "alternate",
@@ -1667,18 +2306,8 @@
         "weight": 0
       },
       {
-        "MediaType": "application/rss+xml",
-        "name": "RSS",
-        "mediaType": {
-          "type": "application/rss+xml",
-          "string": "application/rss+xml",
-          "mainType": "application",
-          "subType": "rss",
-          "delimiter": ".",
-          "suffixes": [
-            "xml"
-          ]
-        },
+        "mediaType": "application/rss+xml",
+        "name": "rss",
         "path": "",
         "baseName": "index",
         "rel": "alternate",
@@ -1691,18 +2320,8 @@
         "weight": 0
       },
       {
-        "MediaType": "application/xml",
-        "name": "Sitemap",
-        "mediaType": {
-          "type": "application/xml",
-          "string": "application/xml",
-          "mainType": "application",
-          "subType": "xml",
-          "delimiter": ".",
-          "suffixes": [
-            "xml"
-          ]
-        },
+        "mediaType": "application/xml",
+        "name": "sitemap",
         "path": "",
         "baseName": "sitemap",
         "rel": "sitemap",
@@ -1713,13 +2332,27 @@
         "notAlternative": false,
         "permalinkable": false,
         "weight": 0
+      },
+      {
+        "mediaType": "application/manifest+json",
+        "name": "webappmanifest",
+        "path": "",
+        "baseName": "manifest",
+        "rel": "manifest",
+        "protocol": "",
+        "isPlainText": true,
+        "isHTML": false,
+        "noUgly": false,
+        "notAlternative": true,
+        "permalinkable": false,
+        "weight": 0
       }
     ],
     "layouts": [
       {
         "Example": "Single page in \"posts\" section",
         "Kind": "page",
-        "OutputFormat": "HTML",
+        "OutputFormat": "html",
         "Suffix": "html",
         "Template Lookup Order": [
           "layouts/posts/single.html.html",
@@ -1729,9 +2362,25 @@
         ]
       },
       {
+        "Example": "Base template for single page in \"posts\" section",
+        "Kind": "page",
+        "OutputFormat": "html",
+        "Suffix": "html",
+        "Template Lookup Order": [
+          "layouts/posts/single-baseof.html.html",
+          "layouts/posts/baseof.html.html",
+          "layouts/posts/single-baseof.html",
+          "layouts/posts/baseof.html",
+          "layouts/_default/single-baseof.html.html",
+          "layouts/_default/baseof.html.html",
+          "layouts/_default/single-baseof.html",
+          "layouts/_default/baseof.html"
+        ]
+      },
+      {
         "Example": "Single page in \"posts\" section with layout set",
         "Kind": "page",
-        "OutputFormat": "HTML",
+        "OutputFormat": "html",
         "Suffix": "html",
         "Template Lookup Order": [
           "layouts/posts/demolayout.html.html",
@@ -1745,9 +2394,29 @@
         ]
       },
       {
+        "Example": "Base template for single page in \"posts\" section with layout set",
+        "Kind": "page",
+        "OutputFormat": "html",
+        "Suffix": "html",
+        "Template Lookup Order": [
+          "layouts/posts/demolayout-baseof.html.html",
+          "layouts/posts/single-baseof.html.html",
+          "layouts/posts/baseof.html.html",
+          "layouts/posts/demolayout-baseof.html",
+          "layouts/posts/single-baseof.html",
+          "layouts/posts/baseof.html",
+          "layouts/_default/demolayout-baseof.html.html",
+          "layouts/_default/single-baseof.html.html",
+          "layouts/_default/baseof.html.html",
+          "layouts/_default/demolayout-baseof.html",
+          "layouts/_default/single-baseof.html",
+          "layouts/_default/baseof.html"
+        ]
+      },
+      {
         "Example": "AMP single page",
         "Kind": "page",
-        "OutputFormat": "AMP",
+        "OutputFormat": "amp",
         "Suffix": "html",
         "Template Lookup Order": [
           "layouts/posts/single.amp.html",
@@ -1759,15 +2428,15 @@
       {
         "Example": "AMP single page, French language",
         "Kind": "page",
-        "OutputFormat": "AMP",
+        "OutputFormat": "html",
         "Suffix": "html",
         "Template Lookup Order": [
-          "layouts/posts/single.fr.amp.html",
-          "layouts/posts/single.amp.html",
+          "layouts/posts/single.fr.html.html",
+          "layouts/posts/single.html.html",
           "layouts/posts/single.fr.html",
           "layouts/posts/single.html",
-          "layouts/_default/single.fr.amp.html",
-          "layouts/_default/single.amp.html",
+          "layouts/_default/single.fr.html.html",
+          "layouts/_default/single.html.html",
           "layouts/_default/single.fr.html",
           "layouts/_default/single.html"
         ]
@@ -1775,7 +2444,7 @@
       {
         "Example": "Home page",
         "Kind": "home",
-        "OutputFormat": "HTML",
+        "OutputFormat": "html",
         "Suffix": "html",
         "Template Lookup Order": [
           "layouts/index.html.html",
@@ -1793,9 +2462,33 @@
         ]
       },
       {
+        "Example": "Base template for home page",
+        "Kind": "home",
+        "OutputFormat": "html",
+        "Suffix": "html",
+        "Template Lookup Order": [
+          "layouts/index-baseof.html.html",
+          "layouts/home-baseof.html.html",
+          "layouts/list-baseof.html.html",
+          "layouts/baseof.html.html",
+          "layouts/index-baseof.html",
+          "layouts/home-baseof.html",
+          "layouts/list-baseof.html",
+          "layouts/baseof.html",
+          "layouts/_default/index-baseof.html.html",
+          "layouts/_default/home-baseof.html.html",
+          "layouts/_default/list-baseof.html.html",
+          "layouts/_default/baseof.html.html",
+          "layouts/_default/index-baseof.html",
+          "layouts/_default/home-baseof.html",
+          "layouts/_default/list-baseof.html",
+          "layouts/_default/baseof.html"
+        ]
+      },
+      {
         "Example": "Home page with type set",
         "Kind": "home",
-        "OutputFormat": "HTML",
+        "OutputFormat": "html",
         "Suffix": "html",
         "Template Lookup Order": [
           "layouts/demotype/index.html.html",
@@ -1819,9 +2512,41 @@
         ]
       },
       {
+        "Example": "Base template for home page with type set",
+        "Kind": "home",
+        "OutputFormat": "html",
+        "Suffix": "html",
+        "Template Lookup Order": [
+          "layouts/demotype/index-baseof.html.html",
+          "layouts/demotype/home-baseof.html.html",
+          "layouts/demotype/list-baseof.html.html",
+          "layouts/demotype/baseof.html.html",
+          "layouts/demotype/index-baseof.html",
+          "layouts/demotype/home-baseof.html",
+          "layouts/demotype/list-baseof.html",
+          "layouts/demotype/baseof.html",
+          "layouts/index-baseof.html.html",
+          "layouts/home-baseof.html.html",
+          "layouts/list-baseof.html.html",
+          "layouts/baseof.html.html",
+          "layouts/index-baseof.html",
+          "layouts/home-baseof.html",
+          "layouts/list-baseof.html",
+          "layouts/baseof.html",
+          "layouts/_default/index-baseof.html.html",
+          "layouts/_default/home-baseof.html.html",
+          "layouts/_default/list-baseof.html.html",
+          "layouts/_default/baseof.html.html",
+          "layouts/_default/index-baseof.html",
+          "layouts/_default/home-baseof.html",
+          "layouts/_default/list-baseof.html",
+          "layouts/_default/baseof.html"
+        ]
+      },
+      {
         "Example": "Home page with layout set",
         "Kind": "home",
-        "OutputFormat": "HTML",
+        "OutputFormat": "html",
         "Suffix": "html",
         "Template Lookup Order": [
           "layouts/demolayout.html.html",
@@ -1843,9 +2568,9 @@
         ]
       },
       {
-        "Example": "AMP home, French language\"",
+        "Example": "AMP home, French language",
         "Kind": "home",
-        "OutputFormat": "AMP",
+        "OutputFormat": "amp",
         "Suffix": "html",
         "Template Lookup Order": [
           "layouts/index.fr.amp.html",
@@ -1877,7 +2602,7 @@
       {
         "Example": "JSON home",
         "Kind": "home",
-        "OutputFormat": "JSON",
+        "OutputFormat": "json",
         "Suffix": "json",
         "Template Lookup Order": [
           "layouts/index.json.json",
@@ -1897,7 +2622,7 @@
       {
         "Example": "RSS home",
         "Kind": "home",
-        "OutputFormat": "RSS",
+        "OutputFormat": "rss",
         "Suffix": "xml",
         "Template Lookup Order": [
           "layouts/index.rss.xml",
@@ -1920,7 +2645,7 @@
       {
         "Example": "RSS section posts",
         "Kind": "section",
-        "OutputFormat": "RSS",
+        "OutputFormat": "rss",
         "Suffix": "xml",
         "Template Lookup Order": [
           "layouts/posts/section.rss.xml",
@@ -1942,36 +2667,98 @@
         ]
       },
       {
-        "Example": "Taxonomy list in categories",
+        "Example": "Taxonomy in categories",
         "Kind": "taxonomy",
-        "OutputFormat": "RSS",
+        "OutputFormat": "rss",
         "Suffix": "xml",
         "Template Lookup Order": [
+          "layouts/categories/category.terms.rss.xml",
+          "layouts/categories/terms.rss.xml",
+          "layouts/categories/taxonomy.rss.xml",
+          "layouts/categories/rss.xml",
+          "layouts/categories/list.rss.xml",
+          "layouts/categories/category.terms.xml",
+          "layouts/categories/terms.xml",
+          "layouts/categories/taxonomy.xml",
+          "layouts/categories/list.xml",
+          "layouts/category/category.terms.rss.xml",
+          "layouts/category/terms.rss.xml",
+          "layouts/category/taxonomy.rss.xml",
+          "layouts/category/rss.xml",
+          "layouts/category/list.rss.xml",
+          "layouts/category/category.terms.xml",
+          "layouts/category/terms.xml",
+          "layouts/category/taxonomy.xml",
+          "layouts/category/list.xml",
+          "layouts/taxonomy/category.terms.rss.xml",
+          "layouts/taxonomy/terms.rss.xml",
+          "layouts/taxonomy/taxonomy.rss.xml",
+          "layouts/taxonomy/rss.xml",
+          "layouts/taxonomy/list.rss.xml",
+          "layouts/taxonomy/category.terms.xml",
+          "layouts/taxonomy/terms.xml",
+          "layouts/taxonomy/taxonomy.xml",
+          "layouts/taxonomy/list.xml",
+          "layouts/_default/category.terms.rss.xml",
+          "layouts/_default/terms.rss.xml",
+          "layouts/_default/taxonomy.rss.xml",
+          "layouts/_default/rss.xml",
+          "layouts/_default/list.rss.xml",
+          "layouts/_default/category.terms.xml",
+          "layouts/_default/terms.xml",
+          "layouts/_default/taxonomy.xml",
+          "layouts/_default/list.xml",
+          "layouts/_internal/_default/rss.xml"
+        ]
+      },
+      {
+        "Example": "Term in categories",
+        "Kind": "term",
+        "OutputFormat": "rss",
+        "Suffix": "xml",
+        "Template Lookup Order": [
+          "layouts/categories/term.rss.xml",
           "layouts/categories/category.rss.xml",
           "layouts/categories/taxonomy.rss.xml",
           "layouts/categories/rss.xml",
           "layouts/categories/list.rss.xml",
+          "layouts/categories/term.xml",
           "layouts/categories/category.xml",
           "layouts/categories/taxonomy.xml",
           "layouts/categories/list.xml",
+          "layouts/term/term.rss.xml",
+          "layouts/term/category.rss.xml",
+          "layouts/term/taxonomy.rss.xml",
+          "layouts/term/rss.xml",
+          "layouts/term/list.rss.xml",
+          "layouts/term/term.xml",
+          "layouts/term/category.xml",
+          "layouts/term/taxonomy.xml",
+          "layouts/term/list.xml",
+          "layouts/taxonomy/term.rss.xml",
           "layouts/taxonomy/category.rss.xml",
           "layouts/taxonomy/taxonomy.rss.xml",
           "layouts/taxonomy/rss.xml",
           "layouts/taxonomy/list.rss.xml",
+          "layouts/taxonomy/term.xml",
           "layouts/taxonomy/category.xml",
           "layouts/taxonomy/taxonomy.xml",
           "layouts/taxonomy/list.xml",
+          "layouts/category/term.rss.xml",
           "layouts/category/category.rss.xml",
           "layouts/category/taxonomy.rss.xml",
           "layouts/category/rss.xml",
           "layouts/category/list.rss.xml",
+          "layouts/category/term.xml",
           "layouts/category/category.xml",
           "layouts/category/taxonomy.xml",
           "layouts/category/list.xml",
+          "layouts/_default/term.rss.xml",
           "layouts/_default/category.rss.xml",
           "layouts/_default/taxonomy.rss.xml",
           "layouts/_default/rss.xml",
           "layouts/_default/list.rss.xml",
+          "layouts/_default/term.xml",
           "layouts/_default/category.xml",
           "layouts/_default/taxonomy.xml",
           "layouts/_default/list.xml",
@@ -1979,46 +2766,9 @@
         ]
       },
       {
-        "Example": "Taxonomy terms in categories",
-        "Kind": "taxonomyTerm",
-        "OutputFormat": "RSS",
-        "Suffix": "xml",
-        "Template Lookup Order": [
-          "layouts/categories/category.terms.rss.xml",
-          "layouts/categories/terms.rss.xml",
-          "layouts/categories/rss.xml",
-          "layouts/categories/list.rss.xml",
-          "layouts/categories/category.terms.xml",
-          "layouts/categories/terms.xml",
-          "layouts/categories/list.xml",
-          "layouts/taxonomy/category.terms.rss.xml",
-          "layouts/taxonomy/terms.rss.xml",
-          "layouts/taxonomy/rss.xml",
-          "layouts/taxonomy/list.rss.xml",
-          "layouts/taxonomy/category.terms.xml",
-          "layouts/taxonomy/terms.xml",
-          "layouts/taxonomy/list.xml",
-          "layouts/category/category.terms.rss.xml",
-          "layouts/category/terms.rss.xml",
-          "layouts/category/rss.xml",
-          "layouts/category/list.rss.xml",
-          "layouts/category/category.terms.xml",
-          "layouts/category/terms.xml",
-          "layouts/category/list.xml",
-          "layouts/_default/category.terms.rss.xml",
-          "layouts/_default/terms.rss.xml",
-          "layouts/_default/rss.xml",
-          "layouts/_default/list.rss.xml",
-          "layouts/_default/category.terms.xml",
-          "layouts/_default/terms.xml",
-          "layouts/_default/list.xml",
-          "layouts/_internal/_default/rss.xml"
-        ]
-      },
-      {
         "Example": "Section list for \"posts\" section",
         "Kind": "section",
-        "OutputFormat": "HTML",
+        "OutputFormat": "html",
         "Suffix": "html",
         "Template Lookup Order": [
           "layouts/posts/posts.html.html",
@@ -2044,7 +2794,7 @@
       {
         "Example": "Section list for \"posts\" section with type set to \"blog\"",
         "Kind": "section",
-        "OutputFormat": "HTML",
+        "OutputFormat": "html",
         "Suffix": "html",
         "Template Lookup Order": [
           "layouts/blog/posts.html.html",
@@ -2076,7 +2826,7 @@
       {
         "Example": "Section list for \"posts\" section with layout set to \"demoLayout\"",
         "Kind": "section",
-        "OutputFormat": "HTML",
+        "OutputFormat": "html",
         "Suffix": "html",
         "Template Lookup Order": [
           "layouts/posts/demolayout.html.html",
@@ -2108,64 +2858,88 @@
       {
         "Example": "Taxonomy list in categories",
         "Kind": "taxonomy",
-        "OutputFormat": "HTML",
+        "OutputFormat": "html",
         "Suffix": "html",
         "Template Lookup Order": [
-          "layouts/categories/category.html.html",
+          "layouts/categories/category.terms.html.html",
+          "layouts/categories/terms.html.html",
           "layouts/categories/taxonomy.html.html",
           "layouts/categories/list.html.html",
-          "layouts/categories/category.html",
+          "layouts/categories/category.terms.html",
+          "layouts/categories/terms.html",
           "layouts/categories/taxonomy.html",
           "layouts/categories/list.html",
-          "layouts/taxonomy/category.html.html",
-          "layouts/taxonomy/taxonomy.html.html",
-          "layouts/taxonomy/list.html.html",
-          "layouts/taxonomy/category.html",
-          "layouts/taxonomy/taxonomy.html",
-          "layouts/taxonomy/list.html",
-          "layouts/category/category.html.html",
+          "layouts/category/category.terms.html.html",
+          "layouts/category/terms.html.html",
           "layouts/category/taxonomy.html.html",
           "layouts/category/list.html.html",
-          "layouts/category/category.html",
+          "layouts/category/category.terms.html",
+          "layouts/category/terms.html",
           "layouts/category/taxonomy.html",
           "layouts/category/list.html",
-          "layouts/_default/category.html.html",
+          "layouts/taxonomy/category.terms.html.html",
+          "layouts/taxonomy/terms.html.html",
+          "layouts/taxonomy/taxonomy.html.html",
+          "layouts/taxonomy/list.html.html",
+          "layouts/taxonomy/category.terms.html",
+          "layouts/taxonomy/terms.html",
+          "layouts/taxonomy/taxonomy.html",
+          "layouts/taxonomy/list.html",
+          "layouts/_default/category.terms.html.html",
+          "layouts/_default/terms.html.html",
           "layouts/_default/taxonomy.html.html",
           "layouts/_default/list.html.html",
-          "layouts/_default/category.html",
+          "layouts/_default/category.terms.html",
+          "layouts/_default/terms.html",
           "layouts/_default/taxonomy.html",
           "layouts/_default/list.html"
         ]
       },
       {
         "Example": "Taxonomy term in categories",
-        "Kind": "taxonomyTerm",
-        "OutputFormat": "HTML",
+        "Kind": "term",
+        "OutputFormat": "html",
         "Suffix": "html",
         "Template Lookup Order": [
-          "layouts/categories/category.terms.html.html",
-          "layouts/categories/terms.html.html",
+          "layouts/categories/term.html.html",
+          "layouts/categories/category.html.html",
+          "layouts/categories/taxonomy.html.html",
           "layouts/categories/list.html.html",
-          "layouts/categories/category.terms.html",
-          "layouts/categories/terms.html",
+          "layouts/categories/term.html",
+          "layouts/categories/category.html",
+          "layouts/categories/taxonomy.html",
           "layouts/categories/list.html",
-          "layouts/taxonomy/category.terms.html.html",
-          "layouts/taxonomy/terms.html.html",
+          "layouts/term/term.html.html",
+          "layouts/term/category.html.html",
+          "layouts/term/taxonomy.html.html",
+          "layouts/term/list.html.html",
+          "layouts/term/term.html",
+          "layouts/term/category.html",
+          "layouts/term/taxonomy.html",
+          "layouts/term/list.html",
+          "layouts/taxonomy/term.html.html",
+          "layouts/taxonomy/category.html.html",
+          "layouts/taxonomy/taxonomy.html.html",
           "layouts/taxonomy/list.html.html",
-          "layouts/taxonomy/category.terms.html",
-          "layouts/taxonomy/terms.html",
+          "layouts/taxonomy/term.html",
+          "layouts/taxonomy/category.html",
+          "layouts/taxonomy/taxonomy.html",
           "layouts/taxonomy/list.html",
-          "layouts/category/category.terms.html.html",
-          "layouts/category/terms.html.html",
+          "layouts/category/term.html.html",
+          "layouts/category/category.html.html",
+          "layouts/category/taxonomy.html.html",
           "layouts/category/list.html.html",
-          "layouts/category/category.terms.html",
-          "layouts/category/terms.html",
+          "layouts/category/term.html",
+          "layouts/category/category.html",
+          "layouts/category/taxonomy.html",
           "layouts/category/list.html",
-          "layouts/_default/category.terms.html.html",
-          "layouts/_default/terms.html.html",
+          "layouts/_default/term.html.html",
+          "layouts/_default/category.html.html",
+          "layouts/_default/taxonomy.html.html",
           "layouts/_default/list.html.html",
-          "layouts/_default/category.terms.html",
-          "layouts/_default/terms.html",
+          "layouts/_default/term.html",
+          "layouts/_default/category.html",
+          "layouts/_default/taxonomy.html",
           "layouts/_default/list.html"
         ]
       }
@@ -2175,7 +2949,7 @@
     "funcs": {
       "cast": {
         "ToFloat": {
-          "Description": "ToFloat converts the given value to a float.",
+          "Description": "ToFloat converts v to a float.",
           "Args": [
             "v"
           ],
@@ -2190,7 +2964,7 @@
           ]
         },
         "ToInt": {
-          "Description": "ToInt converts the given value to an int.",
+          "Description": "ToInt converts v to an int.",
           "Args": [
             "v"
           ],
@@ -2205,7 +2979,7 @@
           ]
         },
         "ToString": {
-          "Description": "ToString converts the given value to a string.",
+          "Description": "ToString converts v to a string.",
           "Args": [
             "v"
           ],
@@ -2221,23 +2995,12 @@
         }
       },
       "compare": {
-        "And": {
-          "Description": "And computes the Boolean AND of its arguments, returning\nthe first false argument it encounters, or the last argument.",
-          "Args": [
-            "arg0",
-            "args"
-          ],
-          "Aliases": [
-            "and"
-          ],
-          "Examples": []
-        },
         "Conditional": {
-          "Description": "Conditional can be used as a ternary operator.\nIt returns a if condition, else b.",
+          "Description": "Conditional can be used as a ternary operator.\n\nIt returns v1 if cond is true, else v2.",
           "Args": [
-            "condition",
-            "a",
-            "b"
+            "cond",
+            "v1",
+            "v2"
           ],
           "Aliases": [
             "cond"
@@ -2250,10 +3013,10 @@
           ]
         },
         "Default": {
-          "Description": "Default checks whether a given value is set and returns a default value if it\nis not.  \"Set\" in this context means non-zero for numeric types and times;\nnon-zero length for strings, arrays, slices, and maps;\nany boolean or struct value; or non-nil for any other types.",
+          "Description": "Default checks whether a givenv is set and returns the default value defaultv if it\nis not.  \"Set\" in this context means non-zero for numeric types and times;\nnon-zero length for strings, arrays, slices, and maps;\nany boolean or struct value; or non-nil for any other types.",
           "Args": [
-            "dflt",
-            "given"
+            "defaultv",
+            "givenv"
           ],
           "Aliases": [
             "default"
@@ -2270,42 +3033,42 @@
           ]
         },
         "Eq": {
-          "Description": "Eq returns the boolean truth of arg1 == arg2.",
+          "Description": "Eq returns the boolean truth of arg1 == arg2 || arg1 == arg3 || arg1 == arg4.",
           "Args": [
-            "x",
-            "y"
+            "first",
+            "others"
           ],
           "Aliases": [
             "eq"
           ],
           "Examples": [
             [
-              "{{ if eq .Section \"blog\" }}current{{ end }}",
-              "current"
+              "{{ if eq .Section \"blog\" }}current-section{{ end }}",
+              "current-section"
             ]
           ]
         },
         "Ge": {
-          "Description": "Ge returns the boolean truth of arg1 \u003e= arg2.",
+          "Description": "Ge returns the boolean truth of arg1 \u003e= arg2 \u0026\u0026 arg1 \u003e= arg3 \u0026\u0026 arg1 \u003e= arg4.",
           "Args": [
-            "a",
-            "b"
+            "first",
+            "others"
           ],
           "Aliases": [
             "ge"
           ],
           "Examples": [
             [
-              "{{ if ge .Hugo.Version \"0.36\" }}Reasonable new Hugo version!{{ end }}",
+              "{{ if ge hugo.Version \"0.80\" }}Reasonable new Hugo version!{{ end }}",
               "Reasonable new Hugo version!"
             ]
           ]
         },
         "Gt": {
-          "Description": "Gt returns the boolean truth of arg1 \u003e arg2.",
+          "Description": "Gt returns the boolean truth of arg1 \u003e arg2 \u0026\u0026 arg1 \u003e arg3 \u0026\u0026 arg1 \u003e arg4.",
           "Args": [
-            "a",
-            "b"
+            "first",
+            "others"
           ],
           "Aliases": [
             "gt"
@@ -2313,10 +3076,10 @@
           "Examples": []
         },
         "Le": {
-          "Description": "Le returns the boolean truth of arg1 \u003c= arg2.",
+          "Description": "Le returns the boolean truth of arg1 \u003c= arg2 \u0026\u0026 arg1 \u003c= arg3 \u0026\u0026 arg1 \u003c= arg4.",
           "Args": [
-            "a",
-            "b"
+            "first",
+            "others"
           ],
           "Aliases": [
             "le"
@@ -2324,55 +3087,40 @@
           "Examples": []
         },
         "Lt": {
-          "Description": "Lt returns the boolean truth of arg1 \u003c arg2.",
+          "Description": "Lt returns the boolean truth of arg1 \u003c arg2 \u0026\u0026 arg1 \u003c arg3 \u0026\u0026 arg1 \u003c arg4.",
           "Args": [
-            "a",
-            "b"
+            "first",
+            "others"
           ],
           "Aliases": [
             "lt"
           ],
           "Examples": []
         },
+        "LtCollate": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "Ne": {
-          "Description": "Ne returns the boolean truth of arg1 != arg2.",
+          "Description": "Ne returns the boolean truth of arg1 != arg2 \u0026\u0026 arg1 != arg3 \u0026\u0026 arg1 != arg4.",
           "Args": [
-            "x",
-            "y"
+            "first",
+            "others"
           ],
           "Aliases": [
             "ne"
-          ],
-          "Examples": []
-        },
-        "Not": {
-          "Description": "Not returns the Boolean negation of its argument.",
-          "Args": [
-            "arg"
-          ],
-          "Aliases": [
-            "not"
-          ],
-          "Examples": []
-        },
-        "Or": {
-          "Description": "Or computes the Boolean OR of its arguments, returning\nthe first true argument it encounters, or the last argument.",
-          "Args": [
-            "arg0",
-            "args"
-          ],
-          "Aliases": [
-            "or"
           ],
           "Examples": []
         }
       },
       "collections": {
         "After": {
-          "Description": "After returns all the items after the first N in a rangeable list.",
+          "Description": "After returns all the items after the first n items in list l.",
           "Args": [
-            "index",
-            "seq"
+            "n",
+            "l"
           ],
           "Aliases": [
             "after"
@@ -2380,7 +3128,7 @@
           "Examples": []
         },
         "Append": {
-          "Description": "Append appends the arguments up to the last one to the slice in the last argument.\nThis construct allows template constructs like this:\n    {{ $pages = $pages | append $p2 $p1 }}\nNote that with 2 arguments where both are slices of the same type,\nthe first slice will be appended to the second:\n    {{ $pages = $pages | append .Site.RegularPages }}",
+          "Description": "Append appends args up to the last one to the slice in the last argument.\nThis construct allows template constructs like this:\n\n\t{{ $pages = $pages | append $p2 $p1 }}\n\nNote that with 2 arguments where both are slices of the same type,\nthe first slice will be appended to the second:\n\n\t{{ $pages = $pages | append .Site.RegularPages }}",
           "Args": [
             "args"
           ],
@@ -2390,9 +3138,10 @@
           "Examples": []
         },
         "Apply": {
-          "Description": "Apply takes a map, array, or slice and returns a new slice with the function fname applied over it.",
+          "Description": "Apply takes a map, array, or slice c and returns a new slice with the function fname applied over it.",
           "Args": [
-            "seq",
+            "ctx",
+            "c",
             "fname",
             "args"
           ],
@@ -2402,25 +3151,25 @@
           "Examples": []
         },
         "Complement": {
-          "Description": "Complement gives the elements in the last element of seqs that are not in\nany of the others.\nAll elements of seqs must be slices or arrays of comparable types.\n\nThe reasoning behind this rather clumsy API is so we can do this in the templates:\n   {{ $c := .Pages | complement $last4 }}",
+          "Description": "Complement gives the elements in the last element of ls that are not in\nany of the others.\n\nAll elements of ls must be slices or arrays of comparable types.\n\nThe reasoning behind this rather clumsy API is so we can do this in the templates:\n\n\t{{ $c := .Pages | complement $last4 }}",
           "Args": [
-            "seqs"
+            "ls"
           ],
           "Aliases": [
             "complement"
           ],
           "Examples": [
             [
-              "{{ slice \"a\" \"b\" \"c\" \"d\" \"e\" \"f\" | complement (slice \"b\" \"c\") (slice \"d\" \"e\")  }}",
+              "{{ slice \"a\" \"b\" \"c\" \"d\" \"e\" \"f\" | complement (slice \"b\" \"c\") (slice \"d\" \"e\") }}",
               "[a f]"
             ]
           ]
         },
         "Delimit": {
-          "Description": "Delimit takes a given sequence and returns a delimited HTML string.\nIf last is passed to the function, it will be used as the final delimiter.",
+          "Description": "Delimit takes a given list l and returns a string delimited by sep.\nIf last is passed to the function, it will be used as the final delimiter.",
           "Args": [
-            "seq",
-            "delimiter",
+            "l",
+            "sep",
             "last"
           ],
           "Aliases": [
@@ -2434,7 +3183,7 @@
           ]
         },
         "Dictionary": {
-          "Description": "Dictionary creates a map[string]interface{} from the given parameters by\nwalking the parameters and treating them as key-value pairs.  The number\nof parameters must be even.",
+          "Description": "Dictionary creates a new map from the given parameters by\ntreating values as key-value pairs.  The number of values must be even.\nThe keys can be string slices, which will create the needed nested structure.",
           "Args": [
             "values"
           ],
@@ -2444,10 +3193,10 @@
           "Examples": []
         },
         "EchoParam": {
-          "Description": "EchoParam returns a given value if it is set; otherwise, it returns an\nempty string.",
+          "Description": "EchoParam returns a the value in the collection c with key k if is set; otherwise, it returns an\nempty string.",
           "Args": [
-            "a",
-            "key"
+            "c",
+            "k"
           ],
           "Aliases": [
             "echoParam"
@@ -2460,10 +3209,10 @@
           ]
         },
         "First": {
-          "Description": "First returns the first N items in a rangeable list.",
+          "Description": "First returns the first limit items in list l.",
           "Args": [
             "limit",
-            "seq"
+            "l"
           ],
           "Aliases": [
             "first"
@@ -2471,7 +3220,7 @@
           "Examples": []
         },
         "Group": {
-          "Description": "Group groups a set of elements by the given key.\nThis is currently only supported for Pages.",
+          "Description": "Group groups a set of items by the given key.\nThis is currently only supported for Pages.",
           "Args": [
             "key",
             "items"
@@ -2482,7 +3231,7 @@
           "Examples": []
         },
         "In": {
-          "Description": "In returns whether v is in the set l.  l may be an array or slice.",
+          "Description": "In returns whether v is in the list l.  l may be an array or slice.",
           "Args": [
             "l",
             "v"
@@ -2498,10 +3247,10 @@
           ]
         },
         "Index": {
-          "Description": "Index returns the result of indexing its first argument by the following\narguments. Thus \"index x 1 2 3\" is, in Go syntax, x[1][2][3]. Each\nindexed item must be a map, slice, or array.\n\nCopied from Go stdlib src/text/template/funcs.go.\n\nWe deviate from the stdlib due to https://github.com/golang/go/issues/14751.\n\nTODO(moorereason): merge upstream changes.",
+          "Description": "Index returns the result of indexing its first argument by the following\narguments. Thus \"index x 1 2 3\" is, in Go syntax, x[1][2][3]. Each\nindexed item must be a map, slice, or array.\n\nAdapted from Go stdlib src/text/template/funcs.go.\n\nWe deviate from the stdlib mostly because of https://github.com/golang/go/issues/14751.",
           "Args": [
             "item",
-            "indices"
+            "args"
           ],
           "Aliases": [
             "index"
@@ -2520,9 +3269,9 @@
           "Examples": []
         },
         "IsSet": {
-          "Description": "IsSet returns whether a given array, channel, slice, or map has a key\ndefined.",
+          "Description": "IsSet returns whether a given array, channel, slice, or map in c has the given key\ndefined.",
           "Args": [
-            "a",
+            "c",
             "key"
           ],
           "Aliases": [
@@ -2535,7 +3284,7 @@
           "Description": "KeyVals creates a key and values wrapper.",
           "Args": [
             "key",
-            "vals"
+            "values"
           ],
           "Aliases": [
             "keyVals"
@@ -2548,15 +3297,38 @@
           ]
         },
         "Last": {
-          "Description": "Last returns the last N items in a rangeable list.",
+          "Description": "Last returns the last limit items in the list l.",
           "Args": [
             "limit",
-            "seq"
+            "l"
           ],
           "Aliases": [
             "last"
           ],
           "Examples": []
+        },
+        "Merge": {
+          "Description": "Merge creates a copy of the final parameter in params and merges the preceding\nparameters into it in reverse order.\n\nCurrently only maps are supported. Key handling is case insensitive.",
+          "Args": [
+            "params"
+          ],
+          "Aliases": [
+            "merge"
+          ],
+          "Examples": [
+            [
+              "{{ dict \"title\" \"Hugo Rocks!\" | collections.Merge (dict \"title\" \"Default Title\" \"description\" \"Yes, Hugo Rocks!\") | sort }}",
+              "[Yes, Hugo Rocks! Hugo Rocks!]"
+            ],
+            [
+              "{{ merge (dict \"title\" \"Default Title\" \"description\" \"Yes, Hugo Rocks!\") (dict \"title\" \"Hugo Rocks!\") | sort }}",
+              "[Yes, Hugo Rocks! Hugo Rocks!]"
+            ],
+            [
+              "{{ merge (dict \"title\" \"Default Title\" \"description\" \"Yes, Hugo Rocks!\") (dict \"title\" \"Hugo Rocks!\") (dict \"extra\" \"For reals!\") | sort }}",
+              "[Yes, Hugo Rocks! For reals! Hugo Rocks!]"
+            ]
+          ]
         },
         "NewScratch": {
           "Description": "NewScratch creates a new Scratch which can be used to store values in a\nthread safe way.",
@@ -2572,7 +3344,7 @@
           ]
         },
         "Querify": {
-          "Description": "Querify encodes the given parameters in URL-encoded form (\"bar=baz\u0026foo=quux\") sorted by key.",
+          "Description": "Querify encodes the given params in URL-encoded form (\"bar=baz\u0026foo=quux\") sorted by key.",
           "Args": [
             "params"
           ],
@@ -2587,11 +3359,21 @@
             [
               "\u003ca href=\"https://www.google.com?{{ (querify \"q\" \"test\" \"page\" 3) | safeURL }}\"\u003eSearch\u003c/a\u003e",
               "\u003ca href=\"https://www.google.com?page=3\u0026amp;q=test\"\u003eSearch\u003c/a\u003e"
+            ],
+            [
+              "{{ slice \"foo\" 1 \"bar\" 2 | querify | safeHTML }}",
+              "bar=2\u0026foo=1"
             ]
           ]
         },
+        "Reverse": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "Seq": {
-          "Description": "Seq creates a sequence of integers.  It's named and used as GNU's seq.\n\nExamples:\n    3 =\u003e 1, 2, 3\n    1 2 4 =\u003e 1, 3\n    -3 =\u003e -1, -2, -3\n    1 4 =\u003e 1, 2, 3, 4\n    1 -2 =\u003e 1, 0, -1, -2",
+          "Description": "Seq creates a sequence of integers from args. It's named and used as GNU's seq.\n\nExamples:\n\n\t3 =\u003e 1, 2, 3\n\t1 2 4 =\u003e 1, 3\n\t-3 =\u003e -1, -2, -3\n\t1 4 =\u003e 1, 2, 3, 4\n\t1 -2 =\u003e 1, 0, -1, -2",
           "Args": [
             "args"
           ],
@@ -2606,9 +3388,9 @@
           ]
         },
         "Shuffle": {
-          "Description": "Shuffle returns the given rangeable list in a randomised order.",
+          "Description": "Shuffle returns list l in a randomised order.",
           "Args": [
-            "seq"
+            "l"
           ],
           "Aliases": [
             "shuffle"
@@ -2631,9 +3413,9 @@
           ]
         },
         "Sort": {
-          "Description": "Sort returns a sorted sequence.",
+          "Description": "Sort returns a sorted copy of the list l.",
           "Args": [
-            "seq",
+            "l",
             "args"
           ],
           "Aliases": [
@@ -2674,9 +3456,9 @@
           ]
         },
         "Uniq": {
-          "Description": "Uniq takes in a slice or array and returns a slice with subsequent\nduplicate elements removed.",
+          "Description": "Uniq returns a new list with duplicate elements in the list l removed.",
           "Args": [
-            "seq"
+            "l"
           ],
           "Aliases": [
             "uniq"
@@ -2689,9 +3471,9 @@
           ]
         },
         "Where": {
-          "Description": "Where returns a filtered subset of a given data type.",
+          "Description": "Where returns a filtered subset of collection c.",
           "Args": [
-            "seq",
+            "c",
             "key",
             "args"
           ],
@@ -2702,10 +3484,41 @@
         }
       },
       "crypto": {
-        "MD5": {
-          "Description": "MD5 hashes the given input and returns its MD5 checksum.",
+        "FNV32a": {
+          "Description": "FNV32a hashes v using fnv32a algorithm.\n\u003cdocsmeta\u003e{\"newIn\": \"0.98.0\" }\u003c/docsmeta\u003e",
           "Args": [
-            "in"
+            "v"
+          ],
+          "Aliases": null,
+          "Examples": [
+            [
+              "{{ crypto.FNV32a \"Hugo Rocks!!\" }}",
+              "1515779328"
+            ]
+          ]
+        },
+        "HMAC": {
+          "Description": "HMAC returns a cryptographic hash that uses a key to sign a message.",
+          "Args": [
+            "h",
+            "k",
+            "m",
+            "e"
+          ],
+          "Aliases": [
+            "hmac"
+          ],
+          "Examples": [
+            [
+              "{{ hmac \"sha256\" \"Secret key\" \"Hello world, gophers!\" }}",
+              "b6d11b6c53830b9d87036272ca9fe9d19306b8f9d8aa07b15da27d89e6e34f40"
+            ]
+          ]
+        },
+        "MD5": {
+          "Description": "MD5 hashes the v and returns its MD5 checksum.",
+          "Args": [
+            "v"
           ],
           "Aliases": [
             "md5"
@@ -2722,9 +3535,9 @@
           ]
         },
         "SHA1": {
-          "Description": "SHA1 hashes the given input and returns its SHA1 checksum.",
+          "Description": "SHA1 hashes v and returns its SHA1 checksum.",
           "Args": [
-            "in"
+            "v"
           ],
           "Aliases": [
             "sha1"
@@ -2737,9 +3550,9 @@
           ]
         },
         "SHA256": {
-          "Description": "SHA256 hashes the given input and returns its SHA256 checksum.",
+          "Description": "SHA256 hashes v and returns its SHA256 checksum.",
           "Args": [
-            "in"
+            "v"
           ],
           "Aliases": [
             "sha256"
@@ -2752,12 +3565,26 @@
           ]
         }
       },
+      "css": {
+        "Quoted": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Unquoted": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        }
+      },
       "data": {
         "GetCSV": {
-          "Description": "GetCSV expects a data separator and one or n-parts of a URL to a resource which\ncan either be a local or a remote one.\nThe data separator can be a comma, semi-colon, pipe, etc, but only one character.\nIf you provide multiple parts for the URL they will be joined together to the final URL.\nGetCSV returns nil or a slice slice to use in a short code.",
+          "Description": "GetCSV expects the separator sep and one or n-parts of a URL to a resource which\ncan either be a local or a remote one.\nThe data separator can be a comma, semi-colon, pipe, etc, but only one character.\nIf you provide multiple parts for the URL they will be joined together to the final URL.\nGetCSV returns nil or a slice slice to use in a short code.",
           "Args": [
             "sep",
-            "urlParts"
+            "args"
           ],
           "Aliases": [
             "getCSV"
@@ -2765,14 +3592,43 @@
           "Examples": []
         },
         "GetJSON": {
-          "Description": "GetJSON expects one or n-parts of a URL to a resource which can either be a local or a remote one.\nIf you provide multiple parts they will be joined together to the final URL.\nGetJSON returns nil or parsed JSON to use in a short code.",
+          "Description": "GetJSON expects one or n-parts of a URL in args to a resource which can either be a local or a remote one.\nIf you provide multiple parts they will be joined together to the final URL.\nGetJSON returns nil or parsed JSON to use in a short code.",
           "Args": [
-            "urlParts"
+            "args"
           ],
           "Aliases": [
             "getJSON"
           ],
           "Examples": []
+        }
+      },
+      "debug": {
+        "Dump": {
+          "Description": "Dump returns a object dump of val as a string.\nNote that not every value passed to Dump will print so nicely, but\nwe'll improve on that.\n\nWe recommend using the \"go\" Chroma lexer to format the output\nnicely.\n\nAlso note that the output from Dump may change from Hugo version to the next,\nso don't depend on a specific output.",
+          "Args": [
+            "val"
+          ],
+          "Aliases": null,
+          "Examples": [
+            [
+              "{{ $m := newScratch }}\n{{ $m.Set \"Hugo\" \"Rocks!\" }}\n{{ $m.Values | debug.Dump | safeHTML }}",
+              "map[string]interface {}{\n  \"Hugo\": \"Rocks!\",\n}"
+            ]
+          ]
+        },
+        "VisualizeSpaces": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        }
+      },
+      "diagrams": {
+        "Goat": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
         }
       },
       "encoding": {
@@ -2811,9 +3667,9 @@
           ]
         },
         "Jsonify": {
-          "Description": "Jsonify encodes a given object to JSON.",
+          "Description": "Jsonify encodes a given object to JSON.  To pretty print the JSON, pass a map\nor dictionary of options as the first value in args.  Supported options are\n\"prefix\" and \"indent\".  Each JSON element in the output will begin on a new\nline beginning with prefix followed by one or more copies of indent according\nto the indentation nesting.",
           "Args": [
-            "v"
+            "args"
           ],
           "Aliases": [
             "jsonify"
@@ -2822,16 +3678,20 @@
             [
               "{{ (slice \"A\" \"B\" \"C\") | jsonify }}",
               "[\"A\",\"B\",\"C\"]"
+            ],
+            [
+              "{{ (slice \"A\" \"B\" \"C\") | jsonify (dict \"indent\" \"  \") }}",
+              "[\n  \"A\",\n  \"B\",\n  \"C\"\n]"
             ]
           ]
         }
       },
       "fmt": {
         "Errorf": {
-          "Description": "Errorf formats according to a format specifier and returns the string as a\nvalue that satisfies error.",
+          "Description": "Errorf formats args according to a format specifier and logs an ERROR.\nIt returns an empty string.",
           "Args": [
             "format",
-            "a"
+            "args"
           ],
           "Aliases": [
             "errorf"
@@ -2839,14 +3699,37 @@
           "Examples": [
             [
               "{{ errorf \"%s.\" \"failed\" }}",
-              "failed."
+              ""
             ]
           ]
         },
-        "Print": {
-          "Description": "Print returns string representation of the passed arguments.",
+        "Erroridf": {
+          "Description": "Erroridf formats args according to a format specifier and logs an ERROR and\nan information text that the error with the given id can be suppressed in config.\nIt returns an empty string.",
           "Args": [
-            "a"
+            "id",
+            "format",
+            "args"
+          ],
+          "Aliases": [
+            "erroridf"
+          ],
+          "Examples": [
+            [
+              "{{ erroridf \"my-err-id\" \"%s.\" \"failed\" }}",
+              ""
+            ]
+          ]
+        },
+        "Errormf": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Print": {
+          "Description": "Print returns a string representation of args.",
+          "Args": [
+            "args"
           ],
           "Aliases": [
             "print"
@@ -2859,10 +3742,10 @@
           ]
         },
         "Printf": {
-          "Description": "Printf returns a formatted string representation of the passed arguments.",
+          "Description": "Printf returns string representation of args formatted with the layouut in format.",
           "Args": [
             "format",
-            "a"
+            "args"
           ],
           "Aliases": [
             "printf"
@@ -2875,9 +3758,9 @@
           ]
         },
         "Println": {
-          "Description": "Println returns string representation of the passed arguments ending with a newline.",
+          "Description": "Println returns string representation of args  ending with a newline.",
           "Args": [
-            "a"
+            "args"
           ],
           "Aliases": [
             "println"
@@ -2888,10 +3771,50 @@
               "works!\n"
             ]
           ]
+        },
+        "Warnf": {
+          "Description": "Warnf formats args according to a format specifier and logs a WARNING.\nIt returns an empty string.",
+          "Args": [
+            "format",
+            "args"
+          ],
+          "Aliases": [
+            "warnf"
+          ],
+          "Examples": [
+            [
+              "{{ warnf \"%s.\" \"warning\" }}",
+              ""
+            ]
+          ]
+        },
+        "Warnmf": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
         }
       },
       "hugo": {
+        "Deps": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "Generator": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "IsExtended": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "IsProduction": {
           "Description": "",
           "Args": null,
           "Aliases": null,
@@ -2902,9 +3825,33 @@
           "Args": null,
           "Aliases": null,
           "Examples": null
+        },
+        "WorkingDir": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
         }
       },
       "images": {
+        "Brightness": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "ColorBalance": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Colorize": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "Config": {
           "Description": "Config returns the image.Config for the specified path relative to the\nworking directory.",
           "Args": [
@@ -2914,13 +3861,97 @@
             "imageConfig"
           ],
           "Examples": []
+        },
+        "Contrast": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Filter": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Gamma": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "GaussianBlur": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Grayscale": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Hue": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Invert": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Overlay": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Pixelate": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Saturation": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Sepia": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Sigmoid": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Text": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "UnsharpMask": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
         }
       },
       "inflect": {
         "Humanize": {
-          "Description": "Humanize returns the humanized form of a single parameter.\n\nIf the parameter is either an integer or a string containing an integer\nvalue, the behavior is to add the appropriate ordinal.\n\n    Example:  \"my-first-post\" -\u003e \"My first post\"\n    Example:  \"103\" -\u003e \"103rd\"\n    Example:  52 -\u003e \"52nd\"",
+          "Description": "Humanize returns the humanized form of v.\n\nIf v is either an integer or a string containing an integer\nvalue, the behavior is to add the appropriate ordinal.",
           "Args": [
-            "in"
+            "v"
           ],
           "Aliases": [
             "humanize"
@@ -2945,9 +3976,9 @@
           ]
         },
         "Pluralize": {
-          "Description": "Pluralize returns the plural form of a single word.",
+          "Description": "Pluralize returns the plural form of the single word in v.",
           "Args": [
-            "in"
+            "v"
           ],
           "Aliases": [
             "pluralize"
@@ -2960,9 +3991,9 @@
           ]
         },
         "Singularize": {
-          "Description": "Singularize returns the singular form of a single word.",
+          "Description": "Singularize returns the singular form of a single word in v.",
           "Args": [
-            "in"
+            "v"
           ],
           "Aliases": [
             "singularize"
@@ -2975,15 +4006,61 @@
           ]
         }
       },
-      "lang": {
-        "Merge": {
+      "js": {
+        "Build": {
           "Description": "",
           "Args": null,
           "Aliases": null,
           "Examples": null
+        }
+      },
+      "lang": {
+        "FormatAccounting": {
+          "Description": "FormatAccounting returns the currency representation of number for the given currency and precision\nfor the current language in accounting notation.\n\nThe return value is formatted with at least two decimal places.",
+          "Args": [
+            "precision",
+            "currency",
+            "number"
+          ],
+          "Aliases": null,
+          "Examples": [
+            [
+              "{{ 512.5032 | lang.FormatAccounting 2 \"NOK\" }}",
+              "NOK512.50"
+            ]
+          ]
         },
-        "NumFmt": {
-          "Description": "NumFmt formats a number with the given precision using the\nnegative, decimal, and grouping options.  The `options`\nparameter is a string consisting of `\u003cnegative\u003e \u003cdecimal\u003e \u003cgrouping\u003e`.  The\ndefault `options` value is `- . ,`.\n\nNote that numbers are rounded up at 5 or greater.\nSo, with precision set to 0, 1.5 becomes `2`, and 1.4 becomes `1`.",
+        "FormatCurrency": {
+          "Description": "FormatCurrency returns the currency representation of number for the given currency and precision\nfor the current language.\n\nThe return value is formatted with at least two decimal places.",
+          "Args": [
+            "precision",
+            "currency",
+            "number"
+          ],
+          "Aliases": null,
+          "Examples": [
+            [
+              "{{ 512.5032 | lang.FormatCurrency 2 \"USD\" }}",
+              "$512.50"
+            ]
+          ]
+        },
+        "FormatNumber": {
+          "Description": "FormatNumber formats number with the given precision for the current language.",
+          "Args": [
+            "precision",
+            "number"
+          ],
+          "Aliases": null,
+          "Examples": [
+            [
+              "{{ 512.5032 | lang.FormatNumber 2 }}",
+              "512.50"
+            ]
+          ]
+        },
+        "FormatNumberCustom": {
+          "Description": "FormatNumberCustom formats a number with the given precision. The first\noptions parameter is a space-delimited string of characters to represent\nnegativity, the decimal point, and grouping. The default value is `- . ,`.\nThe second options parameter defines an alternate delimiting character.\n\nNote that numbers are rounded up at 5 or greater.\nSo, with precision set to 0, 1.5 becomes `2`, and 1.4 becomes `1`.\n\nFor a simpler function that adapts to the current language, see FormatNumber.",
           "Args": [
             "precision",
             "number",
@@ -2992,30 +4069,61 @@
           "Aliases": null,
           "Examples": [
             [
-              "{{ lang.NumFmt 2 12345.6789 }}",
+              "{{ lang.FormatNumberCustom 2 12345.6789 }}",
               "12,345.68"
             ],
             [
-              "{{ lang.NumFmt 2 12345.6789 \"- , .\" }}",
+              "{{ lang.FormatNumberCustom 2 12345.6789 \"- , .\" }}",
               "12.345,68"
             ],
             [
-              "{{ lang.NumFmt 6 -12345.6789 \"- .\" }}",
+              "{{ lang.FormatNumberCustom 6 -12345.6789 \"- .\" }}",
               "-12345.678900"
             ],
             [
-              "{{ lang.NumFmt 0 -12345.6789 \"- . ,\" }}",
+              "{{ lang.FormatNumberCustom 0 -12345.6789 \"- . ,\" }}",
               "-12,346"
             ],
             [
-              "{{ -98765.4321 | lang.NumFmt 2 }}",
+              "{{ lang.FormatNumberCustom 0 -12345.6789 \"-|.| \" \"|\" }}",
+              "-12 346"
+            ],
+            [
+              "{{ -98765.4321 | lang.FormatNumberCustom 2 }}",
               "-98,765.43"
             ]
           ]
         },
+        "FormatPercent": {
+          "Description": "FormatPercent formats number with the given precision for the current language.\nNote that the number is assumed to be a percentage.",
+          "Args": [
+            "precision",
+            "number"
+          ],
+          "Aliases": null,
+          "Examples": [
+            [
+              "{{ 512.5032 | lang.FormatPercent 2 }}",
+              "512.50%"
+            ]
+          ]
+        },
+        "Merge": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "NumFmt": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "Translate": {
           "Description": "Translate returns a translated string for id.",
           "Args": [
+            "ctx",
             "id",
             "args"
           ],
@@ -3027,153 +4135,243 @@
         }
       },
       "math": {
-        "Add": {
-          "Description": "Add adds two numbers.",
+        "Abs": {
+          "Description": "Abs returns the absolute value of n.",
           "Args": [
-            "a",
-            "b"
+            "n"
+          ],
+          "Aliases": null,
+          "Examples": [
+            [
+              "{{ math.Abs -2.1 }}",
+              "2.1"
+            ]
+          ]
+        },
+        "Add": {
+          "Description": "Add adds the multivalued addends n1 and n2 or more values.",
+          "Args": [
+            "inputs"
           ],
           "Aliases": [
             "add"
           ],
           "Examples": [
             [
-              "{{add 1 2}}",
+              "{{ add 1 2 }}",
               "3"
             ]
           ]
         },
         "Ceil": {
-          "Description": "Ceil returns the least integer value greater than or equal to x.",
+          "Description": "Ceil returns the least integer value greater than or equal to n.",
           "Args": [
-            "x"
+            "n"
           ],
           "Aliases": null,
           "Examples": [
             [
-              "{{math.Ceil 2.1}}",
+              "{{ math.Ceil 2.1 }}",
               "3"
             ]
           ]
         },
+        "Counter": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "Div": {
-          "Description": "Div divides two numbers.",
+          "Description": "Div divides n1 by n2.",
           "Args": [
-            "a",
-            "b"
+            "inputs"
           ],
           "Aliases": [
             "div"
           ],
           "Examples": [
             [
-              "{{div 6 3}}",
+              "{{ div 6 3 }}",
               "2"
             ]
           ]
         },
         "Floor": {
-          "Description": "Floor returns the greatest integer value less than or equal to x.",
+          "Description": "Floor returns the greatest integer value less than or equal to n.",
           "Args": [
-            "x"
+            "n"
           ],
           "Aliases": null,
           "Examples": [
             [
-              "{{math.Floor 1.9}}",
+              "{{ math.Floor 1.9 }}",
               "1"
             ]
           ]
         },
         "Log": {
-          "Description": "Log returns the natural logarithm of a number.",
+          "Description": "Log returns the natural logarithm of the number n.",
           "Args": [
-            "a"
+            "n"
           ],
           "Aliases": null,
           "Examples": [
             [
-              "{{math.Log 1}}",
+              "{{ math.Log 1 }}",
               "0"
             ]
           ]
         },
-        "Mod": {
-          "Description": "Mod returns a % b.",
+        "Max": {
+          "Description": "Max returns the greater of all numbers in inputs. Any slices in inputs are flattened.",
           "Args": [
-            "a",
-            "b"
+            "inputs"
+          ],
+          "Aliases": null,
+          "Examples": [
+            [
+              "{{ math.Max 1 2 }}",
+              "2"
+            ]
+          ]
+        },
+        "Min": {
+          "Description": "Min returns the smaller of all numbers in inputs. Any slices in inputs are flattened.",
+          "Args": [
+            "inputs"
+          ],
+          "Aliases": null,
+          "Examples": [
+            [
+              "{{ math.Min 1 2 }}",
+              "1"
+            ]
+          ]
+        },
+        "Mod": {
+          "Description": "Mod returns n1 % n2.",
+          "Args": [
+            "n1",
+            "n2"
           ],
           "Aliases": [
             "mod"
           ],
           "Examples": [
             [
-              "{{mod 15 3}}",
+              "{{ mod 15 3 }}",
               "0"
             ]
           ]
         },
         "ModBool": {
-          "Description": "ModBool returns the boolean of a % b.  If a % b == 0, return true.",
+          "Description": "ModBool returns the boolean of n1 % n2.  If n1 % n2 == 0, return true.",
           "Args": [
-            "a",
-            "b"
+            "n1",
+            "n2"
           ],
           "Aliases": [
             "modBool"
           ],
           "Examples": [
             [
-              "{{modBool 15 3}}",
+              "{{ modBool 15 3 }}",
               "true"
             ]
           ]
         },
         "Mul": {
-          "Description": "Mul multiplies two numbers.",
+          "Description": "Mul multiplies the multivalued numbers n1 and n2 or more values.",
           "Args": [
-            "a",
-            "b"
+            "inputs"
           ],
           "Aliases": [
             "mul"
           ],
           "Examples": [
             [
-              "{{mul 2 3}}",
+              "{{ mul 2 3 }}",
               "6"
             ]
           ]
         },
-        "Round": {
-          "Description": "Round returns the nearest integer, rounding half away from zero.",
+        "Pow": {
+          "Description": "Pow returns n1 raised to the power of n2.",
           "Args": [
-            "x"
+            "n1",
+            "n2"
+          ],
+          "Aliases": [
+            "pow"
+          ],
+          "Examples": [
+            [
+              "{{ math.Pow 2 3 }}",
+              "8"
+            ]
+          ]
+        },
+        "Product": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Round": {
+          "Description": "Round returns the integer nearest to n, rounding half away from zero.",
+          "Args": [
+            "n"
           ],
           "Aliases": null,
           "Examples": [
             [
-              "{{math.Round 1.5}}",
+              "{{ math.Round 1.5 }}",
               "2"
             ]
           ]
         },
-        "Sub": {
-          "Description": "Sub subtracts two numbers.",
+        "Sqrt": {
+          "Description": "Sqrt returns the square root of the number n.",
           "Args": [
-            "a",
-            "b"
+            "n"
+          ],
+          "Aliases": null,
+          "Examples": [
+            [
+              "{{ math.Sqrt 81 }}",
+              "9"
+            ]
+          ]
+        },
+        "Sub": {
+          "Description": "Sub subtracts multivalued.",
+          "Args": [
+            "inputs"
           ],
           "Aliases": [
             "sub"
           ],
           "Examples": [
             [
-              "{{sub 3 2}}",
+              "{{ sub 3 2 }}",
               "1"
             ]
           ]
+        },
+        "Sum": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        }
+      },
+      "openapi3": {
+        "Unmarshal": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": []
         }
       },
       "os": {
@@ -3241,8 +4439,9 @@
       },
       "partials": {
         "Include": {
-          "Description": "Include executes the named partial.\nIf the partial contains a return statement, that value will be returned.\nElse, the rendered output will be returned:\nA string if the partial is a text/template, or template.HTML when html/template.",
+          "Description": "Include executes the named partial.\nIf the partial contains a return statement, that value will be returned.\nElse, the rendered output will be returned:\nA string if the partial is a text/template, or template.HTML when html/template.\nNote that ctx is provided by Hugo, not the end user.",
           "Args": [
+            "ctx",
             "name",
             "contextList"
           ],
@@ -3257,11 +4456,12 @@
           ]
         },
         "IncludeCached": {
-          "Description": "IncludeCached executes and caches partial templates.  An optional variant\nstring parameter (a string slice actually, but be only use a variadic\nargument to make it optional) can be passed so that a given partial can have\nmultiple uses. The cache is created with name+variant as the key.",
+          "Description": "IncludeCached executes and caches partial templates.  The cache is created with name+variants as the key.\nNote that ctx is provided by Hugo, not the end user.",
           "Args": [
+            "ctx",
             "name",
             "context",
-            "variant"
+            "variants"
           ],
           "Aliases": [
             "partialCached"
@@ -3271,6 +4471,18 @@
       },
       "path": {
         "Base": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "BaseName": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Clean": {
           "Description": "",
           "Args": null,
           "Aliases": null,
@@ -3296,23 +4508,23 @@
           "Aliases": null,
           "Examples": [
             [
-              "{{ slice \"my/path\" \"filename.txt\" | path.Join  }}",
+              "{{ slice \"my/path\" \"filename.txt\" | path.Join }}",
               "my/path/filename.txt"
             ],
             [
-              "{{  path.Join \"my\" \"path\" \"filename.txt\" }}",
+              "{{ path.Join \"my\" \"path\" \"filename.txt\" }}",
               "my/path/filename.txt"
             ],
             [
-              "{{ \"my/path/filename.txt\" | path.Ext  }}",
+              "{{ \"my/path/filename.txt\" | path.Ext }}",
               ".txt"
             ],
             [
-              "{{ \"my/path/filename.txt\" | path.Base  }}",
+              "{{ \"my/path/filename.txt\" | path.Base }}",
               "filename.txt"
             ],
             [
-              "{{ \"my/path/filename.txt\" | path.Dir  }}",
+              "{{ \"my/path/filename.txt\" | path.Dir }}",
               "my/path"
             ]
           ]
@@ -3364,7 +4576,29 @@
         }
       },
       "resources": {
+        "Babel": {
+          "Description": "Babel processes the given Resource with Babel.",
+          "Args": [
+            "args"
+          ],
+          "Aliases": [
+            "babel"
+          ],
+          "Examples": []
+        },
+        "ByType": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "Concat": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Copy": {
           "Description": "",
           "Args": null,
           "Aliases": null,
@@ -3393,12 +4627,32 @@
           "Examples": null
         },
         "Get": {
-          "Description": "Get locates the filename given in Hugo's filesystems: static, assets and content (in that order)\nand creates a Resource object that can be used for further transformations.",
+          "Description": "Get locates the filename given in Hugo's assets filesystem\nand creates a Resource object that can be used for further transformations.",
           "Args": [
             "filename"
           ],
           "Aliases": null,
           "Examples": []
+        },
+        "GetMatch": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "GetRemote": {
+          "Description": "GetRemote gets the URL (via HTTP(s)) in the first argument in args and creates Resource object that can be used for\nfurther transformations.\n\nA second argument may be provided with an option map.\n\nNote: This method does not return any error as a second return value,\nfor any error situations the error can be checked in .Err.",
+          "Args": [
+            "args"
+          ],
+          "Aliases": null,
+          "Examples": []
+        },
+        "Match": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
         },
         "Minify": {
           "Description": "Minify minifies the given Resource using the MediaType to pick the correct\nminifier.",
@@ -3420,8 +4674,14 @@
           ],
           "Examples": []
         },
+        "PostProcess": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "ToCSS": {
-          "Description": "ToCSS converts the given Resource to CSS. You can optional provide an Options\nobject or a target path (string) as first argument.",
+          "Description": "ToCSS converts the given Resource to CSS. You can optional provide an Options object\nas second argument. As an option, you can e.g. specify e.g. the target path (string)\nfor the converted CSS resource.",
           "Args": [
             "args"
           ],
@@ -3433,9 +4693,9 @@
       },
       "safe": {
         "CSS": {
-          "Description": "CSS returns a given string as html/template CSS content.",
+          "Description": "CSS returns the string s as html/template CSS content.",
           "Args": [
-            "a"
+            "s"
           ],
           "Aliases": [
             "safeCSS"
@@ -3448,9 +4708,9 @@
           ]
         },
         "HTML": {
-          "Description": "HTML returns a given string as html/template HTML content.",
+          "Description": "HTML returns the string s as html/template HTML content.",
           "Args": [
-            "a"
+            "s"
           ],
           "Aliases": [
             "safeHTML"
@@ -3467,9 +4727,9 @@
           ]
         },
         "HTMLAttr": {
-          "Description": "HTMLAttr returns a given string as html/template HTMLAttr content.",
+          "Description": "HTMLAttr returns the string s as html/template HTMLAttr content.",
           "Args": [
-            "a"
+            "s"
           ],
           "Aliases": [
             "safeHTMLAttr"
@@ -3479,7 +4739,7 @@
         "JS": {
           "Description": "JS returns the given string as a html/template JS content.",
           "Args": [
-            "a"
+            "s"
           ],
           "Aliases": [
             "safeJS"
@@ -3494,7 +4754,7 @@
         "JSStr": {
           "Description": "JSStr returns the given string as a html/template JSStr content.",
           "Args": [
-            "a"
+            "s"
           ],
           "Aliases": [
             "safeJSStr"
@@ -3502,9 +4762,9 @@
           "Examples": []
         },
         "SanitizeURL": {
-          "Description": "SanitizeURL returns a given string as html/template URL content.",
+          "Description": "SanitizeURL returns the string s as html/template URL content.",
           "Args": [
-            "a"
+            "s"
           ],
           "Aliases": [
             "sanitizeURL",
@@ -3513,9 +4773,9 @@
           "Examples": []
         },
         "URL": {
-          "Description": "URL returns a given string as html/template URL content.",
+          "Description": "URL returns the string s as html/template URL content.",
           "Args": [
-            "a"
+            "s"
           ],
           "Aliases": [
             "safeURL"
@@ -3529,7 +4789,49 @@
         }
       },
       "site": {
+        "AllPages": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Author": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Authors": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "BaseURL": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "BuildDrafts": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Config": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Copyright": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Current": {
           "Description": "",
           "Args": null,
           "Aliases": null,
@@ -3541,7 +4843,49 @@
           "Aliases": null,
           "Examples": null
         },
+        "DisqusShortname": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "GetIdentity": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "GetPage": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "GetPageWithTemplateInfo": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "GoogleAnalytics": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Home": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "Hugo": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "IsMultiLingual": {
           "Description": "",
           "Args": null,
           "Aliases": null,
@@ -3559,7 +4903,31 @@
           "Aliases": null,
           "Examples": null
         },
+        "LanguageCode": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "LanguagePrefix": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Languages": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "LastChange": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "MainSections": {
           "Description": "",
           "Args": null,
           "Aliases": null,
@@ -3577,13 +4945,31 @@
           "Aliases": null,
           "Examples": null
         },
+        "Param": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "Params": {
           "Description": "",
           "Args": null,
           "Aliases": null,
           "Examples": null
         },
+        "RSSLink": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "RegularPages": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Sections": {
           "Description": "",
           "Args": null,
           "Aliases": null,
@@ -3596,6 +4982,12 @@
           "Examples": null
         },
         "Sites": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
+        "Social": {
           "Description": "",
           "Args": null,
           "Aliases": null,
@@ -3625,25 +5017,69 @@
           ],
           "Examples": [
             [
-              "{{chomp \"\u003cp\u003eBlockhead\u003c/p\u003e\\n\" | safeHTML }}",
+              "{{ chomp \"\u003cp\u003eBlockhead\u003c/p\u003e\\n\" | safeHTML }}",
               "\u003cp\u003eBlockhead\u003c/p\u003e"
             ]
           ]
         },
         "Contains": {
-          "Description": "",
-          "Args": null,
+          "Description": "Contains reports whether substr is in s.",
+          "Args": [
+            "s",
+            "substr"
+          ],
           "Aliases": null,
-          "Examples": null
+          "Examples": [
+            [
+              "{{ strings.Contains \"abc\" \"b\" }}",
+              "true"
+            ],
+            [
+              "{{ strings.Contains \"abc\" \"d\" }}",
+              "false"
+            ]
+          ]
         },
         "ContainsAny": {
+          "Description": "ContainsAny reports whether any Unicode code points in chars are within s.",
+          "Args": [
+            "s",
+            "chars"
+          ],
+          "Aliases": null,
+          "Examples": [
+            [
+              "{{ strings.ContainsAny \"abc\" \"bcd\" }}",
+              "true"
+            ],
+            [
+              "{{ strings.ContainsAny \"abc\" \"def\" }}",
+              "false"
+            ]
+          ]
+        },
+        "ContainsNonSpace": {
           "Description": "",
           "Args": null,
           "Aliases": null,
           "Examples": null
         },
+        "Count": {
+          "Description": "Count counts the number of non-overlapping instances of substr in s.\nIf substr is an empty string, Count returns 1 + the number of Unicode code points in s.",
+          "Args": [
+            "substr",
+            "s"
+          ],
+          "Aliases": null,
+          "Examples": [
+            [
+              "{{ \"aabab\" | strings.Count \"a\" }}",
+              "3"
+            ]
+          ]
+        },
         "CountRunes": {
-          "Description": "CountRunes returns the number of runes in s, excluding whitepace.",
+          "Description": "CountRunes returns the number of runes in s, excluding whitespace.",
           "Args": [
             "s"
           ],
@@ -3674,13 +5110,30 @@
           ],
           "Examples": [
             [
-              "{{ findRE \"[G|g]o\" \"Hugo is a static side generator written in Go.\" \"1\" }}",
+              "{{ findRE \"[G|g]o\" \"Hugo is a static side generator written in Go.\" 1 }}",
               "[go]"
             ]
           ]
         },
+        "FindRESubmatch": {
+          "Description": "FindRESubmatch returns a slice of all successive matches of the regular\nexpression in content. Each element is a slice of strings holding the text\nof the leftmost match of the regular expression and the matches, if any, of\nits subexpressions.\n\nBy default all matches will be included. The number of matches can be\nlimited with the optional limit parameter. A return value of nil indicates\nno match.",
+          "Args": [
+            "expr",
+            "content",
+            "limit"
+          ],
+          "Aliases": [
+            "findRESubmatch"
+          ],
+          "Examples": [
+            [
+              "{{ findRESubmatch `\u003ca\\s*href=\"(.+?)\"\u003e(.+?)\u003c/a\u003e` `\u003cli\u003e\u003ca href=\"#foo\"\u003eFoo\u003c/a\u003e\u003c/li\u003e \u003cli\u003e\u003ca href=\"#bar\"\u003eBar\u003c/a\u003e\u003c/li\u003e` | print | safeHTML }}",
+              "[[\u003ca href=\"#foo\"\u003eFoo\u003c/a\u003e #foo Foo] [\u003ca href=\"#bar\"\u003eBar\u003c/a\u003e #bar Bar]]"
+            ]
+          ]
+        },
         "FirstUpper": {
-          "Description": "FirstUpper returns a string with the first character as upper case.",
+          "Description": "FirstUpper converts s making  the first character upper case.",
           "Args": [
             "s"
           ],
@@ -3713,13 +5166,27 @@
           ]
         },
         "HasSuffix": {
-          "Description": "",
-          "Args": null,
-          "Aliases": null,
-          "Examples": null
+          "Description": "HasSuffix tests whether the input s begins with suffix.",
+          "Args": [
+            "s",
+            "suffix"
+          ],
+          "Aliases": [
+            "hasSuffix"
+          ],
+          "Examples": [
+            [
+              "{{ hasSuffix \"Hugo\" \"go\" }}",
+              "true"
+            ],
+            [
+              "{{ hasSuffix \"Hugo\" \"du\" }}",
+              "false"
+            ]
+          ]
         },
         "Repeat": {
-          "Description": "Repeat returns a new string consisting of count copies of the string s.",
+          "Description": "Repeat returns a new string consisting of n copies of the string s.",
           "Args": [
             "n",
             "s"
@@ -3733,11 +5200,12 @@
           ]
         },
         "Replace": {
-          "Description": "Replace returns a copy of the string s with all occurrences of old replaced\nwith new.",
+          "Description": "Replace returns a copy of the string s with all occurrences of old replaced\nwith new.  The number of replacements can be limited with an optional fourth\nparameter.",
           "Args": [
             "s",
             "old",
-            "new"
+            "new",
+            "limit"
           ],
           "Aliases": [
             "replace"
@@ -3746,20 +5214,34 @@
             [
               "{{ replace \"Batman and Robin\" \"Robin\" \"Catwoman\" }}",
               "Batman and Catwoman"
+            ],
+            [
+              "{{ replace \"aabbaabb\" \"a\" \"z\" 2 }}",
+              "zzbbaabb"
             ]
           ]
         },
         "ReplaceRE": {
-          "Description": "ReplaceRE returns a copy of s, replacing all matches of the regular\nexpression pattern with the replacement text repl.",
+          "Description": "ReplaceRE returns a copy of s, replacing all matches of the regular\nexpression pattern with the replacement text repl. The number of replacements\ncan be limited with an optional fourth parameter.",
           "Args": [
             "pattern",
             "repl",
-            "s"
+            "s",
+            "n"
           ],
           "Aliases": [
             "replaceRE"
           ],
-          "Examples": []
+          "Examples": [
+            [
+              "{{ replaceRE \"a+b\" \"X\" \"aabbaabbab\" }}",
+              "XbXbX"
+            ],
+            [
+              "{{ replaceRE \"a+b\" \"X\" \"aabbaabbab\" 1 }}",
+              "Xbaabbab"
+            ]
+          ]
         },
         "RuneCount": {
           "Description": "RuneCount returns the number of runes in s.",
@@ -3780,11 +5262,11 @@
           ],
           "Examples": [
             [
-              "{{slicestr \"BatMan\" 0 3}}",
+              "{{ slicestr \"BatMan\" 0 3 }}",
               "Bat"
             ],
             [
-              "{{slicestr \"BatMan\" 3}}",
+              "{{ slicestr \"BatMan\" 3 }}",
               "Man"
             ]
           ]
@@ -3811,11 +5293,11 @@
           ],
           "Examples": [
             [
-              "{{substr \"BatMan\" 0 -3}}",
+              "{{ substr \"BatMan\" 0 -3 }}",
               "Bat"
             ],
             [
-              "{{substr \"BatMan\" 3 3}}",
+              "{{ substr \"BatMan\" 3 3 }}",
               "Man"
             ]
           ]
@@ -3830,11 +5312,11 @@
           ],
           "Examples": [
             [
-              "{{title \"Bat man\"}}",
+              "{{ title \"Bat man\" }}",
               "Bat Man"
             ],
             [
-              "{{title \"somewhere over the rainbow\"}}",
+              "{{ title \"somewhere over the rainbow\" }}",
               "Somewhere Over the Rainbow"
             ]
           ]
@@ -3849,7 +5331,7 @@
           ],
           "Examples": [
             [
-              "{{lower \"BatMan\"}}",
+              "{{ lower \"BatMan\" }}",
               "batman"
             ]
           ]
@@ -3864,13 +5346,13 @@
           ],
           "Examples": [
             [
-              "{{upper \"BatMan\"}}",
+              "{{ upper \"BatMan\" }}",
               "BATMAN"
             ]
           ]
         },
         "Trim": {
-          "Description": "Trim returns a string with all leading and trailing characters defined\ncontained in cutset removed.",
+          "Description": "Trim returns converts the strings s removing all leading and trailing characters defined\ncontained.",
           "Args": [
             "s",
             "cutset"
@@ -3950,9 +5432,9 @@
           ]
         },
         "Truncate": {
-          "Description": "Truncate truncates a given string to the specified length.",
+          "Description": "Truncate truncates the string in s to the specified length.",
           "Args": [
-            "a",
+            "s",
             "options"
           ],
           "Aliases": [
@@ -3993,7 +5475,8 @@
         "AsTime": {
           "Description": "AsTime converts the textual representation of the datetime string into\na time.Time interface.",
           "Args": [
-            "v"
+            "v",
+            "args"
           ],
           "Aliases": null,
           "Examples": [
@@ -4020,7 +5503,7 @@
           ]
         },
         "Format": {
-          "Description": "Format converts the textual representation of the datetime string into\nthe other form or returns it of the time.Time value. These are formatted\nwith the layout string",
+          "Description": "Format converts the textual representation of the datetime string in v into\ntime.Time if needed and formats it with the given layout.",
           "Args": [
             "layout",
             "v"
@@ -4036,7 +5519,7 @@
           ]
         },
         "Now": {
-          "Description": "Now returns the current local time.",
+          "Description": "Now returns the current local time or `clock` time",
           "Args": null,
           "Aliases": [
             "now"
@@ -4044,9 +5527,9 @@
           "Examples": []
         },
         "ParseDuration": {
-          "Description": "ParseDuration parses a duration string.\nA duration string is a possibly signed sequence of\ndecimal numbers, each with optional fraction and a unit suffix,\nsuch as \"300ms\", \"-1.5h\" or \"2h45m\".\nValid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\", \"m\", \"h\".\nSee https://golang.org/pkg/time/#ParseDuration",
+          "Description": "ParseDuration parses the duration string s.\nA duration string is a possibly signed sequence of\ndecimal numbers, each with optional fraction and a unit suffix,\nsuch as \"300ms\", \"-1.5h\" or \"2h45m\".\nValid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\", \"m\", \"h\".\nSee https://golang.org/pkg/time/#ParseDuration",
           "Args": [
-            "in"
+            "s"
           ],
           "Aliases": null,
           "Examples": [
@@ -4058,6 +5541,12 @@
         }
       },
       "transform": {
+        "CanHighlight": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "Emojify": {
           "Description": "Emojify returns a copy of s with all emoji codes replaced with actual emojis.\n\nSee http://www.emoji-cheat-sheet.com/",
           "Args": [
@@ -4083,11 +5572,11 @@
           ],
           "Examples": [
             [
-              "{{ htmlEscape \"Cathal Garvey \u0026 The Sunshine Band \u003ccathal@foo.bar\u003e\" | safeHTML}}",
+              "{{ htmlEscape \"Cathal Garvey \u0026 The Sunshine Band \u003ccathal@foo.bar\u003e\" | safeHTML }}",
               "Cathal Garvey \u0026amp; The Sunshine Band \u0026lt;cathal@foo.bar\u0026gt;"
             ],
             [
-              "{{ htmlEscape \"Cathal Garvey \u0026 The Sunshine Band \u003ccathal@foo.bar\u003e\"}}",
+              "{{ htmlEscape \"Cathal Garvey \u0026 The Sunshine Band \u003ccathal@foo.bar\u003e\" }}",
               "Cathal Garvey \u0026amp;amp; The Sunshine Band \u0026amp;lt;cathal@foo.bar\u0026amp;gt;"
             ],
             [
@@ -4097,7 +5586,7 @@
           ]
         },
         "HTMLUnescape": {
-          "Description": "HTMLUnescape returns a copy of with HTML escape requences converted to plain\ntext.",
+          "Description": "HTMLUnescape returns a copy of s with HTML escape requences converted to plain\ntext.",
           "Args": [
             "s"
           ],
@@ -4106,15 +5595,15 @@
           ],
           "Examples": [
             [
-              "{{ htmlUnescape \"Cathal Garvey \u0026amp; The Sunshine Band \u0026lt;cathal@foo.bar\u0026gt;\" | safeHTML}}",
+              "{{ htmlUnescape \"Cathal Garvey \u0026amp; The Sunshine Band \u0026lt;cathal@foo.bar\u0026gt;\" | safeHTML }}",
               "Cathal Garvey \u0026 The Sunshine Band \u003ccathal@foo.bar\u003e"
             ],
             [
-              "{{\"Cathal Garvey \u0026amp;amp; The Sunshine Band \u0026amp;lt;cathal@foo.bar\u0026amp;gt;\" | htmlUnescape | htmlUnescape | safeHTML}}",
+              "{{ \"Cathal Garvey \u0026amp;amp; The Sunshine Band \u0026amp;lt;cathal@foo.bar\u0026amp;gt;\" | htmlUnescape | htmlUnescape | safeHTML }}",
               "Cathal Garvey \u0026 The Sunshine Band \u003ccathal@foo.bar\u003e"
             ],
             [
-              "{{\"Cathal Garvey \u0026amp;amp; The Sunshine Band \u0026amp;lt;cathal@foo.bar\u0026amp;gt;\" | htmlUnescape | htmlUnescape }}",
+              "{{ \"Cathal Garvey \u0026amp;amp; The Sunshine Band \u0026amp;lt;cathal@foo.bar\u0026amp;gt;\" | htmlUnescape | htmlUnescape }}",
               "Cathal Garvey \u0026amp; The Sunshine Band \u0026lt;cathal@foo.bar\u0026gt;"
             ],
             [
@@ -4135,9 +5624,16 @@
           ],
           "Examples": []
         },
+        "HighlightCodeBlock": {
+          "Description": "",
+          "Args": null,
+          "Aliases": null,
+          "Examples": null
+        },
         "Markdownify": {
-          "Description": "Markdownify renders a given input from Markdown to HTML.",
+          "Description": "Markdownify renders s from Markdown to HTML.",
           "Args": [
+            "ctx",
             "s"
           ],
           "Aliases": [
@@ -4145,7 +5641,7 @@
           ],
           "Examples": [
             [
-              "{{ .Title | markdownify}}",
+              "{{ .Title | markdownify }}",
               "\u003cstrong\u003eBatMan\u003c/strong\u003e"
             ]
           ]
@@ -4180,7 +5676,7 @@
           ]
         },
         "Unmarshal": {
-          "Description": "Unmarshal unmarshals the data given, which can be either a string\nor a Resource. Supported formats are JSON, TOML, YAML, and CSV.\nYou can optionally provide an options map as the first argument.",
+          "Description": "Unmarshal unmarshals the data given, which can be either a string, json.RawMessage\nor a Resource. Supported formats are JSON, TOML, YAML, and CSV.\nYou can optionally provide an options map as the first argument.",
           "Args": [
             "args"
           ],
@@ -4201,9 +5697,9 @@
       },
       "urls": {
         "AbsLangURL": {
-          "Description": "AbsLangURL takes a given string and converts it to an absolute URL according\nto a page's position in the project directory structure and the current\nlanguage.",
+          "Description": "AbsLangURL the string s and converts it to an absolute URL according\nto a page's position in the project directory structure and the current\nlanguage.",
           "Args": [
-            "a"
+            "s"
           ],
           "Aliases": [
             "absLangURL"
@@ -4211,9 +5707,9 @@
           "Examples": []
         },
         "AbsURL": {
-          "Description": "AbsURL takes a given string and converts it to an absolute URL.",
+          "Description": "AbsURL takes the string s and converts it to an absolute URL.",
           "Args": [
-            "a"
+            "s"
           ],
           "Aliases": [
             "absURL"
@@ -4221,9 +5717,9 @@
           "Examples": []
         },
         "Anchorize": {
-          "Description": "Anchorize creates sanitized anchor names that are compatible with Blackfriday.",
+          "Description": "Anchorize creates sanitized anchor name version of the string s that is compatible\nwith how your configured markdown renderer does it.",
           "Args": [
-            "a"
+            "s"
           ],
           "Aliases": [
             "anchorize"
@@ -4235,6 +5731,23 @@
             ]
           ]
         },
+        "JoinPath": {
+          "Description": "JoinPath joins the provided elements into a URL string and cleans the result\nof any ./ or ../ elements. If the argument list is empty, JoinPath returns\nan empty string.",
+          "Args": [
+            "elements"
+          ],
+          "Aliases": null,
+          "Examples": [
+            [
+              "{{ urls.JoinPath \"https://example.org\" \"foo\" }}",
+              "https://example.org/foo"
+            ],
+            [
+              "{{ urls.JoinPath (slice \"a\" \"b\") }}",
+              "a/b"
+            ]
+          ]
+        },
         "Parse": {
           "Description": "",
           "Args": null,
@@ -4242,9 +5755,9 @@
           "Examples": null
         },
         "Ref": {
-          "Description": "Ref returns the absolute URL path to a given content item.",
+          "Description": "Ref returns the absolute URL path to a given content item from Page p.",
           "Args": [
-            "in",
+            "p",
             "args"
           ],
           "Aliases": [
@@ -4253,9 +5766,9 @@
           "Examples": []
         },
         "RelLangURL": {
-          "Description": "RelLangURL takes a given string and prepends the relative path according to a\npage's position in the project directory structure and the current language.",
+          "Description": "RelLangURL takes the string s and prepends the relative path according to a\npage's position in the project directory structure and the current language.",
           "Args": [
-            "a"
+            "s"
           ],
           "Aliases": [
             "relLangURL"
@@ -4263,9 +5776,9 @@
           "Examples": []
         },
         "RelRef": {
-          "Description": "RelRef returns the relative URL path to a given content item.",
+          "Description": "RelRef returns the relative URL path to a given content item from Page p.",
           "Args": [
-            "in",
+            "p",
             "args"
           ],
           "Aliases": [
@@ -4274,9 +5787,9 @@
           "Examples": []
         },
         "RelURL": {
-          "Description": "RelURL takes a given string and prepends the relative path according to a\npage's position in the project directory structure.",
+          "Description": "RelURL takes the string s and prepends the relative path according to a\npage's position in the project directory structure.",
           "Args": [
-            "a"
+            "s"
           ],
           "Aliases": [
             "relURL"
@@ -4284,9 +5797,9 @@
           "Examples": []
         },
         "URLize": {
-          "Description": "URLize returns the given argument formatted as URL.",
+          "Description": "URLize returns the the strings s formatted as an URL.",
           "Args": [
-            "a"
+            "s"
           ],
           "Aliases": [
             "urlize"
