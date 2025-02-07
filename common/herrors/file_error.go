@@ -1,4 +1,4 @@
-// Copyright 2022 The Hugo Authors. All rights reserved.
+// Copyright 2024 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,9 +15,7 @@ package herrors
 
 import (
 	"encoding/json"
-
-	godartsassv1 "github.com/bep/godartsass"
-
+	"errors"
 	"fmt"
 	"io"
 	"path/filepath"
@@ -29,8 +27,6 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"github.com/spf13/afero"
 	"github.com/tdewolff/parse/v2"
-
-	"errors"
 )
 
 // FileError represents an error when handling a file: Parsing a config file,
@@ -48,6 +44,9 @@ type FileError interface {
 
 	// UpdateContent updates the error with a new ErrorContext from the content of the file.
 	UpdateContent(r io.Reader, linematcher LineMatcherFn) FileError
+
+	// SetFilename sets the filename of the error.
+	SetFilename(filename string) FileError
 }
 
 // Unwrapper can unwrap errors created with fmt.Errorf.
@@ -59,6 +58,11 @@ var (
 	_ FileError = (*fileError)(nil)
 	_ Unwrapper = (*fileError)(nil)
 )
+
+func (fe *fileError) SetFilename(filename string) FileError {
+	fe.position.Filename = filename
+	return fe
+}
 
 func (fe *fileError) UpdatePosition(pos text.Position) FileError {
 	oldFilename := fe.Position().Filename
@@ -115,7 +119,6 @@ func (fe *fileError) UpdateContent(r io.Reader, linematcher LineMatcherFn) FileE
 	}
 
 	return fe
-
 }
 
 type fileError struct {
@@ -148,8 +151,6 @@ func (e *fileError) causeString() string {
 	// Avoid repeating the file info in the error message.
 	case godartsass.SassError:
 		return v.Message
-	case godartsassv1.SassError:
-		return v.Message
 	case libsasserrors.Error:
 		return v.Message
 	default:
@@ -181,7 +182,6 @@ func NewFileErrorFromName(err error, name string) FileError {
 	}
 
 	return &fileError{cause: err, fileType: fileType, position: pos}
-
 }
 
 // NewFileErrorFromPos will use the filename and line number from pos to create a new FileError, wrapping err.
@@ -192,7 +192,6 @@ func NewFileErrorFromPos(err error, pos text.Position) FileError {
 		_, fileType = paths.FileAndExtNoDelimiter(filepath.Clean(pos.Filename))
 	}
 	return &fileError{cause: err, fileType: fileType, position: pos}
-
 }
 
 func NewFileErrorFromFileInErr(err error, fs afero.Fs, linematcher LineMatcherFn) FileError {
@@ -249,7 +248,6 @@ func openFile(filename string, fs afero.Fs) (afero.File, string, error) {
 		}); ok {
 			realFilename = s.Filename()
 		}
-
 	}
 
 	f, err2 := fs.Open(filename)
@@ -260,8 +258,27 @@ func openFile(filename string, fs afero.Fs) (afero.File, string, error) {
 	return f, realFilename, nil
 }
 
-// Cause returns the underlying error or itself if it does not implement Unwrap.
+// Cause returns the underlying error, that is,
+// it unwraps errors until it finds one that does not implement
+// the Unwrap method.
+// For a shallow variant, see Unwrap.
 func Cause(err error) error {
+	type unwrapper interface {
+		Unwrap() error
+	}
+
+	for err != nil {
+		cause, ok := err.(unwrapper)
+		if !ok {
+			break
+		}
+		err = cause.Unwrap()
+	}
+	return err
+}
+
+// Unwrap returns the underlying error or itself if it does not implement Unwrap.
+func Unwrap(err error) error {
 	if u := errors.Unwrap(err); u != nil {
 		return u
 	}
@@ -269,7 +286,7 @@ func Cause(err error) error {
 }
 
 func extractFileTypePos(err error) (string, text.Position) {
-	err = Cause(err)
+	err = Unwrap(err)
 
 	var fileType string
 
@@ -386,14 +403,7 @@ func extractPosition(e error) (pos text.Position) {
 	case godartsass.SassError:
 		span := v.Span
 		start := span.Start
-		filename, _ := paths.UrlToFilename(span.Url)
-		pos.Filename = filename
-		pos.Offset = start.Offset
-		pos.ColumnNumber = start.Column
-	case godartsassv1.SassError:
-		span := v.Span
-		start := span.Start
-		filename, _ := paths.UrlToFilename(span.Url)
+		filename, _ := paths.UrlStringToFilename(span.Url)
 		pos.Filename = filename
 		pos.Offset = start.Offset
 		pos.ColumnNumber = start.Column

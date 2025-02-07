@@ -1,4 +1,4 @@
-// Copyright 2023 The Hugo Authors. All rights reserved.
+// Copyright 2024 The Hugo Authors. All rights reserved.
 // Some functions in this file (see comments) is based on the Go source code,
 // copyright The Go Authors and  governed by a BSD-style license.
 //
@@ -29,10 +29,10 @@ func TestLogDistinct(t *testing.T) {
 	c := qt.New(t)
 
 	opts := loggers.Options{
-		Distinct:    true,
-		StoreErrors: true,
-		Stdout:      io.Discard,
-		Stderr:      io.Discard,
+		DistinctLevel: logg.LevelWarn,
+		StoreErrors:   true,
+		StdOut:        io.Discard,
+		StdErr:        io.Discard,
 	}
 
 	l := loggers.New(opts)
@@ -54,8 +54,8 @@ func TestHookLast(t *testing.T) {
 		HandlerPost: func(e *logg.Entry) error {
 			panic(e.Message)
 		},
-		Stdout: io.Discard,
-		Stderr: io.Discard,
+		StdOut: io.Discard,
+		StdErr: io.Discard,
 	}
 
 	l := loggers.New(opts)
@@ -70,8 +70,8 @@ func TestOptionStoreErrors(t *testing.T) {
 
 	opts := loggers.Options{
 		StoreErrors: true,
-		Stderr:      &sb,
-		Stdout:      &sb,
+		StdErr:      &sb,
+		StdOut:      &sb,
 	}
 
 	l := loggers.New(opts)
@@ -85,7 +85,6 @@ func TestOptionStoreErrors(t *testing.T) {
 
 	c.Assert(sb.String(), qt.Contains, "error 1")
 	c.Assert(sb.String(), qt.Contains, "ERROR")
-
 }
 
 func TestLogCount(t *testing.T) {
@@ -110,7 +109,7 @@ func TestSuppressStatements(t *testing.T) {
 
 	opts := loggers.Options{
 		StoreErrors: true,
-		SuppresssStatements: map[string]bool{
+		SuppressStatements: map[string]bool{
 			"error-1": true,
 		},
 	}
@@ -124,17 +123,16 @@ func TestSuppressStatements(t *testing.T) {
 	c.Assert(errorsStr, qt.Not(qt.Contains), "error 1")
 	c.Assert(errorsStr, qt.Contains, "error 2")
 	c.Assert(l.LoggCount(logg.LevelError), qt.Equals, 1)
-
 }
 
 func TestReset(t *testing.T) {
 	c := qt.New(t)
 
 	opts := loggers.Options{
-		StoreErrors: true,
-		Distinct:    true,
-		Stdout:      io.Discard,
-		Stderr:      io.Discard,
+		StoreErrors:   true,
+		DistinctLevel: logg.LevelWarn,
+		StdOut:        io.Discard,
+		StdErr:        io.Discard,
 	}
 
 	l := loggers.New(opts)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -11,13 +12,20 @@ import (
 	"sync/atomic"
 
 	"github.com/bep/logg"
+	"github.com/gohugoio/hugo/cache/dynacache"
+	"github.com/gohugoio/hugo/cache/filecache"
 	"github.com/gohugoio/hugo/common/hexec"
 	"github.com/gohugoio/hugo/common/loggers"
+	"github.com/gohugoio/hugo/common/maps"
+	"github.com/gohugoio/hugo/common/types"
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/config/allconfig"
 	"github.com/gohugoio/hugo/config/security"
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/hugofs"
+	"github.com/gohugoio/hugo/identity"
+	"github.com/gohugoio/hugo/internal/js"
+	"github.com/gohugoio/hugo/internal/warpc"
 	"github.com/gohugoio/hugo/media"
 	"github.com/gohugoio/hugo/resources/page"
 	"github.com/gohugoio/hugo/resources/postpub"
@@ -33,7 +41,6 @@ import (
 // There will be normally only one instance of deps in play
 // at a given time, i.e. one per Site built.
 type Deps struct {
-
 	// The logger to use.
 	Log loggers.Logger `json:"-"`
 
@@ -41,6 +48,9 @@ type Deps struct {
 
 	// The templates to use. This will usually implement the full tpl.TemplateManager.
 	tmplHandlers *tpl.TemplateHandlers
+
+	// The template funcs.
+	TmplFuncMap map[string]any
 
 	// The file systems to use.
 	Fs *hugofs.Fs `json:"-"`
@@ -60,6 +70,9 @@ type Deps struct {
 	// The configuration to use
 	Conf config.AllProvider `json:"-"`
 
+	// The memory cache to use.
+	MemCache *dynacache.Cache
+
 	// The translation func to use
 	Translate func(ctx context.Context, translationID string, templateData any) string `json:"-"`
 
@@ -75,13 +88,31 @@ type Deps struct {
 	Metrics metrics.Provider
 
 	// BuildStartListeners will be notified before a build starts.
-	BuildStartListeners *Listeners
+	BuildStartListeners *Listeners[any]
+
+	// BuildEndListeners will be notified after a build finishes.
+	BuildEndListeners *Listeners[any]
+
+	// OnChangeListeners will be notified when something changes.
+	OnChangeListeners *Listeners[identity.Identity]
 
 	// Resources that gets closed when the build is done or the server shuts down.
-	BuildClosers *Closers
+	BuildClosers *types.Closers
 
 	// This is common/global for all sites.
 	BuildState *BuildState
+
+	// Holds RPC dispatchers for Katex etc.
+	// TODO(bep) rethink this re. a plugin setup, but this will have to do for now.
+	WasmDispatchers *warpc.Dispatchers
+
+	// The JS batcher client.
+	JSBatcherClient js.BatcherClient
+
+	// The JS batcher client.
+	// JSBatcherClient *esbuild.BatcherClient
+
+	isClosed bool
 
 	*globalErrHandler
 }
@@ -97,7 +128,6 @@ func (d Deps) Clone(s page.Site, conf config.AllProvider) (*Deps, error) {
 	}
 
 	return &d, nil
-
 }
 
 func (d *Deps) SetTempl(t *tpl.TemplateHandlers) {
@@ -127,13 +157,30 @@ func (d *Deps) Init() error {
 	if d.BuildState == nil {
 		d.BuildState = &BuildState{}
 	}
+	if d.BuildState.DeferredExecutions == nil {
+		if d.BuildState.DeferredExecutionsGroupedByRenderingContext == nil {
+			d.BuildState.DeferredExecutionsGroupedByRenderingContext = make(map[tpl.RenderingContext]*DeferredExecutions)
+		}
+		d.BuildState.DeferredExecutions = &DeferredExecutions{
+			Executions:              maps.NewCache[string, *tpl.DeferredExecution](),
+			FilenamesWithPostPrefix: maps.NewCache[string, bool](),
+		}
+	}
 
 	if d.BuildStartListeners == nil {
-		d.BuildStartListeners = &Listeners{}
+		d.BuildStartListeners = &Listeners[any]{}
+	}
+
+	if d.BuildEndListeners == nil {
+		d.BuildEndListeners = &Listeners[any]{}
 	}
 
 	if d.BuildClosers == nil {
-		d.BuildClosers = &Closers{}
+		d.BuildClosers = &types.Closers{}
+	}
+
+	if d.OnChangeListeners == nil {
+		d.OnChangeListeners = &Listeners[identity.Identity]{}
 	}
 
 	if d.Metrics == nil && d.Conf.TemplateMetrics() {
@@ -141,24 +188,37 @@ func (d *Deps) Init() error {
 	}
 
 	if d.ExecHelper == nil {
-		d.ExecHelper = hexec.New(d.Conf.GetConfigSection("security").(security.Config))
+		d.ExecHelper = hexec.New(d.Conf.GetConfigSection("security").(security.Config), d.Conf.WorkingDir(), d.Log)
+	}
+
+	if d.MemCache == nil {
+		d.MemCache = dynacache.New(dynacache.Options{Watching: d.Conf.Watching(), Log: d.Log})
 	}
 
 	if d.PathSpec == nil {
-		hashBytesReceiverFunc := func(name string, match bool) {
-			if !match {
-				return
+		hashBytesReceiverFunc := func(name string, match []byte) {
+			s := string(match)
+			switch s {
+			case postpub.PostProcessPrefix:
+				d.BuildState.AddFilenameWithPostPrefix(name)
+			case tpl.HugoDeferredTemplatePrefix:
+				d.BuildState.DeferredExecutions.FilenamesWithPostPrefix.Set(name, true)
 			}
-			d.BuildState.AddFilenameWithPostPrefix(name)
 		}
 
 		// Skip binary files.
 		mediaTypes := d.Conf.GetConfigSection("mediaTypes").(media.Types)
-		hashBytesSHouldCheck := func(name string) bool {
+		hashBytesShouldCheck := func(name string) bool {
 			ext := strings.TrimPrefix(filepath.Ext(name), ".")
 			return mediaTypes.IsTextSuffix(ext)
 		}
-		d.Fs.PublishDir = hugofs.NewHasBytesReceiver(d.Fs.PublishDir, hashBytesSHouldCheck, hashBytesReceiverFunc, []byte(postpub.PostProcessPrefix))
+		d.Fs.PublishDir = hugofs.NewHasBytesReceiver(
+			d.Fs.PublishDir,
+			hashBytesShouldCheck,
+			hashBytesReceiverFunc,
+			[]byte(tpl.HugoDeferredTemplatePrefix),
+			[]byte(postpub.PostProcessPrefix))
+
 		pathSpec, err := helpers.NewPathSpec(d.Fs, d.Conf, d.Log)
 		if err != nil {
 			return err
@@ -185,13 +245,16 @@ func (d *Deps) Init() error {
 	}
 
 	var common *resources.SpecCommon
-	var imageCache *resources.ImageCache
 	if d.ResourceSpec != nil {
 		common = d.ResourceSpec.SpecCommon
-		imageCache = d.ResourceSpec.ImageCache
 	}
 
-	resourceSpec, err := resources.NewSpec(d.PathSpec, common, imageCache, d.BuildState, d.Log, d, d.ExecHelper)
+	fileCaches, err := filecache.NewCaches(d.PathSpec)
+	if err != nil {
+		return fmt.Errorf("failed to create file caches from configuration: %w", err)
+	}
+
+	resourceSpec, err := resources.NewSpec(d.PathSpec, common, fileCaches, d.MemCache, d.BuildState, d.Log, d, d.ExecHelper, d.BuildClosers, d.BuildState)
 	if err != nil {
 		return fmt.Errorf("failed to create resource spec: %w", err)
 	}
@@ -221,6 +284,23 @@ func (d *Deps) Compile(prototype *Deps) error {
 	}
 
 	return nil
+}
+
+// MkdirTemp returns a temporary directory path that will be cleaned up on exit.
+func (d Deps) MkdirTemp(pattern string) (string, error) {
+	filename, err := os.MkdirTemp("", pattern)
+	if err != nil {
+		return "", err
+	}
+	d.BuildClosers.Add(
+		types.CloserFunc(
+			func() error {
+				return os.RemoveAll(filename)
+			},
+		),
+	)
+
+	return filename, nil
 }
 
 type globalErrHandler struct {
@@ -261,15 +341,16 @@ func (e *globalErrHandler) StopErrorCollector() {
 }
 
 // Listeners represents an event listener.
-type Listeners struct {
+type Listeners[T any] struct {
 	sync.Mutex
 
 	// A list of funcs to be notified about an event.
-	listeners []func()
+	// If the return value is true, the listener will be removed.
+	listeners []func(...T) bool
 }
 
 // Add adds a function to a Listeners instance.
-func (b *Listeners) Add(f func()) {
+func (b *Listeners[T]) Add(f func(...T) bool) {
 	if b == nil {
 		return
 	}
@@ -279,12 +360,16 @@ func (b *Listeners) Add(f func()) {
 }
 
 // Notify executes all listener functions.
-func (b *Listeners) Notify() {
+func (b *Listeners[T]) Notify(vs ...T) {
 	b.Lock()
 	defer b.Unlock()
+	temp := b.listeners[:0]
 	for _, notify := range b.listeners {
-		notify()
+		if !notify(vs...) {
+			temp = append(temp, notify)
+		}
 	}
+	b.listeners = temp
 }
 
 // ResourceProvider is used to create and refresh, and clone resources needed.
@@ -302,6 +387,17 @@ func (d *Deps) TextTmpl() tpl.TemplateParseFinder {
 }
 
 func (d *Deps) Close() error {
+	if d.isClosed {
+		return nil
+	}
+	d.isClosed = true
+
+	if d.MemCache != nil {
+		d.MemCache.Stop()
+	}
+	if d.WasmDispatchers != nil {
+		d.WasmDispatchers.Close()
+	}
 	return d.BuildClosers.Close()
 }
 
@@ -316,9 +412,11 @@ type DepsCfg struct {
 	// The logging level to use.
 	LogLevel logg.Level
 
-	// Where to write the logs.
-	// Currently we typically write everything to stdout.
-	LogOut io.Writer
+	// Logging output.
+	StdErr io.Writer
+
+	// The console output.
+	StdOut io.Writer
 
 	// The file systems to use
 	Fs *hugofs.Fs
@@ -333,6 +431,9 @@ type DepsCfg struct {
 
 	// i18n handling.
 	TranslationProvider ResourceProvider
+
+	// ChangesFromBuild for changes passed back to the server/watch process.
+	ChangesFromBuild chan []identity.Identity
 }
 
 // BuildState are state used during a build.
@@ -341,9 +442,44 @@ type BuildState struct {
 
 	mu sync.Mutex // protects state below.
 
-	// A set of ilenames in /public that
+	OnSignalRebuild func(ids ...identity.Identity)
+
+	// A set of filenames in /public that
 	// contains a post-processing prefix.
 	filenamesWithPostPrefix map[string]bool
+
+	DeferredExecutions *DeferredExecutions
+
+	// Deferred executions grouped by rendering context.
+	DeferredExecutionsGroupedByRenderingContext map[tpl.RenderingContext]*DeferredExecutions
+}
+
+type DeferredExecutions struct {
+	// A set of filenames in /public that
+	// contains a post-processing prefix.
+	FilenamesWithPostPrefix *maps.Cache[string, bool]
+
+	// Maps a placeholder to a deferred execution.
+	Executions *maps.Cache[string, *tpl.DeferredExecution]
+}
+
+var _ identity.SignalRebuilder = (*BuildState)(nil)
+
+// StartStageRender will be called before a stage is rendered.
+func (b *BuildState) StartStageRender(stage tpl.RenderingContext) {
+}
+
+// StopStageRender will be called after a stage is rendered.
+func (b *BuildState) StopStageRender(stage tpl.RenderingContext) {
+	b.DeferredExecutionsGroupedByRenderingContext[stage] = b.DeferredExecutions
+	b.DeferredExecutions = &DeferredExecutions{
+		Executions:              maps.NewCache[string, *tpl.DeferredExecution](),
+		FilenamesWithPostPrefix: maps.NewCache[string, bool](),
+	}
+}
+
+func (b *BuildState) SignalRebuild(ids ...identity.Identity) {
+	b.OnSignalRebuild(ids...)
 }
 
 func (b *BuildState) AddFilenameWithPostPrefix(filename string) {
@@ -368,31 +504,4 @@ func (b *BuildState) GetFilenamesWithPostPrefix() []string {
 
 func (b *BuildState) Incr() int {
 	return int(atomic.AddUint64(&b.counter, uint64(1)))
-}
-
-type Closer interface {
-	Close() error
-}
-
-type Closers struct {
-	mu sync.Mutex
-	cs []Closer
-}
-
-func (cs *Closers) Add(c Closer) {
-	cs.mu.Lock()
-	defer cs.mu.Unlock()
-	cs.cs = append(cs.cs, c)
-}
-
-func (cs *Closers) Close() error {
-	cs.mu.Lock()
-	defer cs.mu.Unlock()
-	for _, c := range cs.cs {
-		c.Close()
-	}
-
-	cs.cs = cs.cs[:0]
-
-	return nil
 }

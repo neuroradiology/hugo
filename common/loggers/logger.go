@@ -1,4 +1,4 @@
-// Copyright 2023 The Hugo Authors. All rights reserved.
+// Copyright 2024 The Hugo Authors. All rights reserved.
 // Some functions in this file (see comments) is based on the Go source code,
 // copyright The Go Authors and  governed by a BSD-style license.
 //
@@ -37,41 +37,55 @@ var (
 
 // Options defines options for the logger.
 type Options struct {
-	Level               logg.Level
-	Stdout              io.Writer
-	Stderr              io.Writer
-	Distinct            bool
-	StoreErrors         bool
-	HandlerPost         func(e *logg.Entry) error
-	SuppresssStatements map[string]bool
+	Level              logg.Level
+	StdOut             io.Writer
+	StdErr             io.Writer
+	DistinctLevel      logg.Level
+	StoreErrors        bool
+	HandlerPost        func(e *logg.Entry) error
+	SuppressStatements map[string]bool
 }
 
 // New creates a new logger with the given options.
 func New(opts Options) Logger {
-	if opts.Stdout == nil {
-		opts.Stdout = os.Stdout
+	if opts.StdOut == nil {
+		opts.StdOut = os.Stdout
 	}
-	if opts.Stderr == nil {
-		opts.Stderr = os.Stdout
+	if opts.StdErr == nil {
+		opts.StdErr = os.Stderr
 	}
+
 	if opts.Level == 0 {
 		opts.Level = logg.LevelWarn
 	}
 
 	var logHandler logg.Handler
-	if terminal.PrintANSIColors(os.Stdout) {
-		logHandler = newDefaultHandler(opts.Stdout, opts.Stderr)
+	if terminal.PrintANSIColors(os.Stderr) {
+		logHandler = newDefaultHandler(opts.StdErr, opts.StdErr)
 	} else {
-		logHandler = newNoColoursHandler(opts.Stdout, opts.Stderr, false, nil)
+		logHandler = newNoAnsiEscapeHandler(opts.StdErr, opts.StdErr, false, nil)
 	}
 
 	errorsw := &strings.Builder{}
 	logCounters := newLogLevelCounter()
 	handlers := []logg.Handler{
-		whiteSpaceTrimmer(),
-		logHandler,
 		logCounters,
 	}
+
+	if opts.Level == logg.LevelTrace {
+		// Trace is used during development only, and it's useful to
+		// only see the trace messages.
+		handlers = append(handlers,
+			logg.HandlerFunc(func(e *logg.Entry) error {
+				if e.Level != logg.LevelTrace {
+					return logg.ErrStopLogEntry
+				}
+				return nil
+			}),
+		)
+	}
+
+	handlers = append(handlers, whiteSpaceTrimmer(), logHandler)
 
 	if opts.HandlerPost != nil {
 		var hookHandler logg.HandlerFunc = func(e *logg.Entry) error {
@@ -82,7 +96,7 @@ func New(opts Options) Logger {
 	}
 
 	if opts.StoreErrors {
-		h := newNoColoursHandler(io.Discard, errorsw, true, func(e *logg.Entry) bool {
+		h := newNoAnsiEscapeHandler(io.Discard, errorsw, true, func(e *logg.Entry) bool {
 			return e.Level >= logg.LevelError
 		})
 
@@ -92,13 +106,13 @@ func New(opts Options) Logger {
 	logHandler = multi.New(handlers...)
 
 	var logOnce *logOnceHandler
-	if opts.Distinct {
-		logOnce = newLogOnceHandler(logg.LevelWarn)
+	if opts.DistinctLevel != 0 {
+		logOnce = newLogOnceHandler(opts.DistinctLevel)
 		logHandler = newStopHandler(logOnce, logHandler)
 	}
 
-	if opts.SuppresssStatements != nil && len(opts.SuppresssStatements) > 0 {
-		logHandler = newStopHandler(newSuppressStatementsHandler(opts.SuppresssStatements), logHandler)
+	if len(opts.SuppressStatements) > 0 {
+		logHandler = newStopHandler(newSuppressStatementsHandler(opts.SuppressStatements), logHandler)
 	}
 
 	logger := logg.New(
@@ -124,9 +138,11 @@ func New(opts Options) Logger {
 		logCounters: logCounters,
 		errors:      errorsw,
 		reset:       reset,
-		out:         opts.Stdout,
+		stdOut:      opts.StdOut,
+		stdErr:      opts.StdErr,
 		level:       opts.Level,
 		logger:      logger,
+		tracel:      l.WithLevel(logg.LevelTrace),
 		debugl:      l.WithLevel(logg.LevelDebug),
 		infol:       l.WithLevel(logg.LevelInfo),
 		warnl:       l.WithLevel(logg.LevelWarn),
@@ -137,10 +153,16 @@ func New(opts Options) Logger {
 // NewDefault creates a new logger with the default options.
 func NewDefault() Logger {
 	opts := Options{
-		Distinct: true,
-		Level:    logg.LevelWarn,
-		Stdout:   os.Stdout,
-		Stderr:   os.Stdout,
+		DistinctLevel: logg.LevelWarn,
+		Level:         logg.LevelWarn,
+	}
+	return New(opts)
+}
+
+func NewTrace() Logger {
+	opts := Options{
+		DistinctLevel: logg.LevelWarn,
+		Level:         logg.LevelTrace,
 	}
 	return New(opts)
 }
@@ -150,13 +172,14 @@ func LevelLoggerToWriter(l logg.LevelLogger) io.Writer {
 }
 
 type Logger interface {
+	Debug() logg.LevelLogger
 	Debugf(format string, v ...any)
 	Debugln(v ...any)
 	Error() logg.LevelLogger
 	Errorf(format string, v ...any)
+	Erroridf(id, format string, v ...any)
 	Errorln(v ...any)
 	Errors() string
-	Errorsf(id, format string, v ...any)
 	Info() logg.LevelLogger
 	InfoCommand(command string) logg.LevelLogger
 	Infof(format string, v ...any)
@@ -164,7 +187,8 @@ type Logger interface {
 	Level() logg.Level
 	LoggCount(logg.Level) int
 	Logger() logg.Logger
-	Out() io.Writer
+	StdOut() io.Writer
+	StdErr() io.Writer
 	Printf(format string, v ...any)
 	Println(v ...any)
 	PrintTimerIfDelayed(start time.Time, name string)
@@ -172,21 +196,29 @@ type Logger interface {
 	Warn() logg.LevelLogger
 	WarnCommand(command string) logg.LevelLogger
 	Warnf(format string, v ...any)
+	Warnidf(id, format string, v ...any)
 	Warnln(v ...any)
 	Deprecatef(fail bool, format string, v ...any)
+	Trace(s logg.StringFunc)
 }
 
 type logAdapter struct {
 	logCounters *logLevelCounter
 	errors      *strings.Builder
 	reset       func()
-	out         io.Writer
+	stdOut      io.Writer
+	stdErr      io.Writer
 	level       logg.Level
 	logger      logg.Logger
+	tracel      logg.LevelLogger
 	debugl      logg.LevelLogger
 	infol       logg.LevelLogger
 	warnl       logg.LevelLogger
 	errorl      logg.LevelLogger
+}
+
+func (l *logAdapter) Debug() logg.LevelLogger {
+	return l.debugl
 }
 
 func (l *logAdapter) Debugf(format string, v ...any) {
@@ -227,8 +259,12 @@ func (l *logAdapter) Logger() logg.Logger {
 	return l.logger
 }
 
-func (l *logAdapter) Out() io.Writer {
-	return l.out
+func (l *logAdapter) StdOut() io.Writer {
+	return l.stdOut
+}
+
+func (l *logAdapter) StdErr() io.Writer {
+	return l.stdErr
 }
 
 // PrintTimerIfDelayed prints a time statement to the FEEDBACK logger
@@ -239,7 +275,7 @@ func (l *logAdapter) PrintTimerIfDelayed(start time.Time, name string) {
 	if milli < 500 {
 		return
 	}
-	l.Printf("%s in %v ms", name, milli)
+	fmt.Fprintf(l.stdErr, "%s in %v ms", name, milli)
 }
 
 func (l *logAdapter) Printf(format string, v ...any) {
@@ -247,11 +283,11 @@ func (l *logAdapter) Printf(format string, v ...any) {
 	if !strings.HasSuffix(format, "\n") {
 		format += "\n"
 	}
-	fmt.Fprintf(l.out, format, v...)
+	fmt.Fprintf(l.stdOut, format, v...)
 }
 
 func (l *logAdapter) Println(v ...any) {
-	fmt.Fprintln(l.out, v...)
+	fmt.Fprintln(l.stdOut, v...)
 }
 
 func (l *logAdapter) Reset() {
@@ -290,8 +326,24 @@ func (l *logAdapter) Errors() string {
 	return l.errors.String()
 }
 
-func (l *logAdapter) Errorsf(id, format string, v ...any) {
+func (l *logAdapter) Erroridf(id, format string, v ...any) {
+	id = strings.ToLower(id)
+	format += l.idfInfoStatement("error", id, format)
 	l.errorl.WithField(FieldNameStatementID, id).Logf(format, v...)
+}
+
+func (l *logAdapter) Warnidf(id, format string, v ...any) {
+	id = strings.ToLower(id)
+	format += l.idfInfoStatement("warning", id, format)
+	l.warnl.WithField(FieldNameStatementID, id).Logf(format, v...)
+}
+
+func (l *logAdapter) idfInfoStatement(what, id, format string) string {
+	return fmt.Sprintf("\nYou can suppress this %s by adding the following to your site configuration:\nignoreLogs = ['%s']", what, id)
+}
+
+func (l *logAdapter) Trace(s logg.StringFunc) {
+	l.tracel.Log(s)
 }
 
 func (l *logAdapter) sprint(v ...any) string {
@@ -314,4 +366,20 @@ type logWriter struct {
 func (w logWriter) Write(p []byte) (n int, err error) {
 	w.l.Log(logg.String(string(p)))
 	return len(p), nil
+}
+
+func TimeTrackf(l logg.LevelLogger, start time.Time, fields logg.Fields, format string, a ...any) {
+	elapsed := time.Since(start)
+	if fields != nil {
+		l = l.WithFields(fields)
+	}
+	l.WithField("duration", elapsed).Logf(format, a...)
+}
+
+func TimeTrackfn(fn func() (logg.LevelLogger, error)) error {
+	start := time.Now()
+	l, err := fn()
+	elapsed := time.Since(start)
+	l.WithField("duration", elapsed).Logf("")
+	return err
 }

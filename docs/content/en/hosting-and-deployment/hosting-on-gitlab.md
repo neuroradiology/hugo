@@ -2,7 +2,7 @@
 title: Host on GitLab Pages
 description: GitLab makes it easy to build, deploy, and host your Hugo website via their free GitLab Pages service, which provides native support for Hugo.
 categories: [hosting and deployment]
-keywords: [hosting,deployment,git,gitlab]
+keywords: [hosting,gitlab]
 menu:
   docs:
     parent: hosting-and-deployment
@@ -25,18 +25,17 @@ The `baseURL` in your [site configuration](/getting-started/configuration/) must
 
 Define your [CI/CD](https://docs.gitlab.com/ee/ci/quick_start/) jobs by creating a `.gitlab-ci.yml` file in the root of your project.
 
-{{< code file=".gitlab-ci.yml" >}}
+{{< code file=.gitlab-ci.yml copy=true >}}
 variables:
-  DART_SASS_VERSION: 1.63.6
-  HUGO_VERSION: 0.115.3
-  NODE_VERSION: 20.x
+  DART_SASS_VERSION: 1.81.1
   GIT_DEPTH: 0
   GIT_STRATEGY: clone
   GIT_SUBMODULE_STRATEGY: recursive
+  HUGO_VERSION: 0.140.2
+  NODE_VERSION: 23.x
   TZ: America/Los_Angeles
-
 image:
-  name: golang:1.20.6-bookworm
+  name: golang:1.23.4-bookworm
 
 pages:
   script:
@@ -46,8 +45,9 @@ pages:
     # Install Dart Sass
     - curl -LJO https://github.com/sass/dart-sass/releases/download/${DART_SASS_VERSION}/dart-sass-${DART_SASS_VERSION}-linux-x64.tar.gz
     - tar -xf dart-sass-${DART_SASS_VERSION}-linux-x64.tar.gz
-    - cp -r dart-sass/* /usr/local/bin
+    - cp -r dart-sass/ /usr/local/bin
     - rm -rf dart-sass*
+    - export PATH=/usr/local/bin/dart-sass:$PATH
     # Install Hugo
     - curl -LJO https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_extended_${HUGO_VERSION}_linux-amd64.deb
     - apt-get install -y ./hugo_extended_${HUGO_VERSION}_linux-amd64.deb
@@ -58,7 +58,7 @@ pages:
     # Install Node.js dependencies
     - "[[ -f package-lock.json || -f npm-shrinkwrap.json ]] && npm ci || true"
     # Build
-    - hugo --gc --minify
+    - hugo --gc --minify --baseURL ${CI_PAGES_URL}
     # Compress
     - find public -type f -regex '.*\.\(css\|html\|js\|txt\|xml\)$' -exec gzip -f -k {} \;
     - find public -type f -regex '.*\.\(css\|html\|js\|txt\|xml\)$' -exec brotli -f -k {} \;
@@ -73,7 +73,7 @@ pages:
 
 Next, create a new repository on GitLab. It is *not* necessary to make the repository public. In addition, you might want to add `/public` to your .gitignore file, as there is no need to push compiled assets to GitLab or keep your output website in version control.
 
-```bash
+```sh
 # initialize new git repository
 git init
 

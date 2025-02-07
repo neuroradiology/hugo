@@ -1,4 +1,4 @@
-// Copyright 2023 The Hugo Authors. All rights reserved.
+// Copyright 2024 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 package commands
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -30,8 +31,11 @@ import (
 	"github.com/gohugoio/hugo/docshelper"
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/hugofs"
+	"github.com/gohugoio/hugo/hugolib"
+	"github.com/gohugoio/hugo/parser"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
+	"gopkg.in/yaml.v2"
 )
 
 func newGenCommand() *genCommand {
@@ -41,9 +45,10 @@ func newGenCommand() *genCommand {
 		genmandir string
 
 		// Chroma flags.
-		style          string
-		highlightStyle string
-		linesStyle     string
+		style                  string
+		highlightStyle         string
+		lineNumbersInlineStyle string
+		lineNumbersTableStyle  string
 	)
 
 	newChromaStyles := func() simplecobra.Commander {
@@ -59,21 +64,32 @@ See https://xyproto.github.io/splash/docs/all.html for a preview of the availabl
 				if highlightStyle != "" {
 					builder.Add(chroma.LineHighlight, highlightStyle)
 				}
-				if linesStyle != "" {
-					builder.Add(chroma.LineNumbers, linesStyle)
+				if lineNumbersInlineStyle != "" {
+					builder.Add(chroma.LineNumbers, lineNumbersInlineStyle)
+				}
+				if lineNumbersTableStyle != "" {
+					builder.Add(chroma.LineNumbersTable, lineNumbersTableStyle)
 				}
 				style, err := builder.Build()
 				if err != nil {
 					return err
 				}
 				formatter := html.New(html.WithAllClasses(true))
-				formatter.WriteCSS(os.Stdout, style)
+				w := os.Stdout
+				fmt.Fprintf(w, "/* Generated using: hugo %s */\n\n", strings.Join(os.Args[1:], " "))
+				formatter.WriteCSS(w, style)
 				return nil
 			},
 			withc: func(cmd *cobra.Command, r *rootCommand) {
+				cmd.ValidArgsFunction = cobra.NoFileCompletions
 				cmd.PersistentFlags().StringVar(&style, "style", "friendly", "highlighter style (see https://xyproto.github.io/splash/docs/)")
-				cmd.PersistentFlags().StringVar(&highlightStyle, "highlightStyle", "bg:#ffffcc", "style used for highlighting lines (see https://github.com/alecthomas/chroma)")
-				cmd.PersistentFlags().StringVar(&linesStyle, "linesStyle", "", "style used for line numbers (see https://github.com/alecthomas/chroma)")
+				_ = cmd.RegisterFlagCompletionFunc("style", cobra.NoFileCompletions)
+				cmd.PersistentFlags().StringVar(&highlightStyle, "highlightStyle", "", `foreground and background colors for highlighted lines, e.g. --highlightStyle "#fff000 bg:#000fff"`)
+				_ = cmd.RegisterFlagCompletionFunc("highlightStyle", cobra.NoFileCompletions)
+				cmd.PersistentFlags().StringVar(&lineNumbersInlineStyle, "lineNumbersInlineStyle", "", `foreground and background colors for inline line numbers, e.g. --lineNumbersInlineStyle "#fff000 bg:#000fff"`)
+				_ = cmd.RegisterFlagCompletionFunc("lineNumbersInlineStyle", cobra.NoFileCompletions)
+				cmd.PersistentFlags().StringVar(&lineNumbersTableStyle, "lineNumbersTableStyle", "", `foreground and background colors for table line numbers, e.g. --lineNumbersTableStyle "#fff000 bg:#000fff"`)
+				_ = cmd.RegisterFlagCompletionFunc("lineNumbersTableStyle", cobra.NoFileCompletions)
 			},
 		}
 	}
@@ -97,7 +113,7 @@ See https://xyproto.github.io/splash/docs/all.html for a preview of the availabl
 				}
 				if found, _ := helpers.Exists(genmandir, hugofs.Os); !found {
 					r.Println("Directory", genmandir, "does not exist, creating...")
-					if err := hugofs.Os.MkdirAll(genmandir, 0777); err != nil {
+					if err := hugofs.Os.MkdirAll(genmandir, 0o777); err != nil {
 						return err
 					}
 				}
@@ -111,9 +127,9 @@ See https://xyproto.github.io/splash/docs/all.html for a preview of the availabl
 				return nil
 			},
 			withc: func(cmd *cobra.Command, r *rootCommand) {
+				cmd.ValidArgsFunction = cobra.NoFileCompletions
 				cmd.PersistentFlags().StringVar(&genmandir, "dir", "man/", "the directory to write the man pages.")
-				// For bash-completion
-				cmd.PersistentFlags().SetAnnotation("dir", cobra.BashCompSubdirsInDir, []string{})
+				_ = cmd.MarkFlagDirname("dir")
 			},
 		}
 	}
@@ -132,7 +148,7 @@ url: %s
 			long: `Generate Markdown documentation for the Hugo CLI.
 			This command is, mostly, used to create up-to-date documentation
 	of Hugo's command-line interface for https://gohugo.io/.
-	
+
 	It creates one Markdown file per command with front matter suitable
 	for rendering in Hugo.`,
 			run: func(ctx context.Context, cd *simplecobra.Commandeer, r *rootCommand, args []string) error {
@@ -146,7 +162,7 @@ url: %s
 				}
 				if found, _ := helpers.Exists(gendocdir, hugofs.Os); !found {
 					r.Println("Directory", gendocdir, "does not exist, creating...")
-					if err := hugofs.Os.MkdirAll(gendocdir, 0777); err != nil {
+					if err := hugofs.Os.MkdirAll(gendocdir, 0o777); err != nil {
 						return err
 					}
 				}
@@ -168,12 +184,11 @@ url: %s
 				return nil
 			},
 			withc: func(cmd *cobra.Command, r *rootCommand) {
+				cmd.ValidArgsFunction = cobra.NoFileCompletions
 				cmd.PersistentFlags().StringVar(&gendocdir, "dir", "/tmp/hugodoc/", "the directory to write the doc.")
-				// For bash-completion
-				cmd.PersistentFlags().SetAnnotation("dir", cobra.BashCompSubdirsInDir, []string{})
+				_ = cmd.MarkFlagDirname("dir")
 			},
 		}
-
 	}
 
 	var docsHelperTarget string
@@ -186,18 +201,36 @@ url: %s
 			run: func(ctx context.Context, cd *simplecobra.Commandeer, r *rootCommand, args []string) error {
 				r.Println("Generate docs data to", docsHelperTarget)
 
-				targetFile := filepath.Join(docsHelperTarget, "docs.json")
+				var buf bytes.Buffer
+				jsonEnc := json.NewEncoder(&buf)
+
+				configProvider := func() docshelper.DocProvider {
+					conf := hugolib.DefaultConfig()
+					conf.CacheDir = "" // The default value does not make sense in the docs.
+					defaultConfig := parser.NullBoolJSONMarshaller{Wrapped: parser.LowerCaseCamelJSONMarshaller{Value: conf}}
+					return docshelper.DocProvider{"config": defaultConfig}
+				}
+
+				docshelper.AddDocProviderFunc(configProvider)
+				if err := jsonEnc.Encode(docshelper.GetDocProvider()); err != nil {
+					return err
+				}
+
+				// Decode the JSON to a map[string]interface{} and then unmarshal it again to the correct format.
+				var m map[string]interface{}
+				if err := json.Unmarshal(buf.Bytes(), &m); err != nil {
+					return err
+				}
+
+				targetFile := filepath.Join(docsHelperTarget, "docs.yaml")
 
 				f, err := os.Create(targetFile)
 				if err != nil {
 					return err
 				}
 				defer f.Close()
-
-				enc := json.NewEncoder(f)
-				enc.SetIndent("", "  ")
-
-				if err := enc.Encode(docshelper.GetDocProvider()); err != nil {
+				yamlEnc := yaml.NewEncoder(f)
+				if err := yamlEnc.Encode(m); err != nil {
 					return err
 				}
 
@@ -206,6 +239,7 @@ url: %s
 			},
 			withc: func(cmd *cobra.Command, r *rootCommand) {
 				cmd.Hidden = true
+				cmd.ValidArgsFunction = cobra.NoFileCompletions
 				cmd.PersistentFlags().StringVarP(&docsHelperTarget, "dir", "", "docs/data", "data dir")
 			},
 		}
@@ -219,7 +253,6 @@ url: %s
 			newDocsHelper(),
 		},
 	}
-
 }
 
 type genCommand struct {
@@ -242,7 +275,8 @@ func (c *genCommand) Run(ctx context.Context, cd *simplecobra.Commandeer, args [
 
 func (c *genCommand) Init(cd *simplecobra.Commandeer) error {
 	cmd := cd.CobraCommand
-	cmd.Short = "A collection of several useful generators."
+	cmd.Short = "Generate documentation and syntax highlighting styles"
+	cmd.Long = "Generate documentation for your project using Hugo's documentation engine, including syntax highlighting for various programming languages."
 
 	cmd.RunE = nil
 	return nil

@@ -61,7 +61,7 @@ func SetParams(dst, src Params) {
 
 // IsZero returns true if p is considered empty.
 func (p Params) IsZero() bool {
-	if p == nil || len(p) == 0 {
+	if len(p) == 0 {
 		return true
 	}
 
@@ -74,7 +74,6 @@ func (p Params) IsZero() bool {
 	}
 
 	return false
-
 }
 
 // MergeParamsWithStrategy transfers values from src to dst for new keys using the merge strategy given.
@@ -93,7 +92,7 @@ func MergeParams(dst, src Params) {
 func (p Params) merge(ps ParamsMergeStrategy, pp Params) {
 	ns, found := p.GetMergeStrategy()
 
-	var ms = ns
+	ms := ns
 	if !found && ps != "" {
 		ms = ps
 	}
@@ -248,7 +247,7 @@ const (
 // CleanConfigStringMapString removes any processing instructions from m,
 // m will never be modified.
 func CleanConfigStringMapString(m map[string]string) map[string]string {
-	if m == nil || len(m) == 0 {
+	if len(m) == 0 {
 		return m
 	}
 	if _, found := m[MergeStrategyKey]; !found {
@@ -267,7 +266,7 @@ func CleanConfigStringMapString(m map[string]string) map[string]string {
 // CleanConfigStringMap is the same as CleanConfigStringMapString but for
 // map[string]any.
 func CleanConfigStringMap(m map[string]any) map[string]any {
-	if m == nil || len(m) == 0 {
+	if len(m) == 0 {
 		return m
 	}
 	if _, found := m[MergeStrategyKey]; !found {
@@ -291,7 +290,6 @@ func CleanConfigStringMap(m map[string]any) map[string]any {
 
 	}
 	return m2
-
 }
 
 func toMergeStrategy(v any) ParamsMergeStrategy {
@@ -305,7 +303,7 @@ func toMergeStrategy(v any) ParamsMergeStrategy {
 }
 
 // PrepareParams
-// * makes all the keys in the given map lower cased and will do so
+// * makes all the keys in the given map lower cased and will do so recursively.
 // * This will modify the map given.
 // * Any nested map[interface{}]interface{}, map[string]interface{},map[string]string  will be converted to Params.
 // * Any _merge value will be converted to proper type and value.
@@ -344,4 +342,43 @@ func PrepareParams(m Params) {
 			m[lKey] = v
 		}
 	}
+}
+
+// PrepareParamsClone is like PrepareParams, but it does not modify the input.
+func PrepareParamsClone(m Params) Params {
+	m2 := make(Params)
+	for k, v := range m {
+		var retyped bool
+		lKey := strings.ToLower(k)
+		if lKey == MergeStrategyKey {
+			v = toMergeStrategy(v)
+			retyped = true
+		} else {
+			switch vv := v.(type) {
+			case map[any]any:
+				var p Params = cast.ToStringMap(v)
+				v = PrepareParamsClone(p)
+				retyped = true
+			case map[string]any:
+				var p Params = v.(map[string]any)
+				v = PrepareParamsClone(p)
+				retyped = true
+			case map[string]string:
+				p := make(Params)
+				for k, v := range vv {
+					p[k] = v
+				}
+				v = p
+				PrepareParams(p)
+				retyped = true
+			}
+		}
+
+		if retyped || k != lKey {
+			m2[lKey] = v
+		} else {
+			m2[k] = v
+		}
+	}
+	return m2
 }

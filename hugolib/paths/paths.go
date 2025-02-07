@@ -67,7 +67,7 @@ func New(fs *hugofs.Fs, cfg config.AllProvider) (*Paths, error) {
 	var multihostTargetBasePaths []string
 	if cfg.IsMultihost() && len(cfg.Languages()) > 1 {
 		for _, l := range cfg.Languages() {
-			multihostTargetBasePaths = append(multihostTargetBasePaths, l.Lang)
+			multihostTargetBasePaths = append(multihostTargetBasePaths, hpaths.ToSlashPreserveLeading(l.Lang))
 		}
 	}
 
@@ -83,16 +83,17 @@ func New(fs *hugofs.Fs, cfg config.AllProvider) (*Paths, error) {
 }
 
 func (p *Paths) AllModules() modules.Modules {
-	return p.Cfg.GetConfigSection("activeModules").(modules.Modules)
+	return p.Cfg.GetConfigSection("allModules").(modules.Modules)
 }
 
 // GetBasePath returns any path element in baseURL if needed.
+// The path returned will have a leading, but no trailing slash.
 func (p *Paths) GetBasePath(isRelativeURL bool) string {
 	if isRelativeURL && p.Cfg.CanonifyURLs() {
 		// The baseURL will be prepended later.
 		return ""
 	}
-	return p.Cfg.BaseURL().BasePath
+	return p.Cfg.BaseURL().BasePathNoTrailingSlash
 }
 
 func (p *Paths) Lang() string {

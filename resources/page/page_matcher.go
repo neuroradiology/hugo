@@ -18,6 +18,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/gohugoio/hugo/common/loggers"
 	"github.com/gohugoio/hugo/common/maps"
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/hugofs/glob"
@@ -63,7 +64,7 @@ func (m PageMatcher) Matches(p Page) bool {
 	if m.Path != "" {
 		g, err := glob.GetGlob(m.Path)
 		// TODO(bep) Path() vs filepath vs leading slash.
-		p := strings.ToLower(filepath.ToSlash(p.Pathc()))
+		p := strings.ToLower(filepath.ToSlash(p.Path()))
 		if !(strings.HasPrefix(p, "/")) {
 			p = "/" + p
 		}
@@ -82,9 +83,30 @@ func (m PageMatcher) Matches(p Page) bool {
 	return true
 }
 
-func DecodeCascadeConfig(in any) (*config.ConfigNamespace[[]PageMatcherParamsConfig, map[PageMatcher]maps.Params], error) {
-	buildConfig := func(in any) (map[PageMatcher]maps.Params, any, error) {
-		cascade := make(map[PageMatcher]maps.Params)
+var disallowedCascadeKeys = map[string]bool{
+	// These define the structure of the page tree and cannot
+	// currently be set in the cascade.
+	"kind": true,
+	"path": true,
+	"lang": true,
+}
+
+// See issue 11977.
+func isGlobWithExtension(s string) bool {
+	pathParts := strings.Split(s, "/")
+	last := pathParts[len(pathParts)-1]
+	return strings.Count(last, ".") > 0
+}
+
+func CheckCascadePattern(logger loggers.Logger, m PageMatcher) {
+	if logger != nil && isGlobWithExtension(m.Path) {
+		logger.Erroridf("cascade-pattern-with-extension", "cascade target path %q looks like a path with an extension; since Hugo v0.123.0 this will not match anything, see  https://gohugo.io/methods/page/path/", m.Path)
+	}
+}
+
+func DecodeCascadeConfig(logger loggers.Logger, in any) (*config.ConfigNamespace[[]PageMatcherParamsConfig, *maps.Ordered[PageMatcher, maps.Params]], error) {
+	buildConfig := func(in any) (*maps.Ordered[PageMatcher, maps.Params], any, error) {
+		cascade := maps.NewOrdered[PageMatcher, maps.Params]()
 		if in == nil {
 			return cascade, []map[string]any{}, nil
 		}
@@ -101,12 +123,18 @@ func DecodeCascadeConfig(in any) (*config.ConfigNamespace[[]PageMatcherParamsCon
 			if err != nil {
 				return nil, nil, err
 			}
+			for k := range m {
+				if disallowedCascadeKeys[k] {
+					return nil, nil, fmt.Errorf("key %q not allowed in cascade config", k)
+				}
+			}
 			cfgs = append(cfgs, c)
 		}
 
 		for _, cfg := range cfgs {
 			m := cfg.Target
-			c, found := cascade[m]
+			CheckCascadePattern(logger, m)
+			c, found := cascade.Get(m)
 			if found {
 				// Merge
 				for k, v := range cfg.Params {
@@ -115,20 +143,19 @@ func DecodeCascadeConfig(in any) (*config.ConfigNamespace[[]PageMatcherParamsCon
 					}
 				}
 			} else {
-				cascade[m] = cfg.Params
+				cascade.Set(m, cfg.Params)
 			}
 		}
 
 		return cascade, cfgs, nil
 	}
 
-	return config.DecodeNamespace[[]PageMatcherParamsConfig](in, buildConfig)
-
+	return config.DecodeNamespace[[]PageMatcherParamsConfig, *maps.Ordered[PageMatcher, maps.Params]](in, buildConfig)
 }
 
 // DecodeCascade decodes in which could be either a map or a slice of maps.
-func DecodeCascade(in any) (map[PageMatcher]maps.Params, error) {
-	conf, err := DecodeCascadeConfig(in)
+func DecodeCascade(logger loggers.Logger, in any) (*maps.Ordered[PageMatcher, maps.Params], error) {
+	conf, err := DecodeCascadeConfig(logger, in)
 	if err != nil {
 		return nil, err
 	}
@@ -145,7 +172,16 @@ func mapToPageMatcherParamsConfig(m map[string]any) (PageMatcherParamsConfig, er
 			// those values will now be moved to the top level.
 			// This should be very unlikely as it would lead to constructs like .Params.params.foo,
 			// and most people see params as an Hugo internal keyword.
-			pcfg.Params = maps.ToStringMap(v)
+			params := maps.ToStringMap(v)
+			if pcfg.Params == nil {
+				pcfg.Params = params
+			} else {
+				for k, v := range params {
+					if _, found := pcfg.Params[k]; !found {
+						pcfg.Params[k] = v
+					}
+				}
+			}
 		case "_target", "target":
 			var target PageMatcher
 			if err := decodePageMatcher(v, &target); err != nil {
@@ -161,7 +197,6 @@ func mapToPageMatcherParamsConfig(m map[string]any) (PageMatcherParamsConfig, er
 		}
 	}
 	return pcfg, pcfg.init()
-
 }
 
 // decodePageMatcher decodes m into v.

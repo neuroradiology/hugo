@@ -1,4 +1,4 @@
-// Copyright 2023 The Hugo Authors. All rights reserved.
+// Copyright 2024 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,33 +25,35 @@ import (
 	"io"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"net/url"
 	"os"
-	"sync"
-	"sync/atomic"
-
-	"github.com/bep/mclib"
-
 	"os/signal"
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
+
+	"github.com/bep/mclib"
+	"github.com/pkg/browser"
 
 	"github.com/bep/debounce"
 	"github.com/bep/simplecobra"
 	"github.com/fsnotify/fsnotify"
 	"github.com/gohugoio/hugo/common/herrors"
 	"github.com/gohugoio/hugo/common/hugo"
+
 	"github.com/gohugoio/hugo/common/types"
 	"github.com/gohugoio/hugo/common/urls"
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/hugofs"
-	"github.com/gohugoio/hugo/hugofs/files"
 	"github.com/gohugoio/hugo/hugolib"
 	"github.com/gohugoio/hugo/hugolib/filesystems"
 	"github.com/gohugoio/hugo/livereload"
@@ -82,11 +84,19 @@ const (
 	configChangeGoWork = "go work file"
 )
 
+const (
+	hugoHeaderRedirect = "X-Hugo-Redirect"
+)
+
 func newHugoBuilder(r *rootCommand, s *serverCommand, onConfigLoaded ...func(reloaded bool) error) *hugoBuilder {
+	var visitedURLs *types.EvictingQueue[string]
+	if s != nil && !s.disableFastRender {
+		visitedURLs = types.NewEvictingQueue[string](20)
+	}
 	return &hugoBuilder{
 		r:              r,
 		s:              s,
-		visitedURLs:    types.NewEvictingStringQueue(100),
+		visitedURLs:    visitedURLs,
 		fullRebuildSem: semaphore.NewWeighted(1),
 		debounce:       debounce.New(4 * time.Second),
 		onConfigLoaded: func(reloaded bool) error {
@@ -119,8 +129,8 @@ func newServerCommand() *serverCommand {
 					return mclib.RunMain()
 				},
 				withc: func(cmd *cobra.Command, r *rootCommand) {
+					cmd.ValidArgsFunction = cobra.NoFileCompletions
 					cmd.Flags().BoolVar(&uninstall, "uninstall", false, "Uninstall the local CA (but do not delete it).")
-
 				},
 			},
 		},
@@ -158,16 +168,16 @@ type dynamicEvents struct {
 
 type fileChangeDetector struct {
 	sync.Mutex
-	current map[string]string
-	prev    map[string]string
+	current map[string]uint64
+	prev    map[string]uint64
 
 	irrelevantRe *regexp.Regexp
 }
 
-func (f *fileChangeDetector) OnFileClose(name, md5sum string) {
+func (f *fileChangeDetector) OnFileClose(name string, checksum uint64) {
 	f.Lock()
 	defer f.Unlock()
-	f.current[name] = md5sum
+	f.current[name] = checksum
 }
 
 func (f *fileChangeDetector) PrepareNew() {
@@ -179,16 +189,16 @@ func (f *fileChangeDetector) PrepareNew() {
 	defer f.Unlock()
 
 	if f.current == nil {
-		f.current = make(map[string]string)
-		f.prev = make(map[string]string)
+		f.current = make(map[string]uint64)
+		f.prev = make(map[string]uint64)
 		return
 	}
 
-	f.prev = make(map[string]string)
+	f.prev = make(map[string]uint64)
 	for k, v := range f.current {
 		f.prev[k] = v
 	}
-	f.current = make(map[string]string)
+	f.current = make(map[string]uint64)
 }
 
 func (f *fileChangeDetector) changed() []string {
@@ -205,21 +215,22 @@ func (f *fileChangeDetector) changed() []string {
 		}
 	}
 
-	return f.filterIrrelevant(c)
+	return f.filterIrrelevantAndSort(c)
 }
 
-func (f *fileChangeDetector) filterIrrelevant(in []string) []string {
+func (f *fileChangeDetector) filterIrrelevantAndSort(in []string) []string {
 	var filtered []string
 	for _, v := range in {
 		if !f.irrelevantRe.MatchString(v) {
 			filtered = append(filtered, v)
 		}
 	}
+	sort.Strings(filtered)
 	return filtered
 }
 
 type fileServer struct {
-	baseURLs      []string
+	baseURLs      []urls.BaseURL
 	roots         []string
 	errorTemplate func(err any) (io.Reader, error)
 	c             *serverCommand
@@ -233,15 +244,16 @@ func (f *fileServer) createEndpoint(i int) (*http.ServeMux, net.Listener, string
 	listener := f.c.serverPorts[i].ln
 	logger := f.c.r.logger
 
-	r.Printf("Environment: %q\n", f.c.hugoTry().Deps.Site.Hugo().Environment)
-
 	if i == 0 {
-		if f.c.renderToDisk {
-			r.Println("Serving pages from disk")
-		} else if f.c.renderStaticToDisk {
-			r.Println("Serving pages from memory and static files from disk")
+		r.Printf("Environment: %q\n", f.c.hugoTry().Deps.Site.Hugo().Environment)
+		mainTarget := "disk"
+		if f.c.r.renderToMemory {
+			mainTarget = "memory"
+		}
+		if f.c.renderStaticToDisk {
+			r.Printf("Serving pages from %s and static files from disk\n", mainTarget)
 		} else {
-			r.Println("Serving pages from memory")
+			r.Printf("Serving pages from %s\n", mainTarget)
 		}
 	}
 
@@ -253,12 +265,6 @@ func (f *fileServer) createEndpoint(i int) (*http.ServeMux, net.Listener, string
 	fs := filesOnlyFs{httpFs.Dir(path.Join("/", root))}
 	if i == 0 && f.c.fastRenderMode {
 		r.Println("Running in Fast Render Mode. For full rebuilds on change: hugo server --disableFastRender")
-	}
-
-	// We're only interested in the path
-	u, err := url.Parse(baseURL)
-	if err != nil {
-		return nil, nil, "", "", fmt.Errorf("invalid baseURL: %w", err)
 	}
 
 	decorate := func(h http.Handler) http.Handler {
@@ -280,7 +286,7 @@ func (f *fileServer) createEndpoint(i int) (*http.ServeMux, net.Listener, string
 							port = lrport
 						}
 					})
-					lr := *u
+					lr := baseURL.URL()
 					lr.Host = fmt.Sprintf("%s:%d", lr.Hostname(), port)
 					fmt.Fprint(w, injectLiveReloadScript(r, lr))
 
@@ -305,64 +311,65 @@ func (f *fileServer) createEndpoint(i int) (*http.ServeMux, net.Listener, string
 				w.Header().Set(header.Key, header.Value)
 			}
 
-			if redirect := serverConfig.MatchRedirect(requestURI); !redirect.IsZero() {
-				// fullName := filepath.Join(dir, filepath.FromSlash(path.Clean("/"+name)))
-				doRedirect := true
-				// This matches Netlify's behaviour and is needed for SPA behaviour.
-				// See https://docs.netlify.com/routing/redirects/rewrites-proxies/
-				if !redirect.Force {
-					path := filepath.Clean(strings.TrimPrefix(requestURI, u.Path))
-					if root != "" {
-						path = filepath.Join(root, path)
-					}
-					var fs afero.Fs
-					f.c.withConf(func(conf *commonConfig) {
-						fs = conf.fs.PublishDirServer
-					})
-
-					fi, err := fs.Stat(path)
-
-					if err == nil {
-						if fi.IsDir() {
-							// There will be overlapping directories, so we
-							// need to check for a file.
-							_, err = fs.Stat(filepath.Join(path, "index.html"))
-							doRedirect = err != nil
-						} else {
-							doRedirect = false
+			if canRedirect(requestURI, r) {
+				if redirect := serverConfig.MatchRedirect(requestURI, r.Header); !redirect.IsZero() {
+					doRedirect := true
+					// This matches Netlify's behavior and is needed for SPA behavior.
+					// See https://docs.netlify.com/routing/redirects/rewrites-proxies/
+					if !redirect.Force {
+						path := filepath.Clean(strings.TrimPrefix(requestURI, baseURL.Path()))
+						if root != "" {
+							path = filepath.Join(root, path)
 						}
-					}
-				}
+						var fs afero.Fs
+						f.c.withConf(func(conf *commonConfig) {
+							fs = conf.fs.PublishDirServer
+						})
 
-				if doRedirect {
-					switch redirect.Status {
-					case 404:
-						w.WriteHeader(404)
-						file, err := fs.Open(strings.TrimPrefix(redirect.To, u.Path))
+						fi, err := fs.Stat(path)
+
 						if err == nil {
-							defer file.Close()
-							io.Copy(w, file)
-						} else {
-							fmt.Fprintln(w, "<h1>Page Not Found</h1>")
+							if fi.IsDir() {
+								// There will be overlapping directories, so we
+								// need to check for a file.
+								_, err = fs.Stat(filepath.Join(path, "index.html"))
+								doRedirect = err != nil
+							} else {
+								doRedirect = false
+							}
 						}
-						return
-					case 200:
-						if r2 := f.rewriteRequest(r, strings.TrimPrefix(redirect.To, u.Path)); r2 != nil {
-							requestURI = redirect.To
-							r = r2
-						}
-					default:
-						w.Header().Set("Content-Type", "")
-						http.Redirect(w, r, redirect.To, redirect.Status)
-						return
+					}
 
+					if doRedirect {
+						w.Header().Set(hugoHeaderRedirect, "true")
+						switch redirect.Status {
+						case 404:
+							w.WriteHeader(404)
+							file, err := fs.Open(strings.TrimPrefix(redirect.To, baseURL.Path()))
+							if err == nil {
+								defer file.Close()
+								io.Copy(w, file)
+							} else {
+								fmt.Fprintln(w, "<h1>Page Not Found</h1>")
+							}
+							return
+						case 200:
+							if r2 := f.rewriteRequest(r, strings.TrimPrefix(redirect.To, baseURL.Path())); r2 != nil {
+								requestURI = redirect.To
+								r = r2
+							}
+						default:
+							w.Header().Set("Content-Type", "")
+							http.Redirect(w, r, redirect.To, redirect.Status)
+							return
+
+						}
 					}
 				}
-
 			}
 
 			if f.c.fastRenderMode && f.c.errState.buildErr() == nil {
-				if strings.HasSuffix(requestURI, "/") || strings.HasSuffix(requestURI, "html") || strings.HasSuffix(requestURI, "htm") {
+				if isNavigation(requestURI, r) {
 					if !f.c.visitedURLs.Contains(requestURI) {
 						// If not already on stack, re-render that single page.
 						if err := f.c.partialReRender(requestURI); err != nil {
@@ -385,10 +392,10 @@ func (f *fileServer) createEndpoint(i int) (*http.ServeMux, net.Listener, string
 
 	fileserver := decorate(http.FileServer(fs))
 	mu := http.NewServeMux()
-	if u.Path == "" || u.Path == "/" {
+	if baseURL.Path() == "" || baseURL.Path() == "/" {
 		mu.Handle("/", fileserver)
 	} else {
-		mu.Handle(u.Path, http.StripPrefix(u.Path, fileserver))
+		mu.Handle(baseURL.Path(), http.StripPrefix(baseURL.Path(), fileserver))
 	}
 	if r.IsTestRun() {
 		var shutDownOnce sync.Once
@@ -401,7 +408,7 @@ func (f *fileServer) createEndpoint(i int) (*http.ServeMux, net.Listener, string
 
 	endpoint := net.JoinHostPort(f.c.serverInterface, strconv.Itoa(port))
 
-	return mu, listener, u.String(), endpoint, nil
+	return mu, listener, baseURL.String(), endpoint, nil
 }
 
 func (f *fileServer) rewriteRequest(r *http.Request, toPath string) *http.Request {
@@ -447,14 +454,15 @@ type serverCommand struct {
 	doLiveReload bool
 
 	// Flags.
-	renderToDisk        bool
 	renderStaticToDisk  bool
 	navigateToChanged   bool
+	openBrowser         bool
 	serverAppend        bool
 	serverInterface     string
 	tlsCertFile         string
 	tlsKeyFile          string
 	tlsAuto             bool
+	pprof               bool
 	serverPort          int
 	liveReloadPort      int
 	serverWatch         bool
@@ -469,7 +477,11 @@ func (c *serverCommand) Name() string {
 }
 
 func (c *serverCommand) Run(ctx context.Context, cd *simplecobra.Commandeer, args []string) error {
-
+	if c.pprof {
+		go func() {
+			http.ListenAndServe("localhost:8080", nil)
+		}()
+	}
 	// Watch runs its own server as part of the routine
 	if c.serverWatch {
 
@@ -494,8 +506,7 @@ func (c *serverCommand) Run(ctx context.Context, cd *simplecobra.Commandeer, arg
 
 	err := func() error {
 		defer c.r.timeTrack(time.Now(), "Built")
-		err := c.build()
-		return err
+		return c.build()
 	}()
 	if err != nil {
 		return err
@@ -506,12 +517,13 @@ func (c *serverCommand) Run(ctx context.Context, cd *simplecobra.Commandeer, arg
 
 func (c *serverCommand) Init(cd *simplecobra.Commandeer) error {
 	cmd := cd.CobraCommand
-	cmd.Short = "A high performance webserver"
+	cmd.Short = "Start the embedded web server"
 	cmd.Long = `Hugo provides its own webserver which builds and serves the site.
 While hugo server is high performance, it is a webserver with limited options.
 
-'hugo server' will avoid writing the rendered and served content to disk,
-preferring to store it in memory.
+The ` + "`" + `hugo server` + "`" + ` command will by default write and serve files from disk, but
+you can render to memory by using the ` + "`" + `--renderToMemory` + "`" + ` flag. This can be
+faster in some cases, but it will consume more memory.
 
 By default hugo will also watch your files for any changes you make and
 automatically rebuild the site. It will then live reload any open browser pages
@@ -520,26 +532,26 @@ of a second, you will be able to save and see your changes nearly instantly.`
 	cmd.Aliases = []string{"serve"}
 
 	cmd.Flags().IntVarP(&c.serverPort, "port", "p", 1313, "port on which the server will listen")
+	_ = cmd.RegisterFlagCompletionFunc("port", cobra.NoFileCompletions)
 	cmd.Flags().IntVar(&c.liveReloadPort, "liveReloadPort", -1, "port for live reloading (i.e. 443 in HTTPS proxy situations)")
+	_ = cmd.RegisterFlagCompletionFunc("liveReloadPort", cobra.NoFileCompletions)
 	cmd.Flags().StringVarP(&c.serverInterface, "bind", "", "127.0.0.1", "interface to which the server will bind")
+	_ = cmd.RegisterFlagCompletionFunc("bind", cobra.NoFileCompletions)
 	cmd.Flags().StringVarP(&c.tlsCertFile, "tlsCertFile", "", "", "path to TLS certificate file")
+	_ = cmd.MarkFlagFilename("tlsCertFile", "pem")
 	cmd.Flags().StringVarP(&c.tlsKeyFile, "tlsKeyFile", "", "", "path to TLS key file")
+	_ = cmd.MarkFlagFilename("tlsKeyFile", "pem")
 	cmd.Flags().BoolVar(&c.tlsAuto, "tlsAuto", false, "generate and use locally-trusted certificates.")
+	cmd.Flags().BoolVar(&c.pprof, "pprof", false, "enable the pprof server (port 8080)")
 	cmd.Flags().BoolVarP(&c.serverWatch, "watch", "w", true, "watch filesystem for changes and recreate as needed")
 	cmd.Flags().BoolVar(&c.noHTTPCache, "noHTTPCache", false, "prevent HTTP caching")
 	cmd.Flags().BoolVarP(&c.serverAppend, "appendPort", "", true, "append port to baseURL")
 	cmd.Flags().BoolVar(&c.disableLiveReload, "disableLiveReload", false, "watch without enabling live browser reload on rebuild")
-	cmd.Flags().BoolVar(&c.navigateToChanged, "navigateToChanged", false, "navigate to changed content file on live browser reload")
-	cmd.Flags().BoolVar(&c.renderToDisk, "renderToDisk", false, "serve all files from disk (default is from memory)")
+	cmd.Flags().BoolVarP(&c.navigateToChanged, "navigateToChanged", "N", false, "navigate to changed content file on live browser reload")
+	cmd.Flags().BoolVarP(&c.openBrowser, "openBrowser", "O", false, "open the site in a browser after server startup")
 	cmd.Flags().BoolVar(&c.renderStaticToDisk, "renderStaticToDisk", false, "serve static files from disk and dynamic files from memory")
 	cmd.Flags().BoolVar(&c.disableFastRender, "disableFastRender", false, "enables full re-renders on changes")
 	cmd.Flags().BoolVar(&c.disableBrowserError, "disableBrowserError", false, "do not show build errors in the browser")
-
-	cmd.Flags().String("memstats", "", "log memory usage to this file")
-	cmd.Flags().String("meminterval", "100ms", "interval to poll memory usage (requires --memstats), valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\", \"m\", \"h\".")
-
-	cmd.Flags().SetAnnotation("tlsCertFile", cobra.BashCompSubdirsInDir, []string{})
-	cmd.Flags().SetAnnotation("tlsKeyFile", cobra.BashCompSubdirsInDir, []string{})
 
 	r := cd.Root.Command.(*rootCommand)
 	applyLocalFlagsBuild(cmd, r)
@@ -566,7 +578,7 @@ func (c *serverCommand) PreRun(cd, runner *simplecobra.Commandeer) error {
 				}
 			}
 
-			if err := c.setBaseURLsInConfig(); err != nil {
+			if err := c.setServerInfoInConfig(); err != nil {
 				return err
 			}
 
@@ -582,7 +594,9 @@ func (c *serverCommand) PreRun(cd, runner *simplecobra.Commandeer) error {
 	)
 
 	destinationFlag := cd.CobraCommand.Flags().Lookup("destination")
-	c.renderToDisk = c.renderToDisk || (destinationFlag != nil && destinationFlag.Changed)
+	if c.r.renderToMemory && (destinationFlag != nil && destinationFlag.Changed) {
+		return fmt.Errorf("cannot use --renderToMemory with --destination")
+	}
 	c.doLiveReload = !c.disableLiveReload
 	c.fastRenderMode = !c.disableFastRender
 	c.showErrorInBrowser = c.doLiveReload && !c.disableBrowserError
@@ -609,15 +623,15 @@ func (c *serverCommand) PreRun(cd, runner *simplecobra.Commandeer) error {
 	return nil
 }
 
-func (c *serverCommand) setBaseURLsInConfig() error {
+func (c *serverCommand) setServerInfoInConfig() error {
 	if len(c.serverPorts) == 0 {
 		panic("no server ports set")
 	}
 	return c.withConfE(func(conf *commonConfig) error {
 		for i, language := range conf.configs.Languages {
-			isMultiHost := conf.configs.IsMultihost
+			isMultihost := conf.configs.IsMultihost
 			var serverPort int
-			if isMultiHost {
+			if isMultihost {
 				serverPort = c.serverPorts[i].p
 			} else {
 				serverPort = c.serverPorts[0].p
@@ -636,16 +650,16 @@ func (c *serverCommand) setBaseURLsInConfig() error {
 			if c.liveReloadPort != -1 {
 				baseURLLiveReload, _ = baseURLLiveReload.WithPort(c.liveReloadPort)
 			}
-			langConfig.C.SetBaseURL(baseURL, baseURLLiveReload)
+			langConfig.C.SetServerInfo(baseURL, baseURLLiveReload, c.serverInterface)
+
 		}
 		return nil
 	})
 }
 
 func (c *serverCommand) getErrorWithContext() any {
-	errCount := c.errCount()
-
-	if errCount == 0 {
+	buildErr := c.errState.buildErr()
+	if buildErr == nil {
 		return nil
 	}
 
@@ -654,7 +668,7 @@ func (c *serverCommand) getErrorWithContext() any {
 	m["Error"] = cleanErrorLog(c.r.logger.Errors())
 
 	m["Version"] = hugo.BuildVersionString()
-	ferrors := herrors.UnwrapFileErrorsWithErrorContext(c.errState.buildErr())
+	ferrors := herrors.UnwrapFileErrorsWithErrorContext(buildErr)
 	m["Files"] = ferrors
 
 	return m
@@ -676,7 +690,7 @@ func (c *serverCommand) createCertificates(conf *commonConfig) error {
 
 	// Create the directory if it doesn't exist.
 	if _, err := os.Stat(keyDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(keyDir, 0777); err != nil {
+		if err := os.MkdirAll(keyDir, 0o777); err != nil {
 			return err
 		}
 	}
@@ -701,7 +715,6 @@ func (c *serverCommand) createCertificates(conf *commonConfig) error {
 	// Yes, this is unfortunate, but it's currently the only way to use Mkcert as a library.
 	os.Args = []string{"-cert-file", c.tlsCertFile, "-key-file", c.tlsKeyFile, hostname}
 	return mclib.RunMain()
-
 }
 
 func (c *serverCommand) verifyCert(rootPEM, certPEM []byte, name string) error {
@@ -736,9 +749,9 @@ func (c *serverCommand) createServerPorts(cd *simplecobra.Commandeer) error {
 	flags := cd.CobraCommand.Flags()
 	var cerr error
 	c.withConf(func(conf *commonConfig) {
-		isMultiHost := conf.configs.IsMultihost
+		isMultihost := conf.configs.IsMultihost
 		c.serverPorts = make([]serverPortListener, 1)
-		if isMultiHost {
+		if isMultihost {
 			if !c.serverAppend {
 				cerr = errors.New("--appendPort=false not supported when in multihost mode")
 				return
@@ -826,32 +839,35 @@ func (c *serverCommand) fixURL(baseURLFromConfig, baseURLFromFlag string, port i
 	return u.String(), nil
 }
 
-func (c *serverCommand) partialReRender(urls ...string) error {
+func (c *serverCommand) partialReRender(urls ...string) (err error) {
 	defer func() {
 		c.errState.setWasErr(false)
 	}()
-	c.errState.setBuildErr(nil)
-	visited := make(map[string]bool)
+	visited := types.NewEvictingQueue[string](len(urls))
 	for _, url := range urls {
-		visited[url] = true
+		visited.Add(url)
 	}
 
-	h, err := c.hugo()
+	var h *hugolib.HugoSites
+	h, err = c.hugo()
 	if err != nil {
-		return err
+		return
 	}
+
 	// Note: We do not set NoBuildLock as the file lock is not acquired at this stage.
-	return h.Build(hugolib.BuildCfg{NoBuildLock: false, RecentlyVisited: visited, PartialReRender: true, ErrRecovery: c.errState.wasErr()})
+	err = h.Build(hugolib.BuildCfg{NoBuildLock: false, RecentlyTouched: visited, PartialReRender: true, ErrRecovery: c.errState.wasErr()})
+
+	return
 }
 
 func (c *serverCommand) serve() error {
 	var (
-		baseURLs []string
+		baseURLs []urls.BaseURL
 		roots    []string
 		h        *hugolib.HugoSites
 	)
 	err := c.withConfE(func(conf *commonConfig) error {
-		isMultiHost := conf.configs.IsMultihost
+		isMultihost := conf.configs.IsMultihost
 		var err error
 		h, err = c.r.HugFromConfig(conf)
 		if err != nil {
@@ -861,20 +877,19 @@ func (c *serverCommand) serve() error {
 		// We need the server to share the same logger as the Hugo build (for error counts etc.)
 		c.r.logger = h.Log
 
-		if isMultiHost {
+		if isMultihost {
 			for _, l := range conf.configs.ConfigLangs() {
-				baseURLs = append(baseURLs, l.BaseURL().String())
+				baseURLs = append(baseURLs, l.BaseURL())
 				roots = append(roots, l.Language().Lang)
 			}
 		} else {
 			l := conf.configs.GetFirstLanguageConfig()
-			baseURLs = []string{l.BaseURL().String()}
+			baseURLs = []urls.BaseURL{l.BaseURL()}
 			roots = []string{""}
 		}
 
 		return nil
 	})
-
 	if err != nil {
 		return err
 	}
@@ -946,15 +961,11 @@ func (c *serverCommand) serve() error {
 		servers = append(servers, srv)
 
 		if doLiveReload {
-			u, err := url.Parse(helpers.SanitizeURL(baseURLs[i]))
-			if err != nil {
-				return err
-			}
-
-			mu.HandleFunc(u.Path+"/livereload.js", livereload.ServeJS)
-			mu.HandleFunc(u.Path+"/livereload", livereload.Handler)
+			baseURL := baseURLs[i]
+			mu.HandleFunc(baseURL.Path()+"livereload.js", livereload.ServeJS)
+			mu.HandleFunc(baseURL.Path()+"livereload", livereload.Handler)
 		}
-		c.r.Printf("Web Server is available at %s (bind address %s)\n", serverURL, c.serverInterface)
+		c.r.Printf("Web Server is available at %s (bind address %s) %s\n", serverURL, c.serverInterface, roots[i])
 		wg1.Go(func() error {
 			if c.tlsCertFile != "" && c.tlsKeyFile != "" {
 				err = srv.ServeTLS(listener, c.tlsCertFile, c.tlsKeyFile)
@@ -971,8 +982,12 @@ func (c *serverCommand) serve() error {
 	if c.r.IsTestRun() {
 		// Write a .ready file to disk to signal ready status.
 		// This is where the test is run from.
+		var baseURLs []string
+		for _, baseURL := range srv.baseURLs {
+			baseURLs = append(baseURLs, baseURL.String())
+		}
 		testInfo := map[string]any{
-			"baseURLs": srv.baseURLs,
+			"baseURLs": baseURLs,
 		}
 
 		dir := os.Getenv("WORK")
@@ -983,7 +998,7 @@ func (c *serverCommand) serve() error {
 			if err != nil {
 				return err
 			}
-			err = os.WriteFile(readyFile, b, 0777)
+			err = os.WriteFile(readyFile, b, 0o777)
 			if err != nil {
 				return err
 			}
@@ -992,6 +1007,13 @@ func (c *serverCommand) serve() error {
 	}
 
 	c.r.Println("Press Ctrl+C to stop")
+
+	if c.openBrowser {
+		// There may be more than one baseURL in multihost mode, open the first.
+		if err := browser.OpenURL(baseURLs[0].String()); err != nil {
+			c.r.logger.Warnf("Failed to open browser: %s", err)
+		}
+	}
 
 	err = func() error {
 		for {
@@ -1005,13 +1027,8 @@ func (c *serverCommand) serve() error {
 			}
 		}
 	}()
-
 	if err != nil {
 		c.r.Println("Error:", err)
-	}
-
-	if h := c.hugoTry(); h != nil {
-		h.Close()
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1087,7 +1104,7 @@ func (s *staticSyncer) syncsStaticEvents(staticEvents []fsnotify.Event) error {
 
 			fromPath := ev.Name
 
-			relPath, found := sourceFs.MakePathRelative(fromPath)
+			relPath, found := sourceFs.MakePathRelative(fromPath, true)
 
 			if !found {
 				// Not member of this virtual host.
@@ -1167,7 +1184,7 @@ func cleanErrorLog(content string) string {
 	return strings.Join(keep, ": ")
 }
 
-func injectLiveReloadScript(src io.Reader, baseURL url.URL) string {
+func injectLiveReloadScript(src io.Reader, baseURL *url.URL) string {
 	var b bytes.Buffer
 	chain := transform.Chain{livereloadinject.New(baseURL)}
 	chain.Apply(&b, src)
@@ -1186,16 +1203,16 @@ func partitionDynamicEvents(sourceFs *filesystems.SourceFilesystems, events []fs
 	return
 }
 
-func pickOneWriteOrCreatePath(events []fsnotify.Event) string {
+func pickOneWriteOrCreatePath(contentTypes config.ContentTypesProvider, events []fsnotify.Event) string {
 	name := ""
 
 	for _, ev := range events {
 		if ev.Op&fsnotify.Write == fsnotify.Write || ev.Op&fsnotify.Create == fsnotify.Create {
-			if files.IsIndexContentFile(ev.Name) {
+			if contentTypes.IsIndexContentFile(ev.Name) {
 				return ev.Name
 			}
 
-			if files.IsContentFile(ev.Name) {
+			if contentTypes.IsContentFile(ev.Name) {
 				name = ev.Name
 			}
 
@@ -1217,4 +1234,25 @@ func formatByteCount(b uint64) string {
 	}
 	return fmt.Sprintf("%.1f %cB",
 		float64(b)/float64(div), "kMGTPE"[exp])
+}
+
+func canRedirect(requestURIWithoutQuery string, r *http.Request) bool {
+	if r.Header.Get(hugoHeaderRedirect) != "" {
+		return false
+	}
+	return isNavigation(requestURIWithoutQuery, r)
+}
+
+// Sec-Fetch-Mode should be sent by all recent browser versions, see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Sec-Fetch-Mode#navigate
+// Fall back to the file extension if not set.
+// The main take here is that we don't want to have CSS/JS files etc. partake in this logic.
+func isNavigation(requestURIWithoutQuery string, r *http.Request) bool {
+	return r.Header.Get("Sec-Fetch-Mode") == "navigate" || isPropablyHTMLRequest(requestURIWithoutQuery)
+}
+
+func isPropablyHTMLRequest(requestURIWithoutQuery string) bool {
+	if strings.HasSuffix(requestURIWithoutQuery, "/") || strings.HasSuffix(requestURIWithoutQuery, "html") || strings.HasSuffix(requestURIWithoutQuery, "htm") {
+		return true
+	}
+	return !strings.Contains(requestURIWithoutQuery, ".")
 }

@@ -1,4 +1,4 @@
-// Copyright 2023 The Hugo Authors. All rights reserved.
+// Copyright 2024 The Hugo Authors. All rights reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -23,10 +23,12 @@ import (
 	"time"
 
 	"github.com/bep/simplecobra"
+	"github.com/gohugoio/hugo/common/maps"
 	"github.com/gohugoio/hugo/config/allconfig"
 	"github.com/gohugoio/hugo/modules"
 	"github.com/gohugoio/hugo/parser"
 	"github.com/gohugoio/hugo/parser/metadecoders"
+	"github.com/spf13/cobra"
 )
 
 // newConfigCommand creates a new config command and its subcommands.
@@ -36,14 +38,14 @@ func newConfigCommand() *configCommand {
 			&configMountsCommand{},
 		},
 	}
-
 }
 
 type configCommand struct {
 	r *rootCommand
 
-	format string
-	lang   string
+	format    string
+	lang      string
+	printZero bool
 
 	commands []simplecobra.Commander
 }
@@ -57,7 +59,7 @@ func (c *configCommand) Name() string {
 }
 
 func (c *configCommand) Run(ctx context.Context, cd *simplecobra.Commandeer, args []string) error {
-	conf, err := c.r.ConfigFromProvider(c.r.configVersionID.Load(), flagsToCfg(cd, nil))
+	conf, err := c.r.ConfigFromProvider(configKey{counter: c.r.configVersionID.Load()}, flagsToCfg(cd, nil))
 	if err != nil {
 		return err
 	}
@@ -77,7 +79,7 @@ func (c *configCommand) Run(ctx context.Context, cd *simplecobra.Commandeer, arg
 	dec.SetIndent("", "  ")
 	dec.SetEscapeHTML(false)
 
-	if err := dec.Encode(parser.ReplacingJSONMarshaller{Value: config, KeysToLower: true, OmitEmpty: true}); err != nil {
+	if err := dec.Encode(parser.ReplacingJSONMarshaller{Value: config, KeysToLower: true, OmitEmpty: !c.printZero}); err != nil {
 		return err
 	}
 
@@ -92,6 +94,7 @@ func (c *configCommand) Run(ctx context.Context, cd *simplecobra.Commandeer, arg
 		if err := json.Unmarshal(buf.Bytes(), &m); err != nil {
 			return err
 		}
+		maps.ConvertFloat64WithNoDecimalsToInt(m)
 		switch format {
 		case "yaml":
 			return parser.InterfaceToConfig(m, metadecoders.YAML, os.Stdout)
@@ -108,10 +111,13 @@ func (c *configCommand) Run(ctx context.Context, cd *simplecobra.Commandeer, arg
 func (c *configCommand) Init(cd *simplecobra.Commandeer) error {
 	c.r = cd.Root.Command.(*rootCommand)
 	cmd := cd.CobraCommand
-	cmd.Short = "Print the site configuration"
-	cmd.Long = `Print the site configuration, both default and custom settings.`
+	cmd.Short = "Display site configuration"
+	cmd.Long = `Display site configuration, both default and custom settings.`
 	cmd.Flags().StringVar(&c.format, "format", "toml", "preferred file format (toml, yaml or json)")
+	_ = cmd.RegisterFlagCompletionFunc("format", cobra.FixedCompletions([]string{"toml", "yaml", "json"}, cobra.ShellCompDirectiveNoFileComp))
 	cmd.Flags().StringVar(&c.lang, "lang", "", "the language to display config for. Defaults to the first language defined.")
+	cmd.Flags().BoolVar(&c.printZero, "printZero", false, `include config options with zero values (e.g. false, 0, "") in the output`)
+	_ = cmd.RegisterFlagCompletionFunc("lang", cobra.NoFileCompletions)
 	applyLocalFlagsBuildConfig(cmd, c.r)
 
 	return nil
@@ -188,7 +194,6 @@ func (m *configModMounts) MarshalJSON() ([]byte, error) {
 		Dir:     m.m.Dir(),
 		Mounts:  mounts,
 	})
-
 }
 
 type configMountsCommand struct {
@@ -206,7 +211,7 @@ func (c *configMountsCommand) Name() string {
 
 func (c *configMountsCommand) Run(ctx context.Context, cd *simplecobra.Commandeer, args []string) error {
 	r := c.configCmd.r
-	conf, err := r.ConfigFromProvider(r.configVersionID.Load(), flagsToCfg(cd, nil))
+	conf, err := r.ConfigFromProvider(configKey{counter: c.r.configVersionID.Load()}, flagsToCfg(cd, nil))
 	if err != nil {
 		return err
 	}
@@ -223,6 +228,7 @@ func (c *configMountsCommand) Init(cd *simplecobra.Commandeer) error {
 	c.r = cd.Root.Command.(*rootCommand)
 	cmd := cd.CobraCommand
 	cmd.Short = "Print the configured file mounts"
+	cmd.ValidArgsFunction = cobra.NoFileCompletions
 	applyLocalFlagsBuildConfig(cmd, c.r)
 	return nil
 }

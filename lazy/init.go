@@ -15,11 +15,10 @@ package lazy
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"errors"
 )
 
 // New creates a new empty Init.
@@ -37,7 +36,7 @@ type Init struct {
 	prev     *Init
 	children []*Init
 
-	init onceMore
+	init OnceMore
 	out  any
 	err  error
 	f    func(context.Context) (any, error)
@@ -197,6 +196,7 @@ func (ini *Init) withTimeout(ctx context.Context, timeout time.Duration, f func(
 
 	select {
 	case <-waitCtx.Done():
+		//lint:ignore ST1005 end user message.
 		return nil, errors.New("timed out initializing value. You may have a circular loop in a shortcode, or your site may have resources that take longer to build than the `timeout` limit in your Hugo config file.")
 	case ve := <-c:
 		return ve.v, ve.err

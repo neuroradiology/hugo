@@ -71,8 +71,7 @@ func TestAfter(t *testing.T) {
 	}
 }
 
-type tstGrouper struct {
-}
+type tstGrouper struct{}
 
 type tstGroupers []*tstGrouper
 
@@ -81,8 +80,7 @@ func (g tstGrouper) Group(key any, items any) (any, error) {
 	return fmt.Sprintf("%v(%d)", key, ilen), nil
 }
 
-type tstGrouper2 struct {
-}
+type tstGrouper2 struct{}
 
 func (g *tstGrouper2) Group(key any, items any) (any, error) {
 	ilen := reflect.ValueOf(items).Len()
@@ -134,7 +132,7 @@ func TestDelimit(t *testing.T) {
 		seq       any
 		delimiter any
 		last      any
-		expect    template.HTML
+		expect    string
 	}{
 		{[]string{"class1", "class2", "class3"}, " ", nil, "class1 class2 class3"},
 		{[]int{1, 2, 3, 4, 5}, ",", nil, "1,2,3,4,5"},
@@ -163,7 +161,7 @@ func TestDelimit(t *testing.T) {
 	} {
 		errMsg := qt.Commentf("[%d] %v", i, test)
 
-		var result template.HTML
+		var result string
 		var err error
 
 		if test.last == nil {
@@ -232,38 +230,6 @@ func TestReverse(t *testing.T) {
 	c.Assert(reversed, qt.IsNil)
 	_, err = ns.Reverse(43)
 	c.Assert(err, qt.Not(qt.IsNil))
-}
-
-func TestEchoParam(t *testing.T) {
-	t.Parallel()
-	c := qt.New(t)
-
-	ns := newNs()
-
-	for i, test := range []struct {
-		a      any
-		key    any
-		expect any
-	}{
-		{[]int{1, 2, 3}, 1, int64(2)},
-		{[]uint{1, 2, 3}, 1, uint64(2)},
-		{[]float64{1.1, 2.2, 3.3}, 1, float64(2.2)},
-		{[]string{"foo", "bar", "baz"}, 1, "bar"},
-		{[]TstX{{A: "a", B: "b"}, {A: "c", B: "d"}, {A: "e", B: "f"}}, 1, ""},
-		{map[string]int{"foo": 1, "bar": 2, "baz": 3}, "bar", int64(2)},
-		{map[string]uint{"foo": 1, "bar": 2, "baz": 3}, "bar", uint64(2)},
-		{map[string]float64{"foo": 1.1, "bar": 2.2, "baz": 3.3}, "bar", float64(2.2)},
-		{map[string]string{"foo": "FOO", "bar": "BAR", "baz": "BAZ"}, "bar", "BAR"},
-		{map[string]TstX{"foo": {A: "a", B: "b"}, "bar": {A: "c", B: "d"}, "baz": {A: "e", B: "f"}}, "bar", ""},
-		{map[string]any{"foo": nil}, "foo", ""},
-		{(*[]string)(nil), "bar", ""},
-	} {
-		errMsg := qt.Commentf("[%d] %v", i, test)
-
-		result := ns.EchoParam(test.a, test.key)
-
-		c.Assert(result, qt.Equals, test.expect, errMsg)
-	}
 }
 
 func TestFirst(t *testing.T) {
@@ -546,68 +512,6 @@ func TestLast(t *testing.T) {
 	}
 }
 
-func TestQuerify(t *testing.T) {
-	t.Parallel()
-	c := qt.New(t)
-	ns := newNs()
-
-	for i, test := range []struct {
-		params []any
-		expect any
-	}{
-		{[]any{"a", "b"}, "a=b"},
-		{[]any{"a", "b", "c", "d", "f", " &"}, `a=b&c=d&f=+%26`},
-		{[]any{[]string{"a", "b"}}, "a=b"},
-		{[]any{[]string{"a", "b", "c", "d", "f", " &"}}, `a=b&c=d&f=+%26`},
-		{[]any{[]any{"x", "y"}}, `x=y`},
-		{[]any{[]any{"x", 5}}, `x=5`},
-		// errors
-		{[]any{5, "b"}, false},
-		{[]any{"a", "b", "c"}, false},
-		{[]any{[]string{"a", "b", "c"}}, false},
-		{[]any{[]string{"a", "b"}, "c"}, false},
-		{[]any{[]any{"c", "d", "e"}}, false},
-	} {
-		errMsg := qt.Commentf("[%d] %v", i, test.params)
-
-		result, err := ns.Querify(test.params...)
-
-		if b, ok := test.expect.(bool); ok && !b {
-			c.Assert(err, qt.Not(qt.IsNil), errMsg)
-			continue
-		}
-
-		c.Assert(err, qt.IsNil, errMsg)
-		c.Assert(result, qt.Equals, test.expect, errMsg)
-	}
-}
-
-func BenchmarkQuerify(b *testing.B) {
-	ns := newNs()
-	params := []any{"a", "b", "c", "d", "f", " &"}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := ns.Querify(params...)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
-func BenchmarkQuerifySlice(b *testing.B) {
-	ns := newNs()
-	params := []string{"a", "b", "c", "d", "f", " &"}
-
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		_, err := ns.Querify(params)
-		if err != nil {
-			b.Fatal(err)
-		}
-	}
-}
-
 func TestSeq(t *testing.T) {
 	t.Parallel()
 	c := qt.New(t)
@@ -701,7 +605,6 @@ func TestShuffleRandomising(t *testing.T) {
 	// of the sequence happens to be the same as the original sequence. However
 	// the probability of the event is 10^-158 which is negligible.
 	seqLen := 100
-	rand.Seed(time.Now().UTC().UnixNano())
 
 	for _, test := range []struct {
 		seq []int
@@ -897,6 +800,7 @@ func (x TstX) TstRv2() string {
 	return "r" + x.B
 }
 
+//lint:ignore U1000 reflect test
 func (x TstX) unexportedMethod() string {
 	return x.unexported
 }
@@ -925,7 +829,7 @@ func (x TstX) String() string {
 
 type TstX struct {
 	A, B       string
-	unexported string
+	unexported string //lint:ignore U1000 reflect test
 }
 
 type TstParams struct {

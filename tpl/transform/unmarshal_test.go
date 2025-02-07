@@ -14,6 +14,7 @@
 package transform_test
 
 import (
+	"context"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -138,6 +139,8 @@ func TestUnmarshal(t *testing.T) {
 a;b;c`, mime: media.Builtin.CSVType}, map[string]any{"DElimiter": ";", "Comment": "%"}, func(r [][]string) {
 			b.Assert([][]string{{"a", "b", "c"}}, qt.DeepEquals, r)
 		}},
+		{``, nil, nil},
+		{`   `, nil, nil},
 		// errors
 		{"thisisnotavaliddataformat", nil, false},
 		{testContentResource{key: "r1", content: `invalid&toml"`, mime: media.Builtin.TOMLType}, nil, false},
@@ -193,9 +196,11 @@ func BenchmarkUnmarshalString(b *testing.B) {
 		jsons[i] = strings.Replace(testJSON, "ROOT_KEY", fmt.Sprintf("root%d", i), 1)
 	}
 
+	ctx := context.Background()
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		result, err := ns.Unmarshal(jsons[rand.Intn(numJsons)])
+		result, err := ns.Unmarshal(ctx, jsons[rand.Intn(numJsons)])
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -220,9 +225,11 @@ func BenchmarkUnmarshalResource(b *testing.B) {
 		jsons[i] = testContentResource{key: key, content: strings.Replace(testJSON, "ROOT_KEY", key, 1), mime: media.Builtin.JSONType}
 	}
 
+	ctx := context.Background()
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		result, err := ns.Unmarshal(jsons[rand.Intn(numJsons)])
+		result, err := ns.Unmarshal(ctx, jsons[rand.Intn(numJsons)])
 		if err != nil {
 			b.Fatal(err)
 		}

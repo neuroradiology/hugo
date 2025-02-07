@@ -14,10 +14,13 @@
 package tableofcontents
 
 import (
+	"fmt"
+	"html/template"
 	"sort"
 	"strings"
 
 	"github.com/gohugoio/hugo/common/collections"
+	"github.com/spf13/cast"
 )
 
 // Empty is an empty ToC.
@@ -76,6 +79,7 @@ func (h Headings) FilterBy(fn func(*Heading) bool) Headings {
 // Heading holds the data about a heading and its children.
 type Heading struct {
 	ID    string
+	Level int
 	Title string
 
 	Headings Headings
@@ -131,19 +135,30 @@ func (toc *Fragments) addAt(h *Heading, row, level int) {
 }
 
 // ToHTML renders the ToC as HTML.
-func (toc *Fragments) ToHTML(startLevel, stopLevel int, ordered bool) string {
+func (toc *Fragments) ToHTML(startLevel, stopLevel any, ordered bool) (template.HTML, error) {
 	if toc == nil {
-		return ""
+		return "", nil
 	}
+
+	iStartLevel, err := cast.ToIntE(startLevel)
+	if err != nil {
+		return "", fmt.Errorf("startLevel: %w", err)
+	}
+
+	iStopLevel, err := cast.ToIntE(stopLevel)
+	if err != nil {
+		return "", fmt.Errorf("stopLevel: %w", err)
+	}
+
 	b := &tocBuilder{
 		s:          strings.Builder{},
 		h:          toc.Headings,
-		startLevel: startLevel,
-		stopLevel:  stopLevel,
+		startLevel: iStartLevel,
+		stopLevel:  iStopLevel,
 		ordered:    ordered,
 	}
 	b.Build()
-	return b.s.String()
+	return template.HTML(b.s.String()), nil
 }
 
 func (toc Fragments) walk(fn func(*Heading)) {

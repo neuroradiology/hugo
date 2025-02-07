@@ -153,10 +153,12 @@ func TestBugs(t *testing.T) {
 		rawString         string
 		expectedMinString string
 	}{
-		// https://github.com/gohugoio/hugo/issues/5506
+		// Issue 5506
 		{media.Builtin.CSSType, " body { color: rgba(000, 000, 000, 0.7); }", "body{color:rgba(0,0,0,.7)}"},
-		// https://github.com/gohugoio/hugo/issues/8332
+		// Issue 8332
 		{media.Builtin.HTMLType, "<i class='fas fa-tags fa-fw'></i> Tags", `<i class='fas fa-tags fa-fw'></i> Tags`},
+		// Issue #13082
+		{media.Builtin.HTMLType, "<gcse:searchresults-only></gcse:searchresults-only>", `<gcse:searchresults-only></gcse:searchresults-only>`},
 	} {
 		var b bytes.Buffer
 
@@ -184,7 +186,6 @@ func TestDecodeConfigDecimalIsNowPrecision(t *testing.T) {
 	conf := testconfig.GetTestConfigs(nil, v).Base.Minify
 
 	c.Assert(conf.Tdewolff.CSS.Precision, qt.Equals, 3)
-
 }
 
 // Issue 9456
@@ -203,13 +204,13 @@ func TestDecodeConfigKeepWhitespace(t *testing.T) {
 
 	c.Assert(conf.Tdewolff.HTML, qt.DeepEquals,
 		html.Minifier{
-			KeepComments:            false,
-			KeepConditionalComments: true,
-			KeepDefaultAttrVals:     true,
-			KeepDocumentTags:        true,
-			KeepEndTags:             false,
-			KeepQuotes:              false,
-			KeepWhitespace:          false},
+			KeepComments:        false,
+			KeepSpecialComments: true,
+			KeepDefaultAttrVals: true,
+			KeepDocumentTags:    true,
+			KeepEndTags:         false,
+			KeepQuotes:          false,
+			KeepWhitespace:      false,
+		},
 	)
-
 }

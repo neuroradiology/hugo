@@ -876,7 +876,7 @@ func BenchmarkWhereOps(b *testing.B) {
 		j := rand.Intn(i + 1)
 		seq[i], seq[j] = seq[j], seq[i]
 	}
-	//results, err = ns.Where(context.Background(), test.seq, test.key, test.op, test.match)
+	// results, err = ns.Where(context.Background(), test.seq, test.key, test.op, test.match)
 	runOps := func(b *testing.B, op, match string) {
 		_, err := ns.Where(ctx, seq, "foo", op, match)
 		if err != nil {
@@ -901,5 +901,20 @@ func BenchmarkWhereOps(b *testing.B) {
 			runOps(b, "like", "^bar")
 		}
 	})
+}
 
+func BenchmarkWhereMap(b *testing.B) {
+	ns := newNs()
+	seq := map[string]string{}
+
+	for i := 0; i < 1000; i++ {
+		seq[fmt.Sprintf("key%d", i)] = "value"
+	}
+
+	for i := 0; i < b.N; i++ {
+		_, err := ns.Where(context.Background(), seq, "key", "eq", "value")
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
 }

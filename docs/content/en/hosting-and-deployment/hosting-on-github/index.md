@@ -1,8 +1,8 @@
 ---
 title: Host on GitHub Pages
-description: Deploy Hugo as a GitHub Pages project or personal/organizational site and automate the whole process with Github Actions
+description: Host your site on GitHub Pages with continuous deployment using project, user, or organization pages.
 categories: [hosting and deployment]
-keywords: [github,git,deployment,hosting]
+keywords: [hosting]
 menu:
   docs:
     parent: hosting-and-deployment
@@ -10,13 +10,13 @@ toc: true
 aliases: [/tutorials/github-pages-blog/]
 ---
 
-GitHub provides free and fast static hosting over SSL for personal, organization, or project pages directly from a GitHub repository via its GitHub Pages service and automating development workflows and build with GitHub Actions.
-
 ## Prerequisites
 
+Please complete the following tasks before continuing:
+
 1. [Create a GitHub account]
-2. [Install Git]
-3. [Create a Hugo site] and test it locally with `hugo server`.
+1. [Install Git]
+1. [Create a Hugo site] and test it locally with `hugo server`.
 
 [Create a GitHub account]: https://github.com/signup
 [Install Git]: https://git-scm.com/book/en/v2/Getting-Started-Installing-Git
@@ -32,7 +32,6 @@ See the [GitHub Pages documentation] to understand the requirements for reposito
 [GitHub Pages documentation]: https://docs.github.com/en/pages/getting-started-with-github-pages/about-github-pages#types-of-github-pages-sites
 {{% /note %}}
 
-
 [GitHub Pages documentation]: https://docs.github.com/en/pages/getting-started-with-github-pages/about-github-pages#types-of-github-pages-sites
 
 ## Procedure
@@ -44,7 +43,7 @@ Step 2
 : Push your local repository to GitHub.
 
 Step 3
-: Visit your GitHub repository. From the main menu choose **Settings**&nbsp;>&nbsp;**Pages**. In then center of your screen you will see this:
+: Visit your GitHub repository. From the main menu choose **Settings**&nbsp;>&nbsp;**Pages**. In the center of your screen you will see this:
 
 ![screen capture](gh-pages-1.png)
 {style="max-width: 280px"}
@@ -56,16 +55,17 @@ Step 4
 {style="max-width: 280px"}
 
 Step 5
-: Create an empty file in your local repository.
+: Create a file named `hugo.yaml` in a directory named `.github/workflows`.
 
 ```text
-.github/workflows/hugo.yaml
+mkdir -p .github/workflows
+touch hugo.yaml
 ```
 
 Step 6
 : Copy and paste the YAML below into the file you created. Change the branch name and Hugo version as needed.
 
-{{< code file=".github/workflows/hugo.yaml" >}}
+{{< code file=.github/workflows/hugo.yaml copy=true >}}
 # Sample workflow for building and deploying a Hugo site to GitHub Pages
 name: Deploy Hugo site to Pages
 
@@ -100,7 +100,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      HUGO_VERSION: 0.115.1
+      HUGO_VERSION: 0.141.0
     steps:
       - name: Install Hugo CLI
         run: |
@@ -109,27 +109,27 @@ jobs:
       - name: Install Dart Sass
         run: sudo snap install dart-sass
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           submodules: recursive
           fetch-depth: 0
       - name: Setup Pages
         id: pages
-        uses: actions/configure-pages@v3
+        uses: actions/configure-pages@v5
       - name: Install Node.js dependencies
         run: "[[ -f package-lock.json || -f npm-shrinkwrap.json ]] && npm ci || true"
       - name: Build with Hugo
         env:
-          # For maximum backward compatibility with Hugo modules
+          HUGO_CACHEDIR: ${{ runner.temp }}/hugo_cache
           HUGO_ENVIRONMENT: production
-          HUGO_ENV: production
+          TZ: America/Los_Angeles
         run: |
           hugo \
             --gc \
             --minify \
             --baseURL "${{ steps.pages.outputs.base_url }}/"
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3
         with:
           path: ./public
 
@@ -143,11 +143,17 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
 {{< /code >}}
 
 Step 7
-: Commit the change to your local repository with a commit message of something like "Add workflow", and push to GitHub.
+: Commit and push the change to your GitHub repository.
+
+```sh
+git add -A
+git commit -m "Create hugo.yaml"
+git push
+```
 
 Step 8
 : From GitHub's main menu, choose **Actions**. You will see something like this:
@@ -171,7 +177,20 @@ Under the deploy step, you will see a link to your live site.
 
 In the future, whenever you push a change from your local repository, GitHub will rebuild your site and deploy the changes.
 
-## Additional resources
+## Customize the workflow
+
+The example workflow above includes this step, which typically takes 10&#8209;15 seconds:
+
+```yaml
+- name: Install Dart Sass
+  run: sudo snap install dart-sass
+```
+
+You may remove this step if your site, themes, and modules do not transpile Sass to CSS using the [Dart Sass] transpiler.
+
+[Dart Sass]: /hugo-pipes/transpile-sass-to-css/#dart-sass
+
+## Other resources
 
 - [Learn more about GitHub Actions](https://docs.github.com/en/actions)
 - [Caching dependencies to speed up workflows](https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows)
