@@ -2,16 +2,14 @@
 title: images.QR
 description: Encodes the given text into a QR code using the specified options, returning an image resource.
 keywords: []
-action:
-  aliases: []
-  related: []
-  returnType: images.ImageResource
-  signatures: ['images.QR TEXT OPTIONS']
-toc: true
-math: true
+params:
+  functions_and_methods:
+    aliases: []
+    returnType: images.ImageResource
+    signatures: ['images.QR TEXT [OPTIONS]']
 ---
 
-{{< new-in 0.141.0 >}}
+{{< new-in 0.141.0 />}}
 
 The `images.QR` function encodes the given text into a [QR code] using the specified options, returning an image resource. The size of the generated image depends on three factors:
 
@@ -21,27 +19,23 @@ The `images.QR` function encodes the given text into a [QR code] using the speci
 
 Although the default option values are sufficient for most applications, you should test the rendered QR code both on-screen and in print.
 
-[QR code]: https://en.wikipedia.org/wiki/QR_code
-
 ## Options
 
 level
 : (`string`) The error correction level to use when encoding the text, one of `low`, `medium`, `quartile`, or `high`. Default is `medium`.
 
-Error correction level|Redundancy
-:--|:--|:--
-low|20%
-medium|38%
-quartile|55%
-high|65%
+  Error correction level|Redundancy
+  :--|:--|:--
+  low|20%
+  medium|38%
+  quartile|55%
+  high|65%
 
 scale
 : (`int`) The number of image pixels per QR code module. Must be greater than or equal to `2`. Default is `4`.
 
 targetDir
 : (`string`) The subdirectory within the [`publishDir`] where Hugo will place the generated image. Use Unix-style slashes (`/`) to separarate path segments. If empty or not provided, the image is placed directly in the `publishDir` root. Hugo automatically creates the necessary subdirectories if they don't exist.
-
-[`publishDir`]: /getting-started/configuration/#publishdir
 
 ## Examples
 
@@ -54,7 +48,7 @@ To create a QR code using the default values for `level` and `scale`:
 {{ end }}
 ```
 
-{{< qr text="https://gohugo.io" class="qrcode" />}}
+{{< qr text="https://gohugo.io" class="qrcode" targetDir="images/qr" />}}
 
 Specify `level`, `scale`, and `targetDir` as needed to achieve the desired result:
 
@@ -63,14 +57,45 @@ Specify `level`, `scale`, and `targetDir` as needed to achieve the desired resul
 {{ $opts := dict 
   "level" "high" 
   "scale" 3
-  "targetDir" "codes"
+  "targetDir" "images/qr"
 }}
 {{ with images.QR $text $opts }}
   <img src="{{ .RelPermalink }}" width="{{ .Width }}" height="{{ .Height }}" alt="">
 {{ end }}
 ```
 
-{{< qr text="https://gohugo.io" level="high" scale=3 targetDir="codes" class="qrcode" />}}
+{{< qr text="https://gohugo.io" level="high" scale=3 targetDir="codes" class="qrcode" targetDir="images/qr" />}}
+
+To include a QR code that points to the `Permalink` of the current page:
+
+```go-html-template {file="layouts/page.html"}
+{{ with images.QR .Permalink }}
+  <img
+    src="{{ .RelPermalink }}"
+    width="{{ .Width }}"
+    height="{{ .Height }}"
+    alt="QR code linking to {{ $.Permalink }}"
+    class="qr-code"
+    loading="lazy"
+  >
+{{ end }}
+```
+
+Then hide the QR code with CSS unless printing the page:
+
+```css
+/* Hide QR code by default */
+.qr-code {
+  display: none;
+}
+
+/* Show QR code when printing */
+@media print {
+  .qr-code {
+    display: block; 
+  }
+}
+```
 
 ## Scale
 
@@ -85,9 +110,8 @@ If the QR code will be printed, use the default `scale` value of `4` pixels per 
 
 Avoid using Hugo's image processing methods to resize QR codes. Resizing can introduce blurring due to anti-aliasing when a QR code module occupies a fractional number of pixels.
 
-{{% note %}}
-Always test the rendered QR code both on-screen and in print.
-{{% /note %}}
+> [!note]
+> Always test the rendered QR code both on-screen and in print.
 
 ## Shortcode
 
@@ -109,4 +133,6 @@ https://gohugo.io
 
 The `qr` shortcode accepts several arguments including `level` and `scale`. See the [related documentation] for details.
 
+[`publishDir`]: /configuration/all/#publishdir
+[QR code]: https://en.wikipedia.org/wiki/QR_code
 [related documentation]: /shortcodes/qr/

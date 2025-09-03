@@ -16,13 +16,12 @@ package source
 import (
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/bep/gitmap"
 	"github.com/gohugoio/hugo/common/hashing"
 	"github.com/gohugoio/hugo/common/hugo"
 	"github.com/gohugoio/hugo/common/paths"
-	"github.com/gohugoio/hugo/media"
+	"github.com/gohugoio/hugo/hugofs/files"
 
 	"github.com/gohugoio/hugo/common/hugio"
 
@@ -132,10 +131,17 @@ func (fi *File) p() *paths.Path {
 	return fi.fim.Meta().PathInfo.Unnormalized()
 }
 
-func NewFileInfoFrom(path, filename string) *File {
+var contentPathParser = &paths.PathParser{
+	IsContentExt: func(ext string) bool {
+		return true
+	},
+}
+
+// Used in tests.
+func NewContentFileInfoFrom(path, filename string) *File {
 	meta := &hugofs.FileMeta{
 		Filename: filename,
-		PathInfo: media.DefaultPathParser.Parse("", filepath.ToSlash(path)),
+		PathInfo: contentPathParser.Parse(files.ComponentFolderContent, filepath.ToSlash(path)),
 	}
 
 	return NewFileInfo(hugofs.NewFileMetaInfo(nil, meta))
@@ -147,32 +153,5 @@ func NewFileInfo(fi hugofs.FileMetaInfo) *File {
 	}
 }
 
-func NewGitInfo(info gitmap.GitInfo) GitInfo {
-	return GitInfo(info)
-}
-
 // GitInfo provides information about a version controlled source file.
-type GitInfo struct {
-	// Commit hash.
-	Hash string `json:"hash"`
-	// Abbreviated commit hash.
-	AbbreviatedHash string `json:"abbreviatedHash"`
-	// The commit message's subject/title line.
-	Subject string `json:"subject"`
-	// The author name, respecting .mailmap.
-	AuthorName string `json:"authorName"`
-	// The author email address, respecting .mailmap.
-	AuthorEmail string `json:"authorEmail"`
-	// The author date.
-	AuthorDate time.Time `json:"authorDate"`
-	// The commit date.
-	CommitDate time.Time `json:"commitDate"`
-	// The commit message's body.
-	Body string `json:"body"`
-}
-
-// IsZero returns true if the GitInfo is empty,
-// meaning it will also be falsy in the Go templates.
-func (g GitInfo) IsZero() bool {
-	return g.Hash == ""
-}
+type GitInfo = gitmap.GitInfo

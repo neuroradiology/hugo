@@ -19,7 +19,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"reflect"
 	"strings"
 	"time"
@@ -41,9 +41,12 @@ func New(deps *deps.Deps) *Namespace {
 	}
 	loc := langs.GetLocation(language)
 
+	dCache := maps.NewCacheWithOptions[dKey, []int](maps.CacheOptions{Size: 100})
+
 	return &Namespace{
 		loc:      loc,
 		sortComp: compare.New(loc, true),
+		dCache:   dCache,
 		deps:     deps,
 	}
 }
@@ -52,6 +55,7 @@ func New(deps *deps.Deps) *Namespace {
 type Namespace struct {
 	loc      *time.Location
 	sortComp *compare.Namespace
+	dCache   *maps.Cache[dKey, []int]
 	deps     *deps.Deps
 }
 
@@ -125,7 +129,7 @@ func (ns *Namespace) Delimit(ctx context.Context, l, sep any, last ...any) (stri
 		lv = reflect.ValueOf(sortSeq)
 		fallthrough
 	case reflect.Array, reflect.Slice, reflect.String:
-		for i := 0; i < lv.Len(); i++ {
+		for i := range lv.Len() {
 			val := lv.Index(i).Interface()
 			valStr, err := cast.ToStringE(val)
 			if err != nil {
@@ -165,7 +169,7 @@ func (ns *Namespace) Dictionary(values ...any) (map[string]any, error) {
 		case string:
 			key = v
 		case []string:
-			for i := 0; i < len(v)-1; i++ {
+			for i := range len(v) - 1 {
 				key = v[i]
 				var m map[string]any
 				v, found := dict[key]
@@ -235,7 +239,7 @@ func (ns *Namespace) In(l any, v any) (bool, error) {
 
 	switch lv.Kind() {
 	case reflect.Array, reflect.Slice:
-		for i := 0; i < lv.Len(); i++ {
+		for i := range lv.Len() {
 			lvv, isNil := indirectInterface(lv.Index(i))
 			if isNil {
 				continue
@@ -277,13 +281,13 @@ func (ns *Namespace) Intersect(l1, l2 any) (any, error) {
 		ins = &intersector{r: reflect.MakeSlice(l1v.Type(), 0, 0), seen: make(map[any]bool)}
 		switch l2v.Kind() {
 		case reflect.Array, reflect.Slice:
-			for i := 0; i < l1v.Len(); i++ {
+			for i := range l1v.Len() {
 				l1vv := l1v.Index(i)
 				if !l1vv.Type().Comparable() {
 					return make([]any, 0), errors.New("intersect does not support slices or arrays of uncomparable types")
 				}
 
-				for j := 0; j < l2v.Len(); j++ {
+				for j := range l2v.Len() {
 					l2vv := l2v.Index(j)
 					if !l2vv.Type().Comparable() {
 						return make([]any, 0), errors.New("intersect does not support slices or arrays of uncomparable types")
@@ -405,6 +409,11 @@ func (ns *Namespace) Reverse(l any) (any, error) {
 	return sliceCopy.Interface(), nil
 }
 
+// Sanity check for slices created by Seq and D.
+const maxSeqSize = 1000000
+
+var errSeqSizeExceedsLimit = errors.New("size of result exceeds limit")
+
 // Seq creates a sequence of integers from args. It's named and used as GNU's seq.
 //
 // Examples:
@@ -458,14 +467,14 @@ func (ns *Namespace) Seq(args ...any) ([]int, error) {
 	}
 
 	// sanity check
-	if last < -100000 {
-		return nil, errors.New("size of result exceeds limit")
+	if last < -maxSeqSize {
+		return nil, errSeqSizeExceedsLimit
 	}
 	size := ((last - first) / inc) + 1
 
 	// sanity check
-	if size <= 0 || size > 2000 {
-		return nil, errors.New("size of result exceeds limit")
+	if size <= 0 || size > maxSeqSize {
+		return nil, errSeqSizeExceedsLimit
 	}
 
 	seq := make([]int, size)
@@ -518,6 +527,35 @@ func (ns *Namespace) Slice(args ...any) any {
 	}
 
 	return collections.Slice(args...)
+}
+
+type dKey struct {
+	seed uint64
+	n    int
+	hi   int
+}
+
+// D returns a slice of n unique random numbers in the range [0, hi) using the provded seed,
+// using  J. S. Vitter's Method D for sequential random sampling, from Vitter, J.S.
+// - An Efficient Algorithm for Sequential Random Sampling - ACM Trans. Math. Software 11 (1985), 37-57.
+// See  https://getkerf.wordpress.com/2016/03/30/the-best-algorithm-no-one-knows-about/
+func (ns *Namespace) D(seed, n, hi any) []int {
+	key := dKey{seed: cast.ToUint64(seed), n: cast.ToInt(n), hi: cast.ToInt(hi)}
+	if key.n <= 0 || key.hi <= 0 || key.n > key.hi {
+		return nil
+	}
+	if key.n > maxSeqSize {
+		panic(errSeqSizeExceedsLimit)
+	}
+	v, _ := ns.dCache.GetOrCreate(key, func() ([]int, error) {
+		prng := rand.New(rand.NewPCG(key.seed, 0))
+		result := make([]int, 0, key.n)
+		_d(prng, key.n, key.hi, func(i int) {
+			result = append(result, i)
+		})
+		return result, nil
+	})
+	return v
 }
 
 type intersector struct {
@@ -590,7 +628,7 @@ func (ns *Namespace) Union(l1, l2 any) (any, error) {
 				isNil bool
 			)
 
-			for i := 0; i < l1v.Len(); i++ {
+			for i := range l1v.Len() {
 				l1vv, isNil = indirectInterface(l1v.Index(i))
 
 				if !l1vv.Type().Comparable() {
@@ -610,7 +648,7 @@ func (ns *Namespace) Union(l1, l2 any) (any, error) {
 				}
 			}
 
-			for j := 0; j < l2v.Len(); j++ {
+			for j := range l2v.Len() {
 				l2vv := l2v.Index(j)
 
 				switch kind := l1vv.Kind(); {
@@ -661,7 +699,7 @@ func (ns *Namespace) Uniq(l any) (any, error) {
 
 	seen := make(map[any]bool)
 
-	for i := 0; i < v.Len(); i++ {
+	for i := range v.Len() {
 		ev, _ := indirectInterface(v.Index(i))
 
 		key := normalize(ev)

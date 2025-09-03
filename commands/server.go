@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net"
 	"net/http"
 	_ "net/http/pprof"
@@ -48,6 +49,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/gohugoio/hugo/common/herrors"
 	"github.com/gohugoio/hugo/common/hugo"
+	"github.com/gohugoio/hugo/tpl/tplimpl"
 
 	"github.com/gohugoio/hugo/common/types"
 	"github.com/gohugoio/hugo/common/urls"
@@ -57,7 +59,6 @@ import (
 	"github.com/gohugoio/hugo/hugolib"
 	"github.com/gohugoio/hugo/hugolib/filesystems"
 	"github.com/gohugoio/hugo/livereload"
-	"github.com/gohugoio/hugo/tpl"
 	"github.com/gohugoio/hugo/transform"
 	"github.com/gohugoio/hugo/transform/livereloadinject"
 	"github.com/spf13/afero"
@@ -119,7 +120,7 @@ func newServerCommand() *serverCommand {
 		commands: []simplecobra.Commander{
 			&simpleCommand{
 				name:  "trust",
-				short: "Install the local CA in the system trust store.",
+				short: "Install the local CA in the system trust store",
 				run: func(ctx context.Context, cd *simplecobra.Commandeer, r *rootCommand, args []string) error {
 					action := "-install"
 					if uninstall {
@@ -195,9 +196,7 @@ func (f *fileChangeDetector) PrepareNew() {
 	}
 
 	f.prev = make(map[string]uint64)
-	for k, v := range f.current {
-		f.prev[k] = v
-	}
+	maps.Copy(f.prev, f.current)
 	f.current = make(map[string]uint64)
 }
 
@@ -628,7 +627,7 @@ func (c *serverCommand) setServerInfoInConfig() error {
 		panic("no server ports set")
 	}
 	return c.withConfE(func(conf *commonConfig) error {
-		for i, language := range conf.configs.Languages {
+		for i, language := range conf.configs.LanguagesDefaultFirst {
 			isMultihost := conf.configs.IsMultihost
 			var serverPort int
 			if isMultihost {
@@ -759,7 +758,7 @@ func (c *serverCommand) createServerPorts(cd *simplecobra.Commandeer) error {
 			c.serverPorts = make([]serverPortListener, len(conf.configs.Languages))
 		}
 		currentServerPort := c.serverPort
-		for i := 0; i < len(c.serverPorts); i++ {
+		for i := range c.serverPorts {
 			l, err := net.Listen("tcp", net.JoinHostPort(c.serverInterface, strconv.Itoa(currentServerPort)))
 			if err == nil {
 				c.serverPorts[i] = serverPortListener{ln: l, p: currentServerPort}
@@ -898,16 +897,16 @@ func (c *serverCommand) serve() error {
 	// To allow the en user to change the error template while the server is running, we use
 	// the freshest template we can provide.
 	var (
-		errTempl     tpl.Template
-		templHandler tpl.TemplateHandler
+		errTempl     *tplimpl.TemplInfo
+		templHandler *tplimpl.TemplateStore
 	)
-	getErrorTemplateAndHandler := func(h *hugolib.HugoSites) (tpl.Template, tpl.TemplateHandler) {
+	getErrorTemplateAndHandler := func(h *hugolib.HugoSites) (*tplimpl.TemplInfo, *tplimpl.TemplateStore) {
 		if h == nil {
 			return errTempl, templHandler
 		}
-		templHandler := h.Tmpl()
-		errTempl, found := templHandler.Lookup("_server/error.html")
-		if !found {
+		templHandler := h.GetTemplateStore()
+		errTempl := templHandler.LookupByPath("/_server/error.html")
+		if errTempl == nil {
 			panic("template server/error.html not found")
 		}
 		return errTempl, templHandler

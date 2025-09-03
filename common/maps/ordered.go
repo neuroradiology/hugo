@@ -14,6 +14,8 @@
 package maps
 
 import (
+	"slices"
+
 	"github.com/gohugoio/hugo/common/hashing"
 )
 
@@ -56,6 +58,15 @@ func (m *Ordered[K, T]) Get(key K) (T, bool) {
 	return value, found
 }
 
+// Has returns whether the given key exists in the map.
+func (m *Ordered[K, T]) Has(key K) bool {
+	if m == nil {
+		return false
+	}
+	_, found := m.values[key]
+	return found
+}
+
 // Delete deletes the value for the given key.
 func (m *Ordered[K, T]) Delete(key K) {
 	if m == nil {
@@ -64,7 +75,7 @@ func (m *Ordered[K, T]) Delete(key K) {
 	delete(m.values, key)
 	for i, k := range m.keys {
 		if k == key {
-			m.keys = append(m.keys[:i], m.keys[i+1:]...)
+			m.keys = slices.Delete(m.keys, i, i+1)
 			break
 		}
 	}

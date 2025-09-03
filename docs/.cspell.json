@@ -1,8 +1,15 @@
 {
   "version": "0.2",
   "allowCompoundWords": true,
-  "files": [
-    "**/*.md"
+  "overrides": [
+    {
+      "filename": "**/*",
+      "enabled": false
+    },
+    {
+      "filename": "**/*.md",
+      "enabled": true
+    }
   ],
   "flagWords": [
     "alot",
@@ -60,14 +67,18 @@
     "redirections",
     "subexpression",
     "suppressible",
+    "synchronisation",
     "templating",
     "transpile",
     "unmarshal",
+    "unmarshaled",
     "unmarshaling",
     "unmarshals",
     "# ----------------------------------------------------------------------",
     "# cspell: ignore hugo terminology",
     "# ----------------------------------------------------------------------",
+    "alignx",
+    "aligny",
     "attrlink",
     "canonify",
     "codeowners",
@@ -85,6 +96,7 @@
     "stringifier",
     "struct",
     "toclevels",
+    "unmarshal",
     "unpublishdate",
     "zgotmplz",
     "# ----------------------------------------------------------------------",
@@ -96,6 +108,8 @@
     "descripción",
     "dokumentation",
     "erklärungen",
+    "español",
+    "français",
     "libros",
     "mercredi",
     "miesiąc",
@@ -143,6 +157,7 @@
     "dpkg",
     "doas",
     "eopkg",
+    "forgejo",
     "gitee",
     "goldmark",
     "katex",
@@ -158,6 +173,8 @@
     "# cspell: ignore miscellaneous",
     "# ----------------------------------------------------------------------",
     "achristie",
+    "ccpa",
+    "cpra",
     "ddmaurier",
     "dring",
     "fleqn",
@@ -167,10 +184,13 @@
     "jsmith",
     "leqno",
     "milli",
+    "monokai",
+    "mysanityprojectid",
     "rgba",
     "rsmith",
     "tdewolff",
     "tjones",
+    "vcard",
     "wcag",
     "xfeff"
   ]

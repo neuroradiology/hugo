@@ -28,6 +28,16 @@ type RLocker interface {
 	RUnlock()
 }
 
+type Locker interface {
+	Lock()
+	Unlock()
+}
+
+type RWLocker interface {
+	RLocker
+	Locker
+}
+
 // KeyValue is a interface{} tuple.
 type KeyValue struct {
 	Key   any
@@ -59,7 +69,7 @@ func (k KeyValues) String() string {
 // KeyValues struct.
 func NewKeyValuesStrings(key string, values ...string) KeyValues {
 	iv := make([]any, len(values))
-	for i := 0; i < len(values); i++ {
+	for i := range values {
 		iv[i] = values[i]
 	}
 	return KeyValues{Key: key, Values: iv}

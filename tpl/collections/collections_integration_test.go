@@ -52,7 +52,7 @@ Desc: {{ sort (sort $values "b" "desc") "a" "desc" }}
 
   `
 
-	for i := 0; i < 4; i++ {
+	for range 4 {
 
 		b := hugolib.NewIntegrationTestBuilder(
 			hugolib.IntegrationTestConfig{
@@ -122,7 +122,7 @@ func TestAppendNilsToSliceWithNils(t *testing.T) {
 
   `
 
-	for i := 0; i < 4; i++ {
+	for range 4 {
 
 		b := hugolib.NewIntegrationTestBuilder(
 			hugolib.IntegrationTestConfig{
@@ -277,4 +277,54 @@ disableKinds = ['rss','sitemap', 'taxonomy', 'term', 'page']
 	b := hugolib.Test(t, files)
 
 	b.AssertFileContentExact("public/index.html", "0: /a3_b1.html\n\n1: /b2.html\n\n2: /a1.html\n\n3: /a2.html\n$")
+}
+
+// Issue 13621.
+func TestWhereNotInEmptySlice(t *testing.T) {
+	t.Parallel()
+
+	files := `
+-- hugo.toml --
+-- layouts/home.html --
+{{- $pages := where site.RegularPages "Kind" "not in" (slice) -}}
+Len: {{  $pages | len }}|
+-- layouts/all.html --
+All|{{ .Title }}|
+-- content/p1.md --
+
+`
+
+	b := hugolib.Test(t, files)
+
+	b.AssertFileContent("public/index.html", "Len: 1|")
+}
+
+func TestD(t *testing.T) {
+	t.Parallel()
+	files := `
+-- hugo.toml --
+-- layouts/home.html --
+{{ $p := site.RegularPages }}
+5 random pages: {{ range collections.D 42 5 ($p | len) }}{{ with (index $p .) }}{{ .RelPermalink }}|{{ end }}{{ end }}$
+-- content/a.md --
+-- content/b.md --
+-- content/c.md --
+-- content/d.md --
+-- content/e.md --
+-- content/f.md --
+-- content/g.md --
+-- content/h.md --
+-- content/i.md --
+-- content/j.md --
+-- content/k.md --
+-- content/l.md --
+-- content/m.md --
+-- content/n.md --
+-- content/o.md --
+-- content/p.md --
+
+`
+	b := hugolib.Test(t, files)
+
+	b.AssertFileContentExact("public/index.html", "5 random pages: /b/|/g/|/j/|/k/|/l/|$")
 }

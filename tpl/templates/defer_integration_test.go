@@ -71,6 +71,81 @@ AMP.
 
 `
 
+func TestDeferNoBaseof(t *testing.T) {
+	t.Parallel()
+
+	files := `
+-- hugo.toml --
+-- layouts/index.html --
+Home.
+{{ with (templates.Defer (dict "key" "foo")) }}
+ Defer
+{{ end }}
+-- content/_index.md --
+---
+title: "Home"
+---
+
+`
+
+	b := hugolib.Test(t, files)
+
+	b.AssertFileContent("public/index.html", "Home.\n\n Defer")
+}
+
+func TestDeferBaseof(t *testing.T) {
+	t.Parallel()
+
+	files := `
+-- hugo.toml --
+-- layouts/baseof.html --
+{{ with (templates.Defer (dict "key" "foo")) }}
+Defer
+{{ end }}
+Block:{{ block "main" . }}{{ end }}$
+-- layouts/index.html --
+{{ define "main" }}
+Home.
+{{ end }}
+-- content/_index.md --
+---
+title: "Home"
+---
+
+`
+
+	b := hugolib.Test(t, files)
+
+	b.AssertFileContent("public/index.html", "Home.\n\n Defer")
+}
+
+func TestDeferMain(t *testing.T) {
+	t.Parallel()
+
+	files := `
+-- hugo.toml --
+-- layouts/baseof.html --
+
+Block:{{ block "main" . }}{{ end }}$
+-- layouts/index.html --
+{{ define "main" }}
+Home.
+{{ with (templates.Defer (dict "key" "foo")) }}
+Defer
+{{ end }}
+{{ end }}
+-- content/_index.md --
+---
+title: "Home"
+---
+
+`
+
+	b := hugolib.Test(t, files)
+
+	b.AssertFileContent("public/index.html", "Home.\n\n Defer")
+}
+
 func TestDeferBasic(t *testing.T) {
 	t.Parallel()
 
@@ -87,7 +162,7 @@ func TestDeferRepeatedBuildsEditOutside(t *testing.T) {
 
 	b := hugolib.TestRunning(t, deferFilesCommon)
 
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		old := fmt.Sprintf("EDIT_COUNTER_OUTSIDE_%d", i)
 		new := fmt.Sprintf("EDIT_COUNTER_OUTSIDE_%d", i+1)
 		b.EditFileReplaceAll("layouts/index.html", old, new).Build()
@@ -100,7 +175,7 @@ func TestDeferRepeatedBuildsEditDefer(t *testing.T) {
 
 	b := hugolib.TestRunning(t, deferFilesCommon)
 
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		old := fmt.Sprintf("EDIT_COUNTER_DEFER_%d", i)
 		new := fmt.Sprintf("EDIT_COUNTER_DEFER_%d", i+1)
 		b.EditFileReplaceAll("layouts/index.html", old, new).Build()

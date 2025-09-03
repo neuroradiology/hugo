@@ -1,18 +1,13 @@
 ---
 title: js.Build
-description: Bundles, transpiles, tree shakes, and minifies JavaScript resources.
-weight: 30
+description: Bundle, transpile, tree shake, and minify JavaScript resources.
 categories: []
 keywords: []
-action:
-  aliases: []
-  related:
-    - functions/js/Babel
-    - functions/resources/Fingerprint
-    - functions/resources/Minify
-  returnType: resource.Resource
-  signatures: ['js.Build [OPTIONS] RESOURCE']
-toc: true
+params:
+  functions_and_methods:
+    aliases: []
+    returnType: resource.Resource
+    signatures: ['js.Build [OPTIONS] RESOURCE']
 ---
 
 The `js.Build` function uses the [evanw/esbuild] package to:
@@ -23,18 +18,20 @@ The `js.Build` function uses the [evanw/esbuild] package to:
 - Minify
 - Create source maps
 
-[evanw/esbuild]: https://github.com/evanw/esbuild
-
 ```go-html-template
 {{ with resources.Get "js/main.js" }}
-  {{ if hugo.IsDevelopment }}
-    {{ with . | js.Build }}
+  {{$opts := dict
+    "minify" (not hugo.IsDevelopment)
+    "sourceMap" (cond hugo.IsDevelopment "external" "")
+    "targetPath" "js/main.js"
+  }}
+  {{ with . | js.Build $opts }}
+    {{ if hugo.IsDevelopment }}
       <script src="{{ .RelPermalink }}"></script>
-    {{ end }}
-  {{ else }}
-    {{ $opts := dict "minify" true }}
-    {{ with . | js.Build $opts | fingerprint }}
-      <script src="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous"></script>
+    {{ else }}
+      {{ with . | fingerprint }}
+        <script src="{{ .RelPermalink }}" integrity="{{ .Data.Integrity }}" crossorigin="anonymous"></script>
+      {{ end }}
     {{ end }}
   {{ end }}
 {{ end }}
@@ -43,15 +40,14 @@ The `js.Build` function uses the [evanw/esbuild] package to:
 ## Options
 
 targetPath
-: (`string`) If not set, the source path will be used as the base target path.
-Note that the target path's extension may change if the target MIME type is different, e.g. when the source is TypeScript.
+: (`string`) If not set, the source path will be used as the base target path. Note that the target path's extension may change if the target MIME type is different, e.g. when the source is TypeScript.
 
 format
 : (`string`) The output format. One of: `iife`, `cjs`, `esm`. Default is `iife`, a self-executing function, suitable for inclusion as a `<script>` tag.
 
-{{% include "./_common/options.md" %}}
+{{% include "/_common/functions/js/options.md" %}}
 
-### Import JS code from the assets directory
+## Import JS code from the assets directory
 
 `js.Build` has full support for the virtual union file system in [Hugo Modules](/hugo-modules/). You can see some simple examples in this [test project](https://github.com/gohugoio/hugoTestProjectJSModImports), but in short this means that you can do this:
 
@@ -67,7 +63,7 @@ import { hello3 } from 'my/module/hello3';
 
 Will resolve to `hello3.{js,ts,tsx,jsx}` inside `assets/my/module`.
 
-Any imports starting with `.` is resolved relative to the current file:
+Any imports starting with `.` are resolved relative to the current file:
 
 ```js
 import { hello4 } from './lib';
@@ -86,13 +82,14 @@ Also note the new `params` option that can be passed from template to your JS fi
 ```go-html-template
 {{ $js := resources.Get "js/main.js" | js.Build (dict "params" (dict "api" "https://example.org/api")) }}
 ```
+
 And then in your JS file:
 
 ```js
 import * as params from '@params';
 ```
 
-Hugo will, by default, generate a `assets/jsconfig.json` file that maps the imports. This is useful for navigation/intellisense help inside code editors, but if you don't need/want it, you can [turn it off](/getting-started/configuration/#configure-build).
+Hugo will, by default, generate a `assets/jsconfig.json` file that maps the imports. This is useful for navigation/intellisense help inside code editors, but if you don't need/want it, you can [turn it off](/configuration/build/).
 
 ## Node.js dependencies
 
@@ -102,9 +99,8 @@ Any imports in a file outside `assets` or that does not resolve to a component i
 
 The start directory for resolving npm packages (aka. packages that live inside a `node_modules` directory) is always the main project directory.
 
-{{% note %}}
-If you're developing a theme/component that is supposed to be imported and depends on dependencies inside `package.json`, we recommend reading about [hugo mod npm pack](/commands/hugo_mod_npm_pack/), a tool to consolidate all the npm dependencies in a project.
-{{% /note %}}
+> [!note]
+> If you're developing a theme/component that is supposed to be imported and depends on dependencies inside `package.json`, we recommend reading about [hugo mod npm pack](/commands/hugo_mod_npm_pack/), a tool to consolidate all the npm dependencies in a project.
 
 ## Examples
 
@@ -122,3 +118,5 @@ Or with options:
 {{ $built := resources.Get "scripts/main.js" | js.Build $opts }}
 <script src="{{ $built.RelPermalink }}" defer></script>
 ```
+
+[evanw/esbuild]: https://github.com/evanw/esbuild

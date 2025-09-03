@@ -128,6 +128,9 @@ func TestUnmarshal(t *testing.T) {
 		{testContentResource{key: "r1", content: `a;b;c`, mime: media.Builtin.CSVType}, map[string]any{"delimiter": ";"}, func(r [][]string) {
 			b.Assert([][]string{{"a", "b", "c"}}, qt.DeepEquals, r)
 		}},
+		{testContentResource{key: "r1", content: `{p: [a, b]}`, mime: media.Builtin.JSONType}, map[string]any{"format": "yaml"}, func(m map[string]any) {
+			b.Assert(m, qt.DeepEquals, map[string]any{"p": []any{"a", "b"}})
+		}},
 		{"a,b,c", nil, func(r [][]string) {
 			b.Assert([][]string{{"a", "b", "c"}}, qt.DeepEquals, r)
 		}},
@@ -141,6 +144,9 @@ a;b;c`, mime: media.Builtin.CSVType}, map[string]any{"DElimiter": ";", "Comment"
 		}},
 		{``, nil, nil},
 		{`   `, nil, nil},
+		{`{p: [a, b]}`, map[string]any{"format": "yaml"}, func(m map[string]any) {
+			b.Assert(m, qt.DeepEquals, map[string]any{"p": []any{"a", "b"}})
+		}},
 		// errors
 		{"thisisnotavaliddataformat", nil, false},
 		{testContentResource{key: "r1", content: `invalid&toml"`, mime: media.Builtin.TOMLType}, nil, false},
@@ -148,6 +154,8 @@ a;b;c`, mime: media.Builtin.CSVType}, map[string]any{"DElimiter": ";", "Comment"
 		{"thisisnotavaliddataformat", nil, false},
 		{`{ notjson }`, nil, false},
 		{tstNoStringer{}, nil, false},
+		{"<root><a>notjson</a></root>", map[string]any{"format": "json"}, false},
+		{"anything", map[string]any{"format": "invalidformat"}, false},
 	} {
 
 		ns.Reset()
@@ -192,7 +200,7 @@ func BenchmarkUnmarshalString(b *testing.B) {
 	const numJsons = 100
 
 	var jsons [numJsons]string
-	for i := 0; i < numJsons; i++ {
+	for i := range numJsons {
 		jsons[i] = strings.Replace(testJSON, "ROOT_KEY", fmt.Sprintf("root%d", i), 1)
 	}
 
@@ -220,7 +228,7 @@ func BenchmarkUnmarshalResource(b *testing.B) {
 	const numJsons = 100
 
 	var jsons [numJsons]testContentResource
-	for i := 0; i < numJsons; i++ {
+	for i := range numJsons {
 		key := fmt.Sprintf("root%d", i)
 		jsons[i] = testContentResource{key: key, content: strings.Replace(testJSON, "ROOT_KEY", key, 1), mime: media.Builtin.JSONType}
 	}

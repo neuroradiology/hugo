@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -128,7 +129,7 @@ func (w BuildStats) Enabled() bool {
 }
 
 func (b BuildConfig) clone() BuildConfig {
-	b.CacheBusters = append([]CacheBuster{}, b.CacheBusters...)
+	b.CacheBusters = slices.Clone(b.CacheBusters)
 	return b
 }
 
@@ -450,7 +451,7 @@ func (c *CacheBuster) CompileConfig(logger loggers.Logger) error {
 }
 
 func (r Redirect) IsZero() bool {
-	return r.From == ""
+	return r.From == "" && r.FromRe == ""
 }
 
 const (

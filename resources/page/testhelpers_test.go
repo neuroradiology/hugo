@@ -52,7 +52,7 @@ func newTestPage() *testPage {
 
 func newTestPageWithFile(filename string) *testPage {
 	filename = filepath.FromSlash(filename)
-	file := source.NewFileInfoFrom(filename, filename)
+	file := source.NewContentFileInfoFrom(filename, filename)
 
 	l, err := langs.NewLanguage(
 		"en",
@@ -67,9 +67,10 @@ func newTestPageWithFile(filename string) *testPage {
 	}
 
 	return &testPage{
-		params: make(map[string]any),
-		data:   make(map[string]any),
-		file:   file,
+		params:   make(map[string]any),
+		data:     make(map[string]any),
+		file:     file,
+		pathInfo: file.FileInfo().Meta().PathInfo,
 		currentSection: &testPage{
 			sectionEntries: []string{"a", "b", "c"},
 		},
@@ -90,7 +91,8 @@ type testPage struct {
 
 	fuzzyWordCount int
 
-	path string
+	path     string
+	pathInfo *paths.Path
 
 	slug string
 
@@ -109,6 +111,7 @@ type testPage struct {
 
 	currentSection *testPage
 	sectionEntries []string
+	ancestors      Pages
 }
 
 func (p *testPage) Aliases() []string {
@@ -200,7 +203,12 @@ func (p *testPage) Filename() string {
 }
 
 func (p *testPage) FirstSection() Page {
-	panic("testpage: not implemented")
+	// Return the current section for regular pages
+	// For section pages, this would be the section itself
+	if p.currentSection != nil {
+		return p.currentSection
+	}
+	return p // If no current section, assume this page is the section
 }
 
 func (p *testPage) FuzzyWordCount(context.Context) int {
@@ -219,12 +227,12 @@ func (p *testPage) GetTerms(taxonomy string) Pages {
 	panic("testpage: not implemented")
 }
 
-func (p *testPage) GetRelatedDocsHandler() *RelatedDocsHandler {
+func (p *testPage) GetInternalRelatedDocsHandler() *RelatedDocsHandler {
 	return relatedDocsHandler
 }
 
-func (p *testPage) GitInfo() source.GitInfo {
-	return source.GitInfo{}
+func (p *testPage) GitInfo() *source.GitInfo {
+	return nil
 }
 
 func (p *testPage) CodeOwners() []string {
@@ -260,7 +268,7 @@ func (p *testPage) IsDraft() bool {
 }
 
 func (p *testPage) IsHome() bool {
-	panic("testpage: not implemented")
+	return p.kind == "home"
 }
 
 func (p *testPage) IsMenuCurrent(menuID string, inme *navigation.MenuEntry) bool {
@@ -276,7 +284,7 @@ func (p *testPage) IsPage() bool {
 }
 
 func (p *testPage) IsSection() bool {
-	panic("testpage: not implemented")
+	return p.kind == "section"
 }
 
 func (p *testPage) IsTranslated() bool {
@@ -284,7 +292,7 @@ func (p *testPage) IsTranslated() bool {
 }
 
 func (p *testPage) Ancestors() Pages {
-	panic("testpage: not implemented")
+	return p.ancestors
 }
 
 func (p *testPage) Keywords() []string {
@@ -406,7 +414,7 @@ func (p *testPage) Path() string {
 }
 
 func (p *testPage) PathInfo() *paths.Path {
-	panic("testpage: not implemented")
+	return p.pathInfo
 }
 
 func (p *testPage) Permalink() string {
@@ -585,7 +593,7 @@ func (p *testPage) WordCount(context.Context) int {
 func createTestPages(num int) Pages {
 	pages := make(Pages, num)
 
-	for i := 0; i < num; i++ {
+	for i := range num {
 		m := &testPage{
 			path:           fmt.Sprintf("/x/y/z/p%d.md", i),
 			weight:         5,

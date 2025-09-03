@@ -1,30 +1,19 @@
 ---
-title: QR
+title: QR shortcode
+linkTitle: QR
 description: Insert a QR code into your content using the qr shortcode.
-categories: [shortcodes]
+categories: []
 keywords: []
-menu:
-  docs:
-    parent: shortcodes
-    weight:
-weight:
-toc: true
 ---
 
-{{< new-in 0.141.0 >}}
+{{< new-in 0.141.0 />}}
 
-{{% note %}}
-To override Hugo's embedded `qr` shortcode, copy the [source code] to a file with the same name in the `layouts/shortcodes` directory.
-
-[source code]: {{% eturl qr %}}
-{{% /note %}}
+> [!note]
+> To override Hugo's embedded `qr` shortcode, copy the [source code] to a file with the same name in the `layouts/_shortcodes` directory.
 
 The `qr` shortcode encodes the given text into a [QR code] using the specified options and renders the resulting image.
 
 Internally this shortcode calls the `images.QR` function. Please read the [related documentation] for implementation details and guidance.
-
-[QR code]: https://en.wikipedia.org/wiki/QR_code
-[related documentation]: /functions/images/qr/
 
 ## Examples
 
@@ -44,7 +33,7 @@ https://gohugo.io
 
 Both of the above produce this image:
 
-{{< qr text="https://gohugo.io" class="qrcode" />}}
+{{< qr text="https://gohugo.io" class="qrcode" targetDir="images/qr" />}}
 
 To create a QR code for a phone number:
 
@@ -52,11 +41,9 @@ To create a QR code for a phone number:
 {{</* qr text="tel:+12065550101" /*/>}}
 ```
 
-{{< qr text="tel:+12065550101" class="qrcode" />}}
+{{< qr text="tel:+12065550101" class="qrcode" targetDir="images/qr" />}}
 
 To create a QR code containing contact information in the [vCard] format:
-
-[vCard]: https://en.wikipedia.org/wiki/VCard
 
 ```text
 {{</* qr level="low" scale=2 alt="QR code of vCard for John Smith" */>}}
@@ -72,7 +59,7 @@ END:VCARD
 {{</* /qr */>}}
 ```
 
-{{< qr level="low" scale=2 alt="QR code of vCard for John Smith" class="qrcode" >}}
+{{< qr level="low" scale=2 alt="QR code of vCard for John Smith" class="qrcode" targetDir="images/qr" >}}
 BEGIN:VCARD
 VERSION:2.1
 N;CHARSET=UTF-8:Smith;John;R.;Dr.;PhD
@@ -84,7 +71,7 @@ EMAIL;TYPE=WORK:jsmith@example.org
 END:VCARD
 {{< /qr >}}
 
-## Parameters
+## Arguments
 
 text
 : (`string`) The text to encode, falling back to the text between the opening and closing shortcode tags.
@@ -98,8 +85,6 @@ scale
 targetDir
 : (`string`) The subdirectory within the [`publishDir`] where Hugo will place the generated image.
 
-[`publishDir`]: /getting-started/configuration/#publishdir
-
 alt
 : (`string`) The `alt` attribute of the `img` element.
 
@@ -109,5 +94,14 @@ class
 id
 : (`string`) The `id` attribute of the `img` element.
 
+loading
+: (`string`) The `loading` attribute of the `img` element, either `eager` or `lazy`.
+
 title
 : (`string`) The `title` attribute of the `img` element.
+
+[`publishDir`]: /configuration/all/#publishdir
+[QR code]: https://en.wikipedia.org/wiki/QR_code
+[related documentation]: /functions/images/qr/
+[source code]: {{% eturl qr %}}
+[vCard]: <https://en.wikipedia.org/wiki/VCard>

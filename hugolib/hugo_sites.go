@@ -85,7 +85,8 @@ type HugoSites struct {
 
 	pageTrees *pageTrees
 
-	postRenderInit sync.Once
+	printUnusedTemplatesInit sync.Once
+	printPathWarningsInit    sync.Once
 
 	// File change events with filename stored in this map will be skipped.
 	skipRebuildForFilenamesMu sync.Mutex
@@ -133,7 +134,6 @@ func (h *HugoSites) resolveSite(lang string) *Site {
 	return nil
 }
 
-// Only used in tests.
 type buildCounters struct {
 	contentRenderCounter atomic.Uint64
 	pageRenderCounter    atomic.Uint64
@@ -230,13 +230,13 @@ func (h *HugoSites) RegularPages() page.Pages {
 	return v
 }
 
-func (h *HugoSites) gitInfoForPage(p page.Page) (source.GitInfo, error) {
+func (h *HugoSites) gitInfoForPage(p page.Page) (*source.GitInfo, error) {
 	if _, err := h.init.gitInfo.Do(context.Background()); err != nil {
-		return source.GitInfo{}, err
+		return nil, err
 	}
 
 	if h.gitInfo == nil {
-		return source.GitInfo{}, nil
+		return nil, nil
 	}
 
 	return h.gitInfo.forPage(p), nil
@@ -310,7 +310,7 @@ func (h *HugoSites) NumLogErrors() int {
 
 func (h *HugoSites) PrintProcessingStats(w io.Writer) {
 	stats := make([]*helpers.ProcessingStats, len(h.Sites))
-	for i := 0; i < len(h.Sites); i++ {
+	for i := range h.Sites {
 		stats[i] = h.Sites[i].PathSpec.ProcessingStats
 	}
 	helpers.ProcessingStatsTable(w, stats...)
@@ -556,7 +556,6 @@ func (h *HugoSites) handleDataFile(r *source.File) error {
 	higherPrecedentData := current[r.BaseFileName()]
 
 	switch data.(type) {
-	case nil:
 	case map[string]any:
 
 		switch higherPrecedentData.(type) {
