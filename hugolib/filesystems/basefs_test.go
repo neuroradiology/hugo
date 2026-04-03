@@ -14,6 +14,7 @@
 package filesystems_test
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -226,11 +227,11 @@ disableWatch = true
 [[module.mounts]]
 source = 'content4'
 target = 'content/excludedsome'
-excludeFiles = 'p1.md'
+files = '! p1.md'
 [[module.mounts]]
 source = 'content5'
 target = 'content/excludedall'
-excludeFiles = '/**'
+files = '! /**'
 [[module.mounts]]
 source = "hugo_stats.json"
 target = "assets/watching/hugo_stats.json"
@@ -479,7 +480,7 @@ target = "content/posts"
 [[module.mounts]]
 source = "docs"
 target = "content/mydocs"
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 
 `
@@ -553,7 +554,7 @@ JS.
 body { color: red; }
 -- assets/scss/app.scss --
 body { color: blue; }
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 SCSS: {{ with resources.Get "scss/app.scss" }}{{ .RelPermalink }}|{{ .Content }}{{ end }}|
 # Note that the pattern below will match 2 resources, which doesn't make much sense,
@@ -656,7 +657,7 @@ func countFilesAndGetFilenames(fs afero.Fs, dirname string) (int, []string, erro
 	counter := 0
 	var filenames []string
 
-	wf := func(path string, info hugofs.FileMetaInfo) error {
+	wf := func(ctx context.Context, path string, info hugofs.FileMetaInfo) error {
 		if !info.IsDir() {
 			counter++
 		}

@@ -25,18 +25,18 @@ import (
 
 	"github.com/gohugoio/hugo/common/constants"
 	"github.com/gohugoio/hugo/common/hashing"
+	"github.com/gohugoio/hugo/common/hmaps"
 	"github.com/gohugoio/hugo/common/paths"
 	"github.com/gohugoio/hugo/identity"
 
 	"github.com/gohugoio/hugo/resources/images"
-	"github.com/gohugoio/hugo/resources/images/exif"
+	"github.com/gohugoio/hugo/resources/images/meta"
 	"github.com/spf13/afero"
 
 	bp "github.com/gohugoio/hugo/bufferpool"
 
 	"github.com/gohugoio/hugo/common/herrors"
 	"github.com/gohugoio/hugo/common/hugio"
-	"github.com/gohugoio/hugo/common/maps"
 	"github.com/gohugoio/hugo/resources/internal"
 	"github.com/gohugoio/hugo/resources/resource"
 
@@ -133,7 +133,7 @@ type ResourceTransformationCtx struct {
 	// to be simple types, as it needs to be serialized to JSON and back.
 	Data map[string]any
 
-	// This is used to publish additional artifacts, e.g. source maps.
+	// This is used to publish additional artifacts, e.g. source hhmaps.
 	// We may improve this.
 	OpenResourcePublisher func(relTargetPath string) (io.WriteCloser, error)
 }
@@ -146,14 +146,19 @@ func (ctx *ResourceTransformationCtx) AddOutPathIdentifier(identifier string) {
 
 // PublishSourceMap writes the content to the target folder of the main resource
 // with the ".map" extension added.
-func (ctx *ResourceTransformationCtx) PublishSourceMap(content string) error {
+func (ctx *ResourceTransformationCtx) PublishSourceMap(content []byte) error {
 	target := ctx.OutPath + ".map"
+	return ctx.PublishTo(target, content)
+}
+
+// PublishTo writes the content to the target folder.
+func (ctx *ResourceTransformationCtx) PublishTo(target string, content []byte) error {
 	f, err := ctx.OpenResourcePublisher(target)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	_, err = f.Write([]byte(content))
+	_, err = f.Write(content)
 	return err
 }
 
@@ -265,8 +270,12 @@ func (r *resourceAdapter) Height() int {
 	return r.getImageOps().Height()
 }
 
-func (r *resourceAdapter) Exif() *exif.ExifInfo {
+func (r *resourceAdapter) Exif() *meta.ExifInfo {
 	return r.getImageOps().Exif()
+}
+
+func (r *resourceAdapter) Meta() *meta.MetaInfo {
+	return r.getImageOps().Meta()
 }
 
 func (r *resourceAdapter) Colors() ([]images.Color, error) {
@@ -310,7 +319,7 @@ func (r *resourceAdapter) NameNormalized() string {
 	return r.target.(resource.NameNormalizedProvider).NameNormalized()
 }
 
-func (r *resourceAdapter) Params() maps.Params {
+func (r *resourceAdapter) Params() hmaps.Params {
 	r.init(false, false)
 	return r.metaProvider.Params()
 }
@@ -391,13 +400,35 @@ func (r resourceAdapter) WithResourceMeta(mp resource.ResourceMetaProvider) reso
 func (r *resourceAdapter) getImageOps() images.ImageResourceOps {
 	img, ok := r.target.(images.ImageResourceOps)
 	if !ok {
-		if r.MediaType().SubType == "svg" {
-			panic("this method is only available for raster images. To determine if an image is SVG, you can do {{ if eq .MediaType.SubType \"svg\" }}{{ end }}")
-		}
-		panic("this method is only available for image resources")
+		instructions := "use reflect.IsImageResource, " +
+			"reflect.IsImageResourceProcessable, or " +
+			"reflect.IsImageResourceWithMeta to check if the resource " +
+			"supports this method before calling it"
+		msg := fmt.Sprintf(
+			"resource %q of media type %q does not support this method: %s",
+			r.Name(),
+			r.MediaType(),
+			instructions,
+		)
+		panic(msg)
 	}
 	r.init(false, false)
+
 	return img
+}
+
+// ResolveImageOpsSupport reports the ImageOpsSupport for the given resource. This can be used to determine if a resource supports image operations like Resize, Crop, etc.
+func ResolveImageOpsSupport(v any) images.ImageResourceType {
+	r, ok := v.(resource.Resource)
+	if !ok {
+		return images.ImageResourceTypeNone
+	}
+	mt := r.MediaType()
+	if mt.MainType != "image" {
+		return images.ImageResourceTypeNone
+	}
+	_, support := images.ImageFormatFromMediaSubType(mt.SubType)
+	return support
 }
 
 func (r *resourceAdapter) publish() {
@@ -424,7 +455,10 @@ func (r *resourceAdapter) TransformationKey() string {
 
 func (r *resourceAdapter) getOrTransform(publish, setContent bool) error {
 	key := r.TransformationKey()
+
+	var created bool
 	res, err := r.spec.ResourceCache.cacheResourceTransformation.GetOrCreate(key, func(string) (*resourceAdapterInner, error) {
+		created = true
 		return r.transform(key, publish, setContent)
 	})
 	if err != nil {
@@ -432,6 +466,40 @@ func (r *resourceAdapter) getOrTransform(publish, setContent bool) error {
 	}
 
 	r.resourceAdapterInner = res
+
+	if publish && r.spec.Rebuilder.IsRebuild() {
+		targetPath := r.target.TargetPath()
+		var republish bool
+
+		r.spec.ResourceCache.cacheResourceTransformationPublished.WithWriteLock(func(m map[string]string) error {
+			if created {
+				m[targetPath] = key
+			} else {
+				key2, found := m[targetPath]
+				republish = !found || key2 != key
+				m[targetPath] = key
+			}
+			return nil
+		})
+
+		if !created && republish {
+			src, err := contentReadSeekerCloser(r.target)
+			if err != nil {
+				return err
+			}
+			defer src.Close()
+			dest, err := r.target.openPublishFileForWriting(targetPath)
+			if err != nil {
+				return err
+			}
+			defer dest.Close()
+			_, err = io.Copy(dest, src)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -639,10 +707,13 @@ func (r *resourceAdapter) transform(key string, publish, setContent bool) (*reso
 }
 
 func (r *resourceAdapter) init(publish, setContent bool) {
-	r.initTransform(publish, setContent)
+	if err := r.doInit(publish, setContent); err != nil {
+		// The panic will be handled and converted to an error by the template framework.
+		panic(err)
+	}
 }
 
-func (r *resourceAdapter) initTransform(publish, setContent bool) {
+func (r *resourceAdapter) doInit(publish, setContent bool) error {
 	r.transformationsInit.Do(func() {
 		if len(r.transformations) == 0 {
 			// Nothing to do.
@@ -656,18 +727,13 @@ func (r *resourceAdapter) initTransform(publish, setContent bool) {
 		}
 
 		r.transformationsErr = r.getOrTransform(publish, setContent)
-		if r.transformationsErr != nil {
-			if r.spec.ErrorSender != nil {
-				r.spec.ErrorSender.SendError(r.transformationsErr)
-			} else {
-				r.spec.Logger.Errorf("Transformation failed: %s", r.transformationsErr)
-			}
-		}
 	})
 
 	if publish && r.publishOnce != nil {
 		r.publish()
 	}
+
+	return r.transformationsErr
 }
 
 type resourceAdapterInner struct {

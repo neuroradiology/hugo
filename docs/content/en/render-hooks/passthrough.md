@@ -27,7 +27,7 @@ passthrough element with opening and closing block delimiters.
 This is an \(inline\) passthrough element with opening and closing inline delimiters.
 ```
 
-Update your site configuration to enable the Passthrough extension and define opening and closing delimiters for each passthrough element type, either `block` or `inline`. For example:
+Update your project configuration to enable the Passthrough extension and define opening and closing delimiters for each passthrough element type, either `block` or `inline`. For example:
 
 {{< code-toggle file=hugo >}}
 [markup.goldmark.extensions.passthrough]
@@ -104,7 +104,12 @@ Then, in your base template, conditionally include the KaTeX CSS within the head
 <head>
   {{ $noop := .WordCount }}
   {{ if .Page.Store.Get "hasMath" }}
-    <link href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css" rel="stylesheet">
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.25/dist/katex.min.css"
+      integrity="sha384-WcoG4HRXMzYzfCgiyfrySxx90XSl2rxY5mnVY5TwtWE6KLrArNKn0T/mOgNL0Mmi"
+      crossorigin="anonymous"
+    >
   {{ end }}
 </head>
 ```

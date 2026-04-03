@@ -14,7 +14,6 @@ You can configure your site to cascade front matter values to the home page and 
 For example, to cascade a "color" parameter to the home page and all its descendants:
 
 {{< code-toggle file=hugo >}}
-title = 'Home'
 [cascade.params]
 color = 'red'
 {{< /code-toggle >}}
@@ -22,9 +21,7 @@ color = 'red'
 ## Target
 
 <!-- TODO
-Update the <version> and <date> below when we actually get around to deprecating _target.
-
-We deprecated the `_target` front matter key in favor of `target` in <version> on <date>. Remove footnote #1 on or after 2026-03-10 (15 months after deprecation).
+We deprecated the `_target` front matter key in favor of `target` in v0.156.0 on 2026-02-17. Remove footnote #1 on or after 2027-05-17 (15 months after deprecation).
 -->
 
 The `target`[^1] keyword allows you to target specific pages or [environments](g). For example, to cascade a "color" parameter to pages within the "articles" section, including the "articles" section page itself:
@@ -41,16 +38,16 @@ path = '{/articles,/articles/**}'
 Use any combination of these keywords to target pages and/or environments:
 
 environment
-: (`string`) A [glob](g) pattern matching the build [environment](g). For example: `{staging,production}`.
+: (`string`) A [glob pattern](g) matching the build [environment](g). For example: `{staging,production}`.
 
 kind
-: (`string`) A [glob](g) pattern matching the [page kind](g). For example: `{taxonomy,term}`.
+: (`string`) A [glob pattern](g) matching the [page kind](g). For example: `{taxonomy,term}`.
 
 lang
-: (`string`) A [glob](g) pattern matching the [page language]. For example: `{en,de}`.
+: (`string`) A [glob pattern](g) matching the [page language]. For example: `{en,de}`.
 
 path
-: (`string`) A [glob](g) pattern matching the page's [logical path](g). For example: `{/books,/books/**}`.
+: (`string`) A [glob pattern](g) matching the page's [logical path](g). For example: `{/books,/books/**}`.
 
 ## Array
 
@@ -61,14 +58,14 @@ Define an array of cascade parameters to apply different values to different tar
 [cascade.params]
 color = 'red'
 [cascade.target]
-path = '{/books/**}'
+path = '/books/**'
 kind = 'page'
 lang = '{en,de}'
 [[cascade]]
 [cascade.params]
 color = 'blue'
 [cascade.target]
-path = '{/films/**}'
+path = '/films/**'
 kind = 'page'
 environment = 'production'
 {{< /code-toggle >}}

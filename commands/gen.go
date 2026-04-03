@@ -28,6 +28,7 @@ import (
 	"github.com/alecthomas/chroma/v2/formatters/html"
 	"github.com/alecthomas/chroma/v2/styles"
 	"github.com/bep/simplecobra"
+	"github.com/goccy/go-yaml"
 	"github.com/gohugoio/hugo/common/hugo"
 	"github.com/gohugoio/hugo/docshelper"
 	"github.com/gohugoio/hugo/helpers"
@@ -36,7 +37,6 @@ import (
 	"github.com/gohugoio/hugo/parser"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
-	"gopkg.in/yaml.v2"
 )
 
 func newGenCommand() *genCommand {
@@ -60,7 +60,7 @@ func newGenCommand() *genCommand {
 			short: "Generate CSS stylesheet for the Chroma code highlighter",
 			long: `Generate CSS stylesheet for the Chroma code highlighter for a given style. This stylesheet is needed if markup.highlight.noClasses is disabled in config.
 
-See https://xyproto.github.io/splash/docs/all.html for a preview of the available styles`,
+See https://gohugo.io/quick-reference/syntax-highlighting-styles/ for a preview of the available styles.`,
 
 			run: func(ctx context.Context, cd *simplecobra.Commandeer, r *rootCommand, args []string) error {
 				style = strings.ToLower(style)
@@ -98,7 +98,7 @@ See https://xyproto.github.io/splash/docs/all.html for a preview of the availabl
 			},
 			withc: func(cmd *cobra.Command, r *rootCommand) {
 				cmd.ValidArgsFunction = cobra.NoFileCompletions
-				cmd.PersistentFlags().StringVar(&style, "style", "friendly", "highlighter style (see https://xyproto.github.io/splash/docs/)")
+				cmd.PersistentFlags().StringVar(&style, "style", "friendly", "highlighter style")
 				_ = cmd.RegisterFlagCompletionFunc("style", cobra.NoFileCompletions)
 				cmd.PersistentFlags().StringVar(&highlightStyle, "highlightStyle", "", `foreground and background colors for highlighted lines, e.g. --highlightStyle "#fff000 bg:#000fff"`)
 				_ = cmd.RegisterFlagCompletionFunc("highlightStyle", cobra.NoFileCompletions)
@@ -249,7 +249,7 @@ url: %s
 					return err
 				}
 				defer f.Close()
-				yamlEnc := yaml.NewEncoder(f)
+				yamlEnc := yaml.NewEncoder(f, yaml.UseSingleQuote(true), yaml.AutoInt())
 				if err := yamlEnc.Encode(m); err != nil {
 					return err
 				}

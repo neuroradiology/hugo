@@ -44,7 +44,7 @@ params:
    a: "p1-a"
    summary: "params.summary"
 ---	
--- layouts/_default/single.html --
+-- layouts/single.html --
 Params: {{ range $k, $v := .Params }}{{ $k }}: {{ $v }}|{{ end }}$
 Summary: {{ .Summary }}|
 `
@@ -55,33 +55,6 @@ Summary: {{ .Summary }}|
 		"Params: a: p1-a|b: home-b|background: yosemite.jpg|draft: false|iscjklanguage: false|summary: params.summary|title: P1|$",
 		"Summary: frontmatter.summary|",
 	)
-}
-
-func TestFrontMatterParamsLangNoCascade(t *testing.T) {
-	t.Parallel()
-
-	files := `
--- hugo.toml --
-baseURL = "https://example.org/"
-disableKinds = ["taxonomy", "term"]
-defaultContentLanguage = "en"
-defaultContentLanguageInSubdir = true
-[languages]
-[languages.en]
-weight = 1
-[languages.nn]
-weight = 2
--- content/_index.md --
-+++
-[[cascade]]
-background = 'yosemite.jpg'
-lang = 'nn'
-+++
-
-`
-
-	b, err := TestE(t, files)
-	b.Assert(err, qt.IsNotNil)
 }
 
 // Issue 11970.
@@ -96,7 +69,7 @@ baseURL = "https://example.org/"
 title: "P1"
 build: "foo"
 ---
--- layouts/_default/single.html --
+-- layouts/single.html --
 Params: {{ range $k, $v := .Params }}{{ $k }}: {{ $v }}|{{ end }}$
 `
 	b, err := TestE(t, files)

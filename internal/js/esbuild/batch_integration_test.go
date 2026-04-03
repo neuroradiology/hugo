@@ -24,6 +24,7 @@ import (
 
 	"github.com/bep/logg"
 	"github.com/gohugoio/hugo/common/paths"
+	"github.com/gohugoio/hugo/htesting"
 	"github.com/gohugoio/hugo/hugolib"
 	"github.com/gohugoio/hugo/internal/js/esbuild"
 )
@@ -48,7 +49,7 @@ export default function Main() {};
 console.log("Hello, Runner!");
 -- node_modules/mylib/index.js --
 console.log("Hello, My Lib!");
--- layouts/shortcodes/hdx.html --
+-- layouts/_shortcodes/hdx.html --
 {{ $path := .Get "r" }}
 {{ $r := or (.Page.Resources.Get $path) (resources.Get $path) }}
 {{ $batch := (js.Batch "mybatch") }}
@@ -74,7 +75,7 @@ console.log("Hello, My Lib!");
 	{{ end }}
 {{ end }}
 hdx-instance: {{ $scriptID }}: {{ $instanceID }}|
--- layouts/_default/baseof.html --
+-- layouts/baseof.html --
 Base.
 {{ $batch := (js.Batch "mybatch") }}
  {{ with $batch.Config }}
@@ -95,7 +96,7 @@ Defer:
 {{ end }}
 {{ block "main" . }}Main{{ end }}
 End.
--- layouts/_default/single.html --
+-- layouts/single.html --
 {{ define "main" }}
 ==> Single Template Content: {{ .Content }}$
 {{ $batch := (js.Batch "mybatch") }}
@@ -111,7 +112,7 @@ End.
 	{{ end }}
 {{ end }}
 {{ end }}
--- layouts/index.html --
+-- layouts/home.html --
 {{ define "main" }}
 Home.
 {{ end }}
@@ -172,7 +173,7 @@ func TestBatchEditInstance(t *testing.T) {
 	files := jsBatchFilesTemplate
 	b := hugolib.TestRunning(t, files, hugolib.TestOptWithOSFs())
 	b.AssertFileContent("public/mybatch/mygroup.js", "Instance 1")
-	b.EditFileReplaceAll("layouts/_default/single.html", "Instance 1", "Instance 1 Edit").Build()
+	b.EditFileReplaceAll("layouts/single.html", "Instance 1", "Instance 1 Edit").Build()
 	b.AssertFileContent("public/mybatch/mygroup.js", "Instance 1 Edit")
 }
 
@@ -180,7 +181,7 @@ func TestBatchEditScriptParam(t *testing.T) {
 	files := jsBatchFilesTemplate
 	b := hugolib.TestRunning(t, files, hugolib.TestOptWithOSFs())
 	b.AssertFileContent("public/mybatch/mygroup.js", "param-p1-main")
-	b.EditFileReplaceAll("layouts/_default/single.html", "param-p1-main", "param-p1-main-edited").Build()
+	b.EditFileReplaceAll("layouts/single.html", "param-p1-main", "param-p1-main-edited").Build()
 	b.AssertFileContent("public/mybatch/mygroup.js", "param-p1-main-edited")
 }
 
@@ -207,7 +208,7 @@ console.log("Hello, Main!");
 console.log("Hello, Runner!");
 -- node_modules/mylib/index.js --
 console.log("Hello, My Lib!");
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 {{ $batch := (js.Batch "mybatch") }}
  {{ with $batch.Config }}
@@ -291,7 +292,7 @@ console.log("Hello, Main!");
 console.log("Hello, Runner!");
 -- node_modules/mylib/index.js --
 console.log("Hello, My Lib!");
--- layouts/shortcodes/hdx.html --
+-- layouts/_shortcodes/hdx.html --
 {{ $path := .Get "r" }}
 {{ $r := or (.Page.Resources.Get $path) (resources.Get $path) }}
 {{ $batch := (js.Batch "mybatch") }}
@@ -317,7 +318,7 @@ console.log("Hello, My Lib!");
 	{{ end }}
 {{ end }}
 hdx-instance: {{ $scriptID }}: {{ $instanceID }}|
--- layouts/_default/baseof.html --
+-- layouts/baseof.html --
 Base.
 {{ $batch := (js.Batch "mybatch") }}
  {{ with $batch.Config }}
@@ -338,7 +339,7 @@ Defer:
 {{ end }}
 {{ block "main" . }}Main{{ end }}
 End.
--- layouts/_default/single.html --
+-- layouts/single.html --
 {{ define "main" }}
 ==> Single Template Content: {{ .Content }}$
 {{ $batch := (js.Batch "mybatch") }}
@@ -354,7 +355,7 @@ End.
 	{{ end }}
 {{ end }}
 {{ end }}
--- layouts/index.html --
+-- layouts/home.html --
 {{ define "main" }}
 Home.
 {{ end }}
@@ -428,6 +429,7 @@ func TestBatchErrorScriptResourceInBundleSyntaxError(t *testing.T) {
 }
 
 func TestBatch(t *testing.T) {
+	htesting.SkipSlowTestUnlessCI(t)
 	files := `
 -- hugo.toml --
 disableKinds = ["taxonomy", "term"]
@@ -584,7 +586,7 @@ console.log('config.params.id', config.id)
 
 export default function Main3() {};
 
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single.
 
 {{ $r := .Resources.GetMatch "*.jsx" }}
@@ -612,7 +614,7 @@ Single.
 	 	{{ .SetOptions  (dict "title" "r2 instance 1")}}
 	{{ end }}
 {{ end }}
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 {{ with (templates.Defer (dict "key" "global")) }}
 {{ $batch := (js.Batch "mybundle") }}

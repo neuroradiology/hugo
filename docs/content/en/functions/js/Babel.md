@@ -8,6 +8,7 @@ params:
     aliases: [babel]
     returnType: resource.Resource
     signatures: ['js.Babel [OPTIONS] RESOURCE']
+aliases: [/functions/resources/babel/]
 ---
 
 ```go-html-template
@@ -35,14 +36,14 @@ Step 1
 : Install [Node.js](https://nodejs.org/en/download)
 
 Step 2
-: Install the required Node.js packages in the root of your project.
+: Install the required Node packages in the root of your project.
 
   ```sh
   npm install --save-dev @babel/core @babel/cli
   ```
 
 Step 3
-: Add the babel executable to Hugo's `security.exec.allow` list in your site configuration:
+: Add the babel executable to Hugo's `security.exec.allow` list in your project configuration:
 
   {{< code-toggle file=hugo >}}
   [security.exec]

@@ -15,12 +15,18 @@ package hugolib
 
 import (
 	"fmt"
+	"path"
+	"strings"
 
 	"github.com/gohugoio/hugo/identity"
 	"github.com/gohugoio/hugo/output"
 	"github.com/gohugoio/hugo/resources/page"
 	"github.com/gohugoio/hugo/resources/resource"
 )
+
+var paginatorNotSupported = page.PaginatorNotSupportedFunc(func() error {
+	return fmt.Errorf("pagination not supported for this page")
+})
 
 func newPageOutput(
 	ps *pageState,
@@ -46,9 +52,7 @@ func newPageOutput(
 		pag = newPagePaginator(ps)
 		paginatorProvider = pag
 	} else {
-		paginatorProvider = page.PaginatorNotSupportedFunc(func() error {
-			return fmt.Errorf("pagination not supported for this page: %s", ps.getPageInfoForError())
-		})
+		paginatorProvider = paginatorNotSupported
 	}
 
 	providers := struct {
@@ -71,7 +75,7 @@ func newPageOutput(
 		TableOfContentsProvider: page.NopPage,
 		render:                  render,
 		paginator:               pag,
-		dependencyManagerOutput: ps.s.Conf.NewIdentityManager((ps.Path() + "/" + f.Name)),
+		dependencyManagerOutput: ps.s.Conf.NewIdentityManager(),
 	}
 
 	return po
@@ -109,6 +113,40 @@ type pageOutput struct {
 
 	renderState int  // Reset when it needs to be rendered again.
 	renderOnce  bool // To make sure we at least try to render it once.
+}
+
+func (po *pageOutput) Aliases() []string {
+	conf := po.p.s.conf
+	p := po.p
+	f := po.f
+
+	// This is relatively cheap to create, and the common case is to call this once.
+	// So avoid caching this value.
+	aliases := make([]string, len(po.p.m.pageConfig.Aliases))
+	for i, a := range po.p.m.pageConfig.Aliases {
+		isRelative := !strings.HasPrefix(a, "/")
+		var baseDir string
+		if isRelative {
+			// Form the baseDir by taking the resource's base target
+			// and moving up one level to the parent.
+			parentContext := path.Join(p.targetPaths().SubResourceBaseTarget, "..")
+			baseDir = parentContext
+
+		} else {
+			// Form the baseDir by prepending the content dimension
+			// prefixes with the Output Format path.
+			baseDir = path.Join("/", p.targetPathDescriptor.PrefixFilePath, f.Path)
+		}
+
+		a = path.Join(baseDir, a)
+
+		if conf.C.IsUglyURLSection(p.Section()) && !strings.HasSuffix(a, ".html") {
+			a += ".html"
+		}
+
+		aliases[i] = a
+	}
+	return aliases
 }
 
 func (po *pageOutput) incrRenderState() {

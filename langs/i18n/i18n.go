@@ -45,6 +45,12 @@ func NewTranslator(b *i18n.Bundle, cfg config.AllProvider, logger loggers.Logger
 	return t
 }
 
+// Lookup looks up the translate func for the given language.
+func (t Translator) Lookup(lang string) (translateFunc, bool) {
+	f, ok := t.translateFuncs[lang]
+	return f, ok
+}
+
 // Func gets the translate func for the given language, or for the default
 // configured language if not found.
 func (t Translator) Func(lang string) translateFunc {
@@ -158,12 +164,11 @@ func getPluralCount(v any) any {
 			}
 		}
 	default:
-		vv := reflect.Indirect(reflect.ValueOf(v))
-		if vv.Kind() == reflect.Interface && !vv.IsNil() {
-			vv = vv.Elem()
+		vv, isNil := hreflect.IndirectElem(reflect.ValueOf(v))
+		if isNil {
+			return nil
 		}
 		tp := vv.Type()
-
 		if tp.Kind() == reflect.Struct {
 			f := vv.FieldByName(countFieldName)
 			if f.IsValid() {

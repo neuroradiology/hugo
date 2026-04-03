@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bep/logg"
 	"github.com/fortytw2/leaktest"
 	qt "github.com/frankban/quicktest"
 	"github.com/gohugoio/hugo/common/types"
@@ -79,21 +80,21 @@ Assets My Text.
 Assets My Shortcode Text.
 -- assets/myothertext.txt --
 Assets My Other Text.
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single: {{ .Title }}|{{ .Content }}$
 Resources: {{ range $i, $e := .Resources }}{{ $i }}:{{ .RelPermalink }}|{{ .Content }}|{{ end }}$
 Len Resources: {{ len .Resources }}|
--- layouts/_default/list.html --
+-- layouts/list.html --
 List: {{ .Title }}|{{ .Content }}$
 Len Resources: {{ len .Resources }}|
 Resources: {{ range $i, $e := .Resources }}{{ $i }}:{{ .RelPermalink }}|{{ .Content }}|{{ end }}$
--- layouts/shortcodes/foo.html --
+-- layouts/_shortcodes/foo.html --
 Foo.
--- layouts/shortcodes/myshortcodetext.html --
+-- layouts/_shortcodes/myshortcodetext.html --
 {{ warnf "mytext %s" now}}
 {{ $r := resources.Get "myshortcodetext.txt" }}
 My Shortcode Text: {{ $r.Content }}|{{ $r.Permalink }}|
--- layouts/_default/_markup/render-codeblock-myothertext.html --
+-- layouts/_markup/render-codeblock-myothertext.html --
 {{ $r := resources.Get "myothertext.txt" }}
 My Other Text: {{ $r.Content }}|{{ $r.Permalink }}|
 
@@ -101,7 +102,7 @@ My Other Text: {{ $r.Content }}|{{ $r.Permalink }}|
 
 func TestRebuildEditLeafBundleHeaderOnly(t *testing.T) {
 	t.Parallel()
-	for i := 0; i < 3; i++ {
+	for range 3 {
 		b := TestRunning(t, rebuildFilesSimple)
 		b.AssertFileContent("public/mysection/mysectionbundle/index.html",
 			"My Section Bundle Content Content.")
@@ -180,7 +181,7 @@ disableKinds = ["taxonomy", "term", "sitemap", "robotsTXT", "404", "rss"]
 -- content/mybundle/index.md --
 -- content/mybundle/mydata.yml --
 foo: bar
--- layouts/_default/single.html --
+-- layouts/single.html --
 MyData: {{ .Resources.Get "mydata.yml" | transform.Unmarshal }}|
 `
 	b := TestRunning(t, files)
@@ -297,7 +298,7 @@ disableLiveReload = true
 ---
 title: "P1"
 ---
--- layouts/index.html --
+-- layouts/home.html --
 Pages: {{ range .Site.RegularPages }}{{ .RelPermalink }}|{{ end }}$
 `
 	b := TestRunning(t, files)
@@ -356,7 +357,7 @@ weight = 13
 -- content/foo/p1.h.md --
 -- content/foo/p1.i.md --
 -- content/foo/p1.j.md --
--- layouts/index.html --
+-- layouts/home.html --
 RegularPages: {{ range .Site.RegularPages }}{{ .RelPermalink }}|{{ end }}$
 `
 	b := TestRunning(t, files)
@@ -398,6 +399,33 @@ func TestRebuilErrorRecovery(t *testing.T) {
 	b.EditFileReplaceAll("content/mysection/mysectionbundle/index.md", "{{< foo }}", "{{< foo >}}").Build()
 }
 
+// Issue 14573
+func TestRebuildAddContentWithMultipleDirCreations(t *testing.T) {
+	t.Parallel()
+	files := `
+-- hugo.toml --
+baseURL = "https://example.com"
+disableLiveReload = true
+-- content/p1.md --
+---
+title: "P1"
+---
+-- layouts/page.html --
+Single: {{ .Title }}|{{ .Content }}|
+-- layouts/list.html --
+Pages: {{ range .RegularPages }}{{ .RelPermalink }}|{{ end }}$
+`
+	b := TestRunning(t, files)
+	b.AssertFileContent("public/index.html", "Pages: /p1/|$")
+	b.AddFiles(
+		"content/nesteddir/dir1/post.md", "---\ntitle: Post\n---",
+	).CreateDirs(
+		"content/dir1",
+		"content/dir2",
+	).Build()
+	b.AssertFileContent("public/nesteddir/dir1/post/index.html", "Single: Post|")
+}
+
 func TestRebuildAddPageListPagesInHome(t *testing.T) {
 	files := `
 -- hugo.toml --
@@ -409,9 +437,9 @@ disableLiveReload = true
 title: "P1"
 weight: 1
 ---
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single: {{ .Title }}|{{ .Content }}|
--- layouts/index.html --
+-- layouts/home.html --
 Pages: {{ range .RegularPages }}{{ .RelPermalink }}|{{ end }}$
 `
 
@@ -432,9 +460,9 @@ disableLiveReload = true
 title: "P1"
 weight: 1
 ---
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single: {{ .Title }}|{{ .Content }}|
--- layouts/index.html --
+-- layouts/home.html --
 Pages: {{ range .RegularPages }}{{ .RelPermalink }}|{{ end }}$
 `
 
@@ -458,11 +486,11 @@ outputs: ["html", "json"]
 P1 Content.
 
 {{< myshort >}}
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single HTML: {{ .Title }}|{{ .Content }}|
--- layouts/_default/single.json --
+-- layouts/single.json --
 Single JSON: {{ .Title }}|{{ .Content }}|
--- layouts/shortcodes/myshort.html --
+-- layouts/_shortcodes/myshort.html --
 My short.
 `
 	b := Test(t, files, TestOptRunning())
@@ -470,12 +498,12 @@ My short.
 	b.AssertRenderCountContent(1)
 	b.AssertFileContent("public/p1/index.html", "Single HTML: P1|<p>P1 Content.</p>\n")
 	b.AssertFileContent("public/p1/index.json", "Single JSON: P1|<p>P1 Content.</p>\n")
-	b.EditFileReplaceAll("layouts/_default/single.html", "Single HTML", "Single HTML Edited").Build()
+	b.EditFileReplaceAll("layouts/single.html", "Single HTML", "Single HTML Edited").Build()
 	b.AssertFileContent("public/p1/index.html", "Single HTML Edited: P1|<p>P1 Content.</p>\n")
 	b.AssertRenderCountPage(1)
 
 	// Edit shortcode. Note that this is reused across all output formats.
-	b.EditFileReplaceAll("layouts/shortcodes/myshort.html", "My short", "My short edited").Build()
+	b.EditFileReplaceAll("layouts/_shortcodes/myshort.html", "My short", "My short edited").Build()
 	b.AssertFileContent("public/p1/index.html", "My short edited")
 	b.AssertFileContent("public/p1/index.json", "My short edited")
 	b.AssertRenderCountPage(3) // rss (uses .Content) + 2 single pages.
@@ -484,24 +512,24 @@ My short.
 func TestRebuildBaseof(t *testing.T) {
 	files := `
 -- hugo.toml --
-title = "Hugo Site"
+title = "Hugo Project"
 baseURL = "https://example.com"
 disableKinds = ["term", "taxonomy"]
 disableLiveReload = true
--- layouts/_default/baseof.html --
+-- layouts/baseof.html --
 Baseof: {{ .Title }}|
 {{ block "main" . }}default{{ end }}
--- layouts/index.html --
+-- layouts/home.html --
 {{ define "main" }}
 Home: {{ .Title }}|{{ .Content }}|
 {{ end }}
 `
 	testRebuildBothWatchingAndRunning(t, files, func(b *IntegrationTestBuilder) {
-		b.AssertFileContent("public/index.html", "Baseof: Hugo Site|", "Home: Hugo Site||")
-		b.EditFileReplaceFunc("layouts/_default/baseof.html", func(s string) string {
+		b.AssertFileContent("public/index.html", "Baseof: Hugo Project|", "Home: Hugo Project||")
+		b.EditFileReplaceFunc("layouts/baseof.html", func(s string) string {
 			return strings.Replace(s, "Baseof", "Baseof Edited", 1)
 		}).Build()
-		b.AssertFileContent("public/index.html", "Baseof Edited: Hugo Site|", "Home: Hugo Site||")
+		b.AssertFileContent("public/index.html", "Baseof Edited: Hugo Project|", "Home: Hugo Project||")
 	})
 }
 
@@ -510,7 +538,7 @@ func TestRebuildSingle(t *testing.T) {
 
 	files := `
 -- hugo.toml --
-title = "Hugo Site"
+title = "Hugo Project"
 baseURL = "https://example.com"
 disableKinds = ["term", "taxonomy", "sitemap", "robotstxt", "404"]
 disableLiveReload = true
@@ -519,7 +547,7 @@ disableLiveReload = true
 title: "P1"
 ---
 P1 Content.
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 -- layouts/single.html --
 Single: {{ .Title }}|{{ .Content }}|
@@ -546,7 +574,7 @@ func TestRebuildSingleWithBaseofEditSingle(t *testing.T) {
 
 	files := `
 -- hugo.toml --
-title = "Hugo Site"
+title = "Hugo Project"
 baseURL = "https://example.com"
 disableKinds = ["term", "taxonomy"]
 disableLiveReload = true
@@ -556,22 +584,22 @@ title: "P1"
 ---
 P1 Content.
 [foo](/foo)
--- layouts/_default/baseof.html --
+-- layouts/baseof.html --
 Baseof: {{ .Title }}|
 {{ block "main" . }}default{{ end }}
 {{ with (templates.Defer (dict "foo" "bar")) }}
 Defer.
 {{ end }}
--- layouts/index.html --
+-- layouts/home.html --
 Home.
--- layouts/_default/single.html --
+-- layouts/single.html --
 {{ define "main" }}
 Single: {{ .Title }}|{{ .Content }}|
 {{ end }}
 `
 	b := Test(t, files, TestOptRunning())
 	b.AssertFileContent("public/p1/index.html", "Single: P1|")
-	b.EditFileReplaceFunc("layouts/_default/single.html", func(s string) string {
+	b.EditFileReplaceFunc("layouts/single.html", func(s string) string {
 		return strings.Replace(s, "Single", "Single Edited", 1)
 	}).Build()
 	b.AssertFileContent("public/p1/index.html", "Single Edited")
@@ -582,7 +610,7 @@ func TestRebuildSingleWithBaseofEditBaseof(t *testing.T) {
 
 	files := `
 -- hugo.toml --
-title = "Hugo Site"
+title = "Hugo Project"
 baseURL = "https://example.com"
 disableKinds = ["term", "taxonomy"]
 disableLiveReload = true
@@ -592,15 +620,15 @@ title: "P1"
 ---
 P1 Content.
 [foo](/foo)
--- layouts/_default/baseof.html --
+-- layouts/baseof.html --
 Baseof: {{ .Title }}|
 {{ block "main" . }}default{{ end }}
 {{ with (templates.Defer (dict "foo" "bar")) }}
 Defer.
 {{ end }}
--- layouts/index.html --
+-- layouts/home.html --
 Home.
--- layouts/_default/single.html --
+-- layouts/single.html --
 {{ define "main" }}
 Single: {{ .Title }}|{{ .Content }}|
 {{ end }}
@@ -608,7 +636,7 @@ Single: {{ .Title }}|{{ .Content }}|
 	b := Test(t, files, TestOptRunning())
 	b.AssertFileContent("public/p1/index.html", "Single: P1|")
 	fmt.Println("===============")
-	b.EditFileReplaceAll("layouts/_default/baseof.html", "Baseof", "Baseof Edited").Build()
+	b.EditFileReplaceAll("layouts/baseof.html", "Baseof", "Baseof Edited").Build()
 	b.AssertFileContent("public/p1/index.html", "Baseof Edited")
 }
 
@@ -617,7 +645,7 @@ func TestRebuildWithDeferEditRenderHook(t *testing.T) {
 
 	files := `
 -- hugo.toml --
-title = "Hugo Site"
+title = "Hugo Project"
 baseURL = "https://example.com"
 disableKinds = ["term", "taxonomy"]
 disableLiveReload = true
@@ -627,7 +655,7 @@ title: "P1"
 ---
 P1 Content.
 [foo](/foo)
--- layouts/_default/baseof.html --
+-- layouts/baseof.html --
 Baseof: {{ .Title }}|
 {{ block "main" . }}default{{ end }}
  {{ with (templates.Defer (dict "foo" "bar")) }}
@@ -637,12 +665,12 @@ Defer.
 {{ define "main" }}
 Single: {{ .Title }}|{{ .Content }}|
 {{ end }}
--- layouts/_default/_markup/render-link.html --
+-- layouts/_markup/render-link.html --
 Render Link.
 `
 	b := Test(t, files, TestOptRunning())
 	// Edit render hook.
-	b.EditFileReplaceAll("layouts/_default/_markup/render-link.html", "Render Link", "Render Link Edited").Build()
+	b.EditFileReplaceAll("layouts/_markup/render-link.html", "Render Link", "Render Link Edited").Build()
 
 	b.AssertFileContent("public/p1/index.html", "Render Link Edited")
 }
@@ -667,12 +695,12 @@ layout: "l2"
 P2 Content.
 -- assets/mytext.txt --
 My Text
--- layouts/_default/l1.html --
+-- layouts/l1.html --
 {{ $r := partial "get-resource.html" . }}
 L1: {{ .Title }}|{{ .Content }}|R: {{ $r.Content }}|
--- layouts/_default/l2.html --
+-- layouts/l2.html --
 L2.
--- layouts/partials/get-resource.html --
+-- layouts/_partials/get-resource.html --
 {{ $mytext := resources.Get "mytext.txt" }}
 {{ $txt := printf "Text: %s" $mytext.Content }}
 {{ $r := resources.FromString "r.txt"  $txt }}
@@ -726,11 +754,11 @@ title: "P6"
 ---
 title: "P7"
 ---
--- layouts/_default/list.html --
+-- layouts/list.html --
 List.
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single.
--- layouts/_default/single.html --
+-- layouts/single.html --
 Next: {{ with  .PrevInSection }}{{ .Title }}{{ end }}|
 Prev: {{ with  .NextInSection }}{{ .Title }}{{ end }}|
 
@@ -744,10 +772,107 @@ Prev: {{ with  .NextInSection }}{{ .Title }}{{ end }}|
 	b.AssertFileContent("public/s/p6/index.html", "Next: P7 Edited|")
 }
 
+const rebuildBasicFiles = `
+-- hugo.toml --
+baseURL = "https://example.com/"
+disableLiveReload = true
+disableKinds = ["sitemap", "robotstxt", "404", "rss"]
+-- content/_index.md --
+---
+title: "Home"
+cascade:
+  target:
+    kind: "page"
+  date: 2019-05-06
+  params:
+    myparam: "myvalue"
+---
+-- content/mysection/_index.md --
+---
+title: "My Section"
+date: 2024-02-01
+---
+-- content/mysection/p1.md --
+---
+title: "P1"
+date: 2020-01-01
+---
+-- content/mysection/p2.md --
+---
+title: "P2"
+date: 2021-02-01
+---
+-- content/mysection/p3.md --
+---
+title: "P3"
+---
+-- layouts/all.html --
+all. {{ .Title }}|Param: {{ .Params.myparam }}|Lastmod: {{ .Lastmod.Format "2006-01-02" }}|
+`
+
+func TestRebuildEditPageTitle(t *testing.T) {
+	t.Parallel()
+	b := TestRunning(t, rebuildBasicFiles)
+	b.AssertFileContent("public/index.html", "all. Home|Param: |Lastmod: 2024-02-01|")
+	b.AssertFileContent("public/mysection/p1/index.html", "P1|Param: myvalue|", "Lastmod: 2020-01-01|")
+	b.EditFileReplaceAll("content/mysection/p1.md", "P1", "P1edit").Build()
+	b.AssertRenderCountPage(2)
+	b.AssertFileContent("public/mysection/p1/index.html", "all. P1edit|Param: myvalue|")
+}
+
+func TestRebuildEditPageDate(t *testing.T) {
+	t.Parallel()
+	b := TestRunning(t, rebuildBasicFiles)
+	b.AssertFileContent("public/index.html", "all. Home|Param: |Lastmod: 2024-02-01|")
+	b.EditFileReplaceAll("content/mysection/p2.md", "2021-02-01", "2025-04-02").Build()
+	b.AssertRenderCountPage(2)
+	b.AssertFileContent("public/index.html", "all. Home|Param: |Lastmod: 2025-04-02|")
+	b.AssertFileContent("public/mysection/p2/index.html", "all. P2|Param: myvalue|Lastmod: 2025-04-02|")
+}
+
+func TestRebuildEditHomeCascadeEditParam(t *testing.T) {
+	t.Parallel()
+	b := TestRunning(t, rebuildBasicFiles)
+	b.AssertRenderCountPage(7)
+	b.EditFileReplaceAll("content/_index.md", "myvalue", "myvalue-edit").Build()
+	b.AssertRenderCountPage(7)
+	b.AssertFileContent("public/mysection/p1/index.html", "all. P1|Param: myvalue-edit|")
+}
+
+func TestRebuildEditHomeCascadeRemoveParam(t *testing.T) {
+	t.Parallel()
+	b := TestRunning(t, rebuildBasicFiles)
+	b.AssertRenderCountPage(7)
+	b.EditFileReplaceAll("content/_index.md", `myparam: "myvalue"`, "").Build()
+	b.AssertRenderCountPage(7)
+	b.AssertFileContent("public/mysection/p1/index.html", "all. P1|Param: |")
+}
+
+func TestRebuildEditHomeCascadeEditDate(t *testing.T) {
+	t.Parallel()
+	b := TestRunning(t, rebuildBasicFiles)
+	b.AssertRenderCountPage(7)
+	b.AssertFileContent("public/mysection/p3/index.html", "all. P3|Param: myvalue|Lastmod: 2019-05-06")
+	b.EditFileReplaceAll("content/_index.md", "2019-05-06", "2025-05-06").Build()
+	b.AssertRenderCountPage(7)
+	b.AssertFileContent("public/index.html", "all. Home|Param: |Lastmod: 2025-05-06|")
+	b.AssertFileContent("public/mysection/index.html", "all. My Section|Param: |Lastmod: 2024-02-01|")
+	b.AssertFileContent("public/mysection/p3/index.html", "all. P3|Param: myvalue|Lastmod: 2025-05-06")
+}
+
+func TestRebuildEditSectionRemoveDate(t *testing.T) {
+	t.Parallel()
+	b := TestRunning(t, rebuildBasicFiles)
+	b.AssertFileContent("public/mysection/index.html", "all. My Section|Param: |Lastmod: 2024-02-01|")
+	b.EditFileReplaceAll("content/mysection/_index.md", "date: 2024-02-01", "").Build()
+	b.AssertRenderCountPage(5)
+	b.AssertFileContent("public/mysection/index.html", "all. My Section|Param: |Lastmod: 2021-02-01|")
+}
+
 func TestRebuildVariations(t *testing.T) {
 	// t.Parallel() not supported, see https://github.com/fortytw2/leaktest/issues/4
 	// This leaktest seems to be a little bit shaky on Travis.
-	if !htesting.IsCI() {
+	if !htesting.IsRealCI() {
 		defer leaktest.CheckTimeout(t, 10*time.Second)()
 	}
 
@@ -821,18 +946,19 @@ P7 EN Content.
 title: "P7 NN"
 ---
 P7 NN Content.
--- layouts/index.html --
+-- layouts/home.html --
 Home: {{ .Title }}|{{ .Content }}|
 RegularPages: {{ range .RegularPages }}{{ .RelPermalink }}|{{ end }}$
 Len RegularPagesRecursive: {{ len .RegularPagesRecursive }}
 Site.Lastmod: {{ .Site.Lastmod.Format "2006-01-02" }}|
 Paginate: {{ range (.Paginate .Site.RegularPages).Pages }}{{ .RelPermalink }}|{{ .Title }}|{{ end }}$
--- layouts/_default/single.html --
+-- layouts/single.html --
+Single: .Site: {{ .Site }}
 Single: {{ .Title }}|{{ .Content }}|
 Single Partial Cached: {{ partialCached "pcached" . }}|
 Page.Lastmod: {{ .Lastmod.Format "2006-01-02" }}|
 Cascade param: {{ .Params.cascadeparam }}|
--- layouts/_default/list.html --
+-- layouts/list.html --
 List: {{ .Title }}|{{ .Content }}|
 RegularPages: {{ range .RegularPages }}{{ .Title }}|{{ end }}$
 Len RegularPagesRecursive: {{ len .RegularPagesRecursive }}
@@ -840,24 +966,23 @@ RegularPagesRecursive: {{ range .RegularPagesRecursive }}{{ .RelPermalink }}|{{ 
 List Partial P1: {{ partial "p1" . }}|
 Page.Lastmod: {{ .Lastmod.Format "2006-01-02" }}|
 Cascade param: {{ .Params.cascadeparam }}|
--- layouts/partials/p1.html --
+-- layouts/_partials/p1.html --
 Partial P1.
--- layouts/partials/pcached.html --
+-- layouts/_partials/pcached.html --
 Partial Pcached.
--- layouts/shortcodes/include.html --
+-- layouts/_shortcodes/include.html --
 {{ $p := site.GetPage (.Get 0)}}
+.Page.Site: {{ .Page.Site }} :: site: {{ site }}
 {{ with $p }}
 Shortcode Include: {{ .Title }}|
 {{ end }}
 Shortcode .Page.Title: {{ .Page.Title }}|
 Shortcode Partial P1: {{ partial "p1" . }}|
--- layouts/_default/_markup/render-codeblock.html --
+-- layouts/_markup/render-codeblock.html --
 {{ $p := site.GetPage (.Attributes.page)}}
 {{ with $p }}
 Codeblock Include: {{ .Title }}|
 {{ end }}
-
-
 
 `
 
@@ -866,11 +991,11 @@ Codeblock Include: {{ .Title }}|
 			T:           t,
 			TxtarString: files,
 			Running:     true,
+			Verbose:     false,
 			BuildCfg: BuildCfg{
 				testCounters: &buildCounters{},
 			},
-			// Verbose:     true,
-			// LogLevel: logg.LevelTrace,
+			LogLevel: logg.LevelWarn,
 		},
 	).Build()
 
@@ -948,26 +1073,26 @@ Codeblock Include: {{ .Title }}|
 	b.AssertFileContent("public/en/translations/index.html", "RegularPagesRecursive: /en/translations/p7/")
 
 	// Edit shortcode
-	editFile("layouts/shortcodes/include.html", func(s string) string {
+	editFile("layouts/_shortcodes/include.html", func(s string) string {
 		return s + "\nShortcode Include Edited."
 	})
 	b.AssertFileContent("public/mysect/p1/index.html", "Shortcode Include Edited.")
 
 	// Edit render hook
-	editFile("layouts/_default/_markup/render-codeblock.html", func(s string) string {
+	editFile("layouts/_markup/render-codeblock.html", func(s string) string {
 		return s + "\nCodeblock Include Edited."
 	})
 	b.AssertFileContent("public/mysect/p1/index.html", "Codeblock Include Edited.")
 
 	// Edit partial p1
-	editFile("layouts/partials/p1.html", func(s string) string {
+	editFile("layouts/_partials/p1.html", func(s string) string {
 		return strings.Replace(s, "Partial P1", "Partial P1 Edited", 1)
 	})
 	b.AssertFileContent("public/mysect/index.html", "List Partial P1: Partial P1 Edited.")
 	b.AssertFileContent("public/mysect/p1/index.html", "Shortcode Partial P1: Partial P1 Edited.")
 
 	// Edit partial cached.
-	editFile("layouts/partials/pcached.html", func(s string) string {
+	editFile("layouts/_partials/pcached.html", func(s string) string {
 		return strings.Replace(s, "Partial Pcached", "Partial Pcached Edited", 1)
 	})
 	b.AssertFileContent("public/mysect/p1/index.html", "Pcached Edited.")
@@ -1044,7 +1169,7 @@ body {
 }
 -- layouts/default/list.html --
 List.
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single.
 {{ $css := resources.Get "main.css" | minify }}
 RelPermalink: {{ $css.RelPermalink }}|
@@ -1094,13 +1219,13 @@ title: "P4"
 P4.
 -- assets/js/main.js --
 console.log("Hello");
--- layouts/_default/list.html --
+-- layouts/list.html --
 List. {{ partial "head.html" . }}$
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single. {{ partial "head.html" . }}$
--- layouts/partials/head.html --
+-- layouts/_partials/head.html --
 {{ partialCached "js.html" . }}$
--- layouts/partials/js.html --
+-- layouts/_partials/js.html --
 {{ $js := resources.Get "js/main.js" | js.Build | fingerprint }}
 RelPermalink: {{ $js.RelPermalink }}|
 `
@@ -1129,14 +1254,14 @@ disableKinds = ["term", "taxonomy", "sitemap", "robotsTXT", "404", "rss"]
 disableLiveReload = true
 -- assets/js/main.js --
 console.log("Hello");
--- layouts/_default/baseof.html --
+-- layouts/baseof.html --
 Base. {{ partial "common/head.html" . }}$
 {{ block "main" . }}default{{ end }}
--- layouts/_default/list.html --
+-- layouts/list.html --
 {{ define "main" }}main{{ end }}
--- layouts/partials/common/head.html --
+-- layouts/_partials/common/head.html --
 {{ partial "myfiles/js.html" . }}$
--- layouts/partials/myfiles/js.html --
+-- layouts/_partials/myfiles/js.html --
 {{ $js := resources.Get "js/main.js" | js.Build | fingerprint }}
 RelPermalink: {{ $js.RelPermalink }}|
 `
@@ -1182,24 +1307,24 @@ layout: "plain"
 console.log("Hello");
 -- content/foo.js --
 console.log("Foo");
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 {{ $js := site.Home.Resources.Get "main.js"  }}
 {{ with $js }}
 <script src="{{ .RelPermalink }}"></script>
 {{ end }}
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single. Deliberately no .Content in here.
--- layouts/_default/plain.html --
+-- layouts/plain.html --
 Content: {{ .Content }}|
--- layouts/_default/main.html --
+-- layouts/main.html --
 {{ $js := site.Home.Resources.Get "main.js"  }}
 {{ with $js }}
 <script>
 {{ .Content }}
 </script>
 {{ end }}
--- layouts/shortcodes/jsfingerprinted.html --
+-- layouts/_shortcodes/jsfingerprinted.html --
 {{ $js := site.Home.Resources.Get "foo.js" | fingerprint  }}
 <script src="{{ $js.RelPermalink }}"></script>
 `
@@ -1269,14 +1394,14 @@ title: "Home"
 title: "P1"
 ---
 
-Foo inline: {{< foo.inline >}}{{ site.Data.mydata.foo }}|{{< /foo.inline >}}
--- layouts/shortcodes/data.html --
+Foo inline: {{< foo.inline >}}{{ hugo.Data.mydata.foo }}|{{< /foo.inline >}}
+-- layouts/_shortcodes/data.html --
 {{ $path := split (.Get 0) "." }}
-{{ $data := index site.Data $path }}
+{{ $data := index hugo.Data $path }}
 Foo: {{ $data }}|
--- layouts/index.html --
+-- layouts/home.html --
 Content: {{ .Content }}|
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single: {{ .Content }}|
 `
 	b := TestRunning(t, files)
@@ -1302,7 +1427,7 @@ disableLiveReload = true
 title: "Home"
 ---
 Home.
--- layouts/index.html --
+-- layouts/home.html --
 Content: {{ .Content }}
 `
 	b := TestRunning(t, files)
@@ -1338,9 +1463,9 @@ disableKinds = ["taxonomy", "term", "sitemap", "robotsTXT", "404"]
 title: "Home"
 ---
 Home.
--- layouts/index.html --
+-- layouts/home.html --
 Home.
--- layouts/_default/index.searchindex.txt --
+-- layouts/index.searchindex.txt --
 Text. {{ .Title }}|{{ .RelPermalink }}|
 
 `
@@ -1348,7 +1473,7 @@ Text. {{ .Title }}|{{ .RelPermalink }}|
 
 	b.AssertFileContent("public/search.txt", "Text.")
 
-	b.EditFileReplaceAll("layouts/_default/index.searchindex.txt", "Text.", "Text Edited.").Build()
+	b.EditFileReplaceAll("layouts/index.searchindex.txt", "Text.", "Text Edited.").Build()
 
 	b.BuildPartial("/docs/search.txt")
 
@@ -1362,7 +1487,7 @@ func TestRebuildVariationsAssetsJSImport(t *testing.T) {
 baseURL = "https://example.com"
 disableKinds = ["term", "taxonomy"]
 disableLiveReload = true
--- layouts/index.html --
+-- layouts/home.html --
 Home. {{ now }}
 {{ with (resources.Get "js/main.js" | js.Build | fingerprint) }}
 <script>{{ .Content | safeJS }}</script>
@@ -1431,28 +1556,28 @@ title: "P3"
 layout: "foo"
 ---
 {{< notfingerprinted >}}
--- layouts/shortcodes/fingerprinted.html --
+-- layouts/_shortcodes/fingerprinted.html --
 Fingerprinted.
 {{ $opts := dict "inlineImports" true "noMap" true }}
 {{ with (resources.Get "css/main.css" | postCSS $opts | fingerprint) }}
 <style src="{{ .RelPermalink }}"></style>
 {{ end }}
--- layouts/shortcodes/notfingerprinted.html --
+-- layouts/_shortcodes/notfingerprinted.html --
 Fingerprinted.
 {{ $opts := dict "inlineImports" true "noMap" true }}
 {{ with (resources.Get "css/main.css" | postCSS $opts) }}
 <style src="{{ .RelPermalink }}"></style>
 {{ end }}
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 {{ $opts := dict "inlineImports" true "noMap" true }}
 {{ with (resources.Get "css/main.css" | postCSS $opts) }}
 <style>{{ .Content | safeCSS }}</style>
 {{ end }}
--- layouts/_default/foo.html --
+-- layouts/foo.html --
 Foo.
 {{ .Title }}|{{ .Content }}|
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single.
 {{ $opts := dict "inlineImports" true "noMap" true }}
 {{ with (resources.Get "css/main.css" | postCSS $opts) }}
@@ -1494,7 +1619,7 @@ baseURL = "https://example.com"
 disableLiveReload = true
 -- i18n/en.toml --
 hello = "Hello"
--- layouts/index.html --
+-- layouts/home.html --
 Hello: {{ i18n "hello" }}
 `
 
@@ -1545,17 +1670,17 @@ title: "B nn"
 B nn.
 -- content/p1/f1.nn.txt --
 F1 nn
--- layouts/_default/single.html --
-Single: {{ .Title }}|{{ .Content }}|Bundled File: {{ with .Resources.GetMatch "f1.*" }}{{ .Content }}{{ end }}|Bundled Page: {{ with .Resources.GetMatch "b.*" }}{{ .Content }}{{ end }}|
+-- layouts/all.html --
+All: {{ .Title }}|{{ .Kind }}|{{ .Content }}|Bundled File: {{ with .Resources.GetMatch "f1.*" }}{{ .Content }}{{ end }}|Bundled Page: {{ with .Resources.GetMatch "b.*" }}{{ .Content }}{{ end }}|
 `
 
 	b := TestRunning(t, files)
 
-	b.AssertFileContent("public/nn/p1/index.html", "Single: P1 nn|<p>P1 nn.</p>", "F1 nn|")
+	b.AssertFileContent("public/nn/p1/index.html", "All: P1 nn|page|<p>P1 nn.</p>", "F1 nn|")
 	b.EditFileReplaceAll("content/p1/index.nn.md", "P1 nn.", "P1 nn edit.").Build()
-	b.AssertFileContent("public/nn/p1/index.html", "Single: P1 nn|<p>P1 nn edit.</p>\n|")
+	b.AssertFileContent("public/nn/p1/index.html", "All: P1 nn|page|<p>P1 nn edit.</p>")
 	b.EditFileReplaceAll("content/p1/f1.nn.txt", "F1 nn", "F1 nn edit.").Build()
-	b.AssertFileContent("public/nn/p1/index.html", "Bundled File: F1 nn edit.")
+	b.AssertFileContent("public/nn/p1/index.html", "All: P1 nn|page|<p>P1 nn edit.</p>\n|Bundled File: F1 nn edit.|")
 	b.EditFileReplaceAll("content/p1/b.nn.md", "B nn.", "B nn edit.").Build()
 	b.AssertFileContent("public/nn/p1/index.html", "B nn edit.")
 }
@@ -1585,12 +1710,11 @@ title: "P1 en"
 title: "P1 nn"
 ---
 P1 nn.
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single: {{ .Title }}|{{ .Content }}|
 `
 
 	b := TestRunning(t, files)
-
 	b.AssertFileContent("public/nn/p1nn/index.html", "Single: P1 nn|<p>P1 nn.</p>")
 	b.EditFileReplaceAll("content/nn/p1nn/index.md", "P1 nn.", "P1 nn edit.").Build()
 	b.AssertFileContent("public/nn/p1nn/index.html", "Single: P1 nn|<p>P1 nn edit.</p>\n|")
@@ -1613,7 +1737,7 @@ body {
 }
 -- assets/css/main.scss --
 @import "lib/foo";
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 {{ $opts := dict "transpiler" "TRANSPILER" }}
 {{ with (resources.Get "css/main.scss" | toCSS $opts) }}
@@ -1654,20 +1778,21 @@ Home.
 }
 
 func benchmarkFilesEdit(count int) string {
-	files := `
+	var files strings.Builder
+	files.WriteString(`
 -- hugo.toml --
 baseURL = "https://example.com"
 disableKinds = ["term", "taxonomy"]
 disableLiveReload = true
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single: {{ .Title }}|{{ .Content }}|
--- layouts/_default/list.html --
+-- layouts/list.html --
 List: {{ .Title }}|{{ .Content }}|
 -- content/mysect/_index.md --
 ---
 title: "My Sect"
 ---
-	`
+	`)
 
 	contentTemplate := `
 ---
@@ -1677,10 +1802,10 @@ P%d Content.
 `
 
 	for i := range count {
-		files += fmt.Sprintf("-- content/mysect/p%d/index.md --\n%s", i, fmt.Sprintf(contentTemplate, i, i))
+		files.WriteString(fmt.Sprintf("-- content/mysect/p%d/index.md --\n%s", i, fmt.Sprintf(contentTemplate, i, i)))
 	}
 
-	return files
+	return files.String()
 }
 
 func BenchmarkRebuildContentFileChange(b *testing.B) {
@@ -1690,23 +1815,15 @@ func BenchmarkRebuildContentFileChange(b *testing.B) {
 		T:           b,
 		TxtarString: files,
 		Running:     true,
-		// Verbose:     true,
-		// LogLevel: logg.LevelInfo,
-	}
-	builders := make([]*IntegrationTestBuilder, b.N)
-
-	for i := range builders {
-		builders[i] = NewIntegrationTestBuilder(cfg)
-		builders[i].Build()
 	}
 
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		bb := builders[i]
+	for b.Loop() {
+		b.StopTimer()
+		bb := NewIntegrationTestBuilder(cfg).Build()
+		b.StartTimer()
 		bb.EditFileReplaceFunc("content/mysect/p123/index.md", func(s string) string {
 			return s + "... Edited"
 		}).Build()
-		// fmt.Println(bb.LogString())
 	}
 }
 
@@ -1726,7 +1843,7 @@ c
 c1
 -- assets/common/c2.css --
 c2
--- layouts/index.html --
+-- layouts/home.html --
 {{ $a := resources.Get "a.css" }}
 {{ $b := resources.Get "b.css" }}
 {{ $common := resources.Match "common/*.css" | resources.Concat "common.css" | minify }}
@@ -1767,9 +1884,9 @@ func TestRebuildEditMixedCaseTemplateFileIssue12165(t *testing.T) {
 -- hugo.toml --
 baseURL = "https://example.com"
 disableLiveReload = true
--- layouts/partials/MyTemplate.html --
+-- layouts/_partials/MyTemplate.html --
 MyTemplate
--- layouts/index.html --
+-- layouts/home.html --
 MyTemplate: {{ partial "MyTemplate.html" . }}|
 
 
@@ -1779,7 +1896,7 @@ MyTemplate: {{ partial "MyTemplate.html" . }}|
 
 	b.AssertFileContent("public/index.html", "MyTemplate: MyTemplate")
 
-	b.EditFileReplaceAll("layouts/partials/MyTemplate.html", "MyTemplate", "MyTemplate Edited").Build()
+	b.EditFileReplaceAll("layouts/_partials/MyTemplate.html", "MyTemplate", "MyTemplate Edited").Build()
 
 	b.AssertFileContent("public/index.html", "MyTemplate: MyTemplate Edited")
 }
@@ -1838,9 +1955,9 @@ Myotherpartial Inline.|{{ .Title }}|
 	b.AssertFileContent("public/index.html", "My inline partial in all Edited.")
 }
 
-func TestRebuildEditAsciidocContentFile(t *testing.T) {
-	if !asciidocext.Supports() {
-		t.Skip("skip asciidoc")
+func TestRebuildEditAsciiDocContentFile(t *testing.T) {
+	if ok, err := asciidocext.Supports(); !ok {
+		t.Skip(err)
 	}
 	files := `
 -- hugo.toml --
@@ -1860,7 +1977,7 @@ P1 Content.
 title: "P2"
 ---
 P2 Content.
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single: {{ .Title }}|{{ .Content }}|
 `
 	b := TestRunning(t, files)
@@ -1883,9 +2000,9 @@ func TestRebuildEditSingleListChangeUbuntuIssue12362(t *testing.T) {
 -- hugo.toml --
 disableKinds = ['rss','section','sitemap','taxonomy','term']
 disableLiveReload = true
--- layouts/_default/list.html --
+-- layouts/list.html --
 {{ range .Pages }}{{ .Title }}|{{ end }}
--- layouts/_default/single.html --
+-- layouts/single.html --
 {{ .Title }}
 -- content/p1.md --
 ---
@@ -1908,9 +2025,9 @@ func TestRebuildHomeThenPageIssue12436(t *testing.T) {
 baseURL = "https://example.com"
 disableKinds = ['sitemap','taxonomy','term']
 disableLiveReload = true
--- layouts/_default/list.html --
+-- layouts/list.html --
 {{ .Content }}
--- layouts/_default/single.html --
+-- layouts/single.html --
 {{ .Content }}
 -- content/_index.md --
 ---
@@ -1946,7 +2063,7 @@ func TestRebuildEditTagIssue13648(t *testing.T) {
 baseURL = "https://example.com"
 disableLiveReload = true
 -- layouts/all.html --
-All. {{ range .Pages }}{{ .Title }}|{{ end }}
+All. {{ range .Pages }}{{ .Title }}|{{ end }}$
 -- content/p1.md --
 ---
 title: "P1"
@@ -1959,10 +2076,30 @@ tags: ["tag1"]
 	b.AssertFileContent("public/tags/index.html", "All. Tag1|")
 	b.EditFileReplaceAll("content/p1.md", "tag1", "tag2").Build()
 
-	// Note that the below is still not correct, as this is effectively a rename, and
-	// Tag2 should be removed from the list.
-	// But that is a harder problem to tackle.
-	b.AssertFileContent("public/tags/index.html", "All. Tag1|Tag2|")
+	b.AssertFileContent("public/tags/index.html", "All. Tag1|$")
+}
+
+func TestRebuildPageWithChineseTag14240(t *testing.T) {
+	t.Parallel()
+
+	files := `
+-- hugo.toml --
+baseURL = "https://example.com"
+disableLiveReload = true
+-- layouts/all.html --
+All. {{ range .Pages }}{{ .RelPermalink }}: {{ .Title }}|{{ end }}$
+-- content/p1.md --
+---
+title: "P1"
+tags: ["欢迎"]
+---
+
+`
+	b := TestRunning(t, files)
+
+	b.AssertFileContent("public/tags/欢迎/index.html", "All. /p1/: P1|$")
+	b.EditFileReplaceAll("content/p1.md", "P1", "P1 edit").Build()
+	b.AssertFileContent("public/tags/欢迎/index.html", "All. /p1/: P1 edit|$")
 }
 
 func TestRebuildEditNonReferencedResourceIssue13748(t *testing.T) {
@@ -1983,4 +2120,40 @@ All.
 	b.AssertFileContent("public/mybundle/resource.txt", "This is a resource file.")
 	b.EditFileReplaceAll("content/mybundle/resource.txt", "This is a resource file.", "This is an edited resource file.").Build()
 	b.AssertFileContent("public/mybundle/resource.txt", "This is an edited resource file.")
+}
+
+// Issue #14207
+func TestRebuildAddShortcodeThenEditContentUsingIt(t *testing.T) {
+	t.Parallel()
+
+	files := `
+-- hugo.toml --
+baseURL = "https://example.com"
+disableLiveReload = true
+-- layouts/single.html --
+Single: {{ .Title }}|{{ .Content }}|
+-- content/p1.md --
+---
+title: "P1"
+---
+Content before shortcode.
+`
+	b := TestRunning(t, files)
+	b.AssertFileContent("public/p1/index.html", "Single: P1|", "Content before shortcode.")
+
+	// Add a new shortcode file
+	b.AddFiles(
+		"layouts/_shortcodes/year.html", `{{- now.Format "2006" -}}`,
+	).Build()
+
+	// Verify shortcode was registered
+	ts := b.H.Sites[0].Deps.TemplateStore
+	if ti := ts.LookupShortcodeByName("year"); ti == nil {
+		t.Fatal("shortcode 'year' not found in cache after adding")
+	}
+
+	// Now edit content to use the shortcode - this should find the shortcode
+	currentYear := time.Now().Format("2006")
+	b.EditFileReplaceAll("content/p1.md", "Content before shortcode.", "This is {{< year >}} wow.").Build()
+	b.AssertFileContent("public/p1/index.html", "Single: P1|", fmt.Sprintf("This is %s wow.", currentYear))
 }

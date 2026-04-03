@@ -18,7 +18,7 @@ defaultMarkdownHandler = 'goldmark'
 
 Files with ending with `.md`, `.mdown`, or `.markdown` are processed as Markdown, unless you've explicitly set a different format using the `markup` field in your front matter.
 
-To use a different renderer for Markdown files, specify one of `asciidocext`, `org`, `pandoc`, or `rst` in your site configuration.
+To use a different renderer for Markdown files, specify one of `asciidocext`, `org`, `pandoc`, or `rst` in your project configuration.
 
 `defaultMarkdownHandler`|Renderer
 :--|:--
@@ -58,8 +58,6 @@ Extension|Documentation|Enabled
 
 #### Extras
 
-{{< new-in 0.126.0 />}}
-
 Enable [deleted text], [inserted text], [mark text], [subscript], and [superscript] elements in Markdown.
 
 Element|Markdown|Rendered
@@ -94,9 +92,23 @@ enable = true
 
 With this configuration, to format text as deleted, wrap it with double-tildes.
 
-#### Passthrough
+#### Footnote
 
-{{< new-in 0.122.0 />}}
+Enabled by default, the Footnote extension enables inclusion of footnotes in Markdown.
+
+enable
+: {{< new-in 0.151.0 />}}
+: (`bool`) Whether to enable the Footnotes extension. Default is `true`.
+
+backlinkHTML
+: {{< new-in 0.151.0 />}}
+: (`string`) The HTML to be displayed at the end of a footnote that links the user back to the corresponding reference in the main text. The default is &#x21a9;&#xfe0e; (a return arrow symbol).
+
+enableAutoIDPrefix
+: {{< new-in 0.151.0 />}}
+: (`bool`) Whether to prepend a unique prefix to footnote IDs, preventing clashes when multiple documents are rendered together. This prefix is unique to each logical path, which means that the prefix is not unique across content dimensions such as language. Default is `false`.
+
+#### Passthrough
 
 Enable the Passthrough extension to include mathematical equations and expressions in Markdown using LaTeX markup. See [mathematics in Markdown] for details.
 
@@ -122,11 +134,10 @@ Markdown|Replaced by|Description
 Most of the Goldmark settings above are self-explanatory, but some require explanation.
 
 duplicateResourceFiles
-: {{< new-in 0.123.0 />}}
-: (`bool`) Whether to duplicate shared page resources for each language on multilingual single-host sites. See [multilingual page resources] for details. Default is `false`.
+: (`bool`) Whether to duplicate shared page resources for each language on multilingual single-host projects. See [multilingual page resources] for details. Default is `false`.
 
   > [!note]
-  > With multilingual single-host sites, setting this parameter to `false` will enable Hugo's [embedded link render hook] and [embedded image render hook]. This is the default configuration for multilingual single-host sites.
+  > With multilingual single-host projects, setting this parameter to `false` will enable Hugo's [embedded link render hook] and [embedded image render hook]. This is the default configuration for multilingual single-host projects.
 
 parser.wrapStandAloneImageWithinParagraph
 : (`bool`) Whether to wrap image elements without adjacent content within a `p` element when rendered. This is the default Markdown behavior. Set to `false` when using an [image render hook] to render standalone images as `figure` elements. Default is `true`.
@@ -155,30 +166,27 @@ parser.attribute.title
 
 <!-- TODO: delete this on or after July 1, 2027. -->
 renderHooks.image.enableDefault
-: {{< new-in 0.123.0 />}}
 : Deprecated in v0.148.0. Use `renderHooks.image.useEmbedded` instead.
 
 renderHooks.image.useEmbedded
 : {{< new-in 0.148.0 />}}
 : (`string`) When to use the [embedded image render hook]. One of `auto`, `never`, `always`, or `fallback`. Default is `auto`.
 
-  - `auto`: Automatically use the embedded image render hook for multilingual single-host sites, specifically when the [duplication of shared page resources] feature is disabled. This is the default behavior for such sites. If custom image render hooks are defined by your project, modules, or themes, these will be used instead.
+  - `auto`: Use the embedded image render hook only for multilingual single-host projects where the [duplication of shared page resources] feature is disabled. If custom image render hooks are defined by your project, modules, or themes, these will be used instead.
   - `never`: Never use the embedded image render hook. If custom image render hooks are defined by your project, modules, or themes, these will be used instead.
-  - `always`: Always use the embedded image render hook, even if custom image render hooks are provided by your project, modules, or themes. In this case, the embedded hook takes precedence.
+  - `always`: Always use the embedded image render hook, even if custom image render hooks are provided by your project, modules, or themes.
   - `fallback`: Use the embedded image render hook only if custom image render hooks are not provided by your project, modules, or themes. If custom image render hooks exist, these will be used instead.
 
 <!-- TODO: delete this on or after July 1, 2027. -->
 renderHooks.link.enableDefault
-: {{< new-in 0.123.0 />}}
 : Deprecated in v0.148.0. Use `renderHooks.link.useEmbedded` instead.
 
 renderHooks.link.useEmbedded
-: {{< new-in 0.148.0 />}}
 : (`string`) When to use the [embedded link render hook]. One of `auto`, `never`, `always`, or `fallback`. Default is `auto`.
 
-  - `auto`: Automatically use the embedded link render hook for multilingual single-host sites, specifically when the [duplication of shared page resources] feature is disabled. This is the default behavior for such sites. If custom link render hooks are defined by your project, modules, or themes, these will be used instead.
+  - `auto`: Use the embedded link render hook only for multilingual single-host projects where the [duplication of shared page resources] feature is disabled. If custom link render hooks are defined by your project, modules, or themes, these will be used instead.
   - `never`: Never use the embedded link render hook. If custom link render hooks are defined by your project, modules, or themes, these will be used instead.
-  - `always`: Always use the embedded link render hook, even if custom link render hooks are provided by your project, modules, or themes. In this case, the embedded hook takes precedence.
+  - `always`: Always use the embedded link render hook, even if custom link render hooks are provided by your project, modules, or themes.
   - `fallback`: Use the embedded link render hook only if custom link render hooks are not provided by your project, modules, or themes. If custom link render hooks exist, these will be used instead.
 
 renderer.hardWraps
@@ -202,7 +210,7 @@ backend
 : (`string`) The backend output file format. Default is `html5`.
 
 extensions
-: (`string array`) An array of enabled extensions, one or more of `asciidoctor-html5s`, `asciidoctor-bibtex`, `asciidoctor-diagram`, `asciidoctor-interdoc-reftext`, `asciidoctor-katex`, `asciidoctor-latex`, `asciidoctor-mathematical`, or `asciidoctor-question`.
+: (`[]string`) An array of enabled extensions, such as `asciidoctor-html5s`, `asciidoctor-bibtex`, or `asciidoctor-diagram`.
 
   > [!note]
   > To mitigate security risks, entries in the extension array may not contain forward slashes (`/`), backslashes (`\`), or periods. Due to this restriction, extensions must be in Ruby's `$LOAD_PATH`.
@@ -235,11 +243,11 @@ workingFolderCurrent
 
 {{< code-toggle file=hugo >}}
 [markup.asciidocExt]
-    extensions = ["asciidoctor-html5s", "asciidoctor-diagram"]
-    workingFolderCurrent = true
-    [markup.asciidocExt.attributes]
-        my-base-url = "https://example.com/"
-        my-attribute-name = "my value"
+extensions = ['asciidoctor-html5s','asciidoctor-diagram']
+workingFolderCurrent = true
+[markup.asciidocExt.attributes]
+my-base-url = 'https://example.com/'
+my-attribute-name = 'my value'
 {{< /code-toggle >}}
 
 ### Syntax highlighting
@@ -247,7 +255,7 @@ workingFolderCurrent
 Follow the steps below to enable syntax highlighting.
 
 Step 1
-: Set the `source-highlighter` attribute in your site configuration. For example:
+: Set the `source-highlighter` attribute in your project configuration. For example:
 
   {{< code-toggle file=hugo >}}
   [markup.asciidocExt.attributes]
@@ -290,7 +298,7 @@ Step 4
 
 ### Troubleshooting
 
-Run `hugo --logLevel debug` to examine Hugo's call to the Asciidoctor executable:
+Run `hugo build --logLevel debug` to examine Hugo's call to the Asciidoctor executable:
 
 ```txt
 INFO 2019/12/22 09:08:48 Rendering book-as-pdf.adoc with C:\Ruby26-x64\bin\asciidoctor.bat using asciidoc args [--no-header-footer -r asciidoctor-html5s -b html5s -r asciidoctor-diagram --base-dir D:\prototypes\hugo_asciidoc_ddd\docs -a outdir=D:\prototypes\hugo_asciidoc_ddd\build -] ...

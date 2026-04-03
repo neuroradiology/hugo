@@ -9,7 +9,7 @@ aliases: [/content/sections/]
 
 ## Page bundles
 
-Hugo `0.32` announced page-relative images and other resources packaged into `Page Bundles`.
+Hugo supports page-relative images and other resources packaged into `Page Bundles`.
 
 These terms are connected, and you also need to read about [Page Resources](/content-management/page-resources) and [Image Processing](/content-management/image-processing) to get the full picture.
 
@@ -61,7 +61,7 @@ Without any additional configuration, the following will automatically work:
 
 ## Path breakdown in Hugo
 
-The following demonstrates the relationships between your content organization and the output URL structure for your Hugo website when it renders. These examples assume you are [using pretty URLs][pretty], which is the default behavior for Hugo. The examples also assume a key-value of `baseURL = "https://example.org/"` in your [site's configuration file][config].
+The following demonstrates the relationships between your content organization and the output URL structure for your Hugo website when it renders. These examples assume you are [using pretty URLs][pretty], which is the default behavior for Hugo. The examples also assume a key-value of `baseURL = "https://example.org/"` in your [project configuration][config].
 
 ### Index pages: `_index.md`
 

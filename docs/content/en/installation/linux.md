@@ -6,11 +6,7 @@ keywords: []
 weight: 20
 ---
 
-## Editions
-
 {{% include "/_common/installation/01-editions.md" %}}
-
-Unless your specific deployment needs require the extended/deploy edition, we recommend the extended edition.
 
 {{% include "/_common/installation/02-prerequisites.md" %}}
 
@@ -60,6 +56,10 @@ sudo snap connect hugo:ssh-keys
 sudo snap disconnect hugo:ssh-keys
 ```
 
+[strictly confined]: https://snapcraft.io/docs/snap-confinement
+[most distributions]: https://snapcraft.io/docs/installing-snapd
+[Snap]: https://snapcraft.io/
+
 {{% include "/_common/installation/homebrew.md" %}}
 
 ## Repository packages
@@ -95,7 +95,7 @@ Derivatives of the [Debian] distribution of Linux include [elementary OS], [KDE 
 sudo apt install hugo
 ```
 
-You can also download Debian packages from the [latest release] page.
+You can also download Debian packages from the [latest release][] page.
 
 ### Exherbo
 
@@ -199,19 +199,17 @@ Latest version available?|:heavy_check_mark:|:heavy_check_mark:|varies|:heavy_ch
 [GeckoLinux]: https://geckolinux.github.io/
 [Gentoo]: https://www.gentoo.org/
 [KDE neon]: https://neon.kde.org/
+[latest release]: https://github.com/gohugoio/hugo/releases/latest
 [latest version]: https://github.com/gohugoio/hugo/releases/latest
 [Linux Karmada]: https://linuxkamarada.com/
 [Linux Lite]: https://www.linuxliteos.com/
 [Linux Mint]: https://linuxmint.com/
 [Manjaro]: https://manjaro.org/
-[most distributions]: https://snapcraft.io/docs/installing-snapd
 [MX Linux]: https://mxlinux.org/
 [openSUSE]: https://www.opensuse.org/
 [Pop!_OS]: https://pop.system76.com/
 [Red Hat Enterprise Linux]: https://www.redhat.com/
-[Snap]: https://snapcraft.io/
 [Solus]: https://getsol.us/
-[strictly confined]: https://snapcraft.io/docs/snap-confinement
 [Ubuntu]: https://ubuntu.com/
 [USE]: https://packages.gentoo.org/packages/www-apps/hugo
 [Void Linux]: https://voidlinux.org/

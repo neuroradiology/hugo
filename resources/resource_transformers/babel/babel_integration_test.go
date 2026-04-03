@@ -47,12 +47,12 @@ console.error("Hugo Environment:", process.env.HUGO_ENVIRONMENT );
 module.exports = {
 	presets: ["@babel/preset-env"],
 };
--- config.toml --
+-- hugo.toml --
 disablekinds = ['taxonomy', 'term', 'page']
 [security]
 	[security.exec]
 	allow = ['^npx$', '^babel$']
--- layouts/index.html --
+-- layouts/home.html --
 {{ $options := dict "noComments" true }}
 {{ $transpiled := resources.Get "js/main.js" | babel -}}
 Transpiled: {{ $transpiled.Content | safeJS }}
@@ -67,9 +67,9 @@ Transpiled3: {{ $transpiled.Permalink }}
 	"scripts": {},
 
 	"devDependencies": {
-	"@babel/cli": "7.8.4",
-	"@babel/core": "7.9.0",	
-	"@babel/preset-env": "7.9.5"
+	"@babel/cli": "7.28.6",
+	"@babel/core": "7.28.6",
+	"@babel/preset-env": "7.28.6"
 	}
 }
 

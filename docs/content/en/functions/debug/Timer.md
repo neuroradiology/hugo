@@ -10,8 +10,6 @@ params:
     signatures: [debug.Timer NAME] 
 ---
 
-{{< new-in 0.120.0 />}}
-
 Use the `debug.Timer` function to determine execution time for a block of code, useful for finding performance bottlenecks in templates.
 
 The timer starts when you instantiate it, and stops when you call its `Stop` method.
@@ -27,7 +25,7 @@ The timer starts when you instantiate it, and stops when you call its `Stop` met
 Use the `--logLevel info` command line flag when you build the site.
 
 ```sh
-hugo --logLevel info
+hugo build --logLevel info
 ```
 
 The results are displayed in the console at the end of the build. You can have as many timers as you want and if you don't stop them, they will be stopped at the end of build.

@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"image"
 	"io"
 	"math/rand"
 	"os"
@@ -18,13 +19,15 @@ import (
 	"testing"
 
 	"github.com/bep/logg"
+	"github.com/yuin/goldmark/util"
 
 	qt "github.com/frankban/quicktest"
 	"github.com/fsnotify/fsnotify"
 	"github.com/gohugoio/hugo/common/herrors"
 	"github.com/gohugoio/hugo/common/hexec"
+	"github.com/gohugoio/hugo/common/himage"
+	"github.com/gohugoio/hugo/common/hmaps"
 	"github.com/gohugoio/hugo/common/loggers"
-	"github.com/gohugoio/hugo/common/maps"
 	"github.com/gohugoio/hugo/common/types"
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/config/allconfig"
@@ -33,6 +36,9 @@ import (
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/htesting"
 	"github.com/gohugoio/hugo/hugofs"
+	"github.com/gohugoio/hugo/hugofs/hglob"
+	"github.com/gohugoio/hugo/hugolib/sitesmatrix"
+	"github.com/gohugoio/hugo/identity"
 	"github.com/spf13/afero"
 	"github.com/spf13/cast"
 	"golang.org/x/text/unicode/norm"
@@ -84,10 +90,26 @@ func TestOptWarn() TestOpt {
 	}
 }
 
+// TestOptSkipRender will skip the render phase in integration tests.
+func TestOptSkipRender() TestOpt {
+	return func(c *IntegrationTestConfig) {
+		c.BuildCfg = BuildCfg{
+			SkipRender: true,
+		}
+	}
+}
+
 // TestOptOsFs will enable the real file system in integration tests.
 func TestOptOsFs() TestOpt {
 	return func(c *IntegrationTestConfig) {
 		c.NeedsOsFS = true
+	}
+}
+
+// TestOptWithNpmInstall will enable npm install in integration tests.
+func TestOptWithNpmInstall() TestOpt {
+	return func(c *IntegrationTestConfig) {
+		c.NeedsNpmInstall = true
 	}
 }
 
@@ -217,6 +239,82 @@ type IntegrationTestBuilder struct {
 	builderInit sync.Once
 }
 
+type IntegrationTestSiteHelper struct {
+	*qt.C
+	b *IntegrationTestBuilder
+	S *Site
+}
+
+type IntegrationTestPageHelper struct {
+	*qt.C
+	b *IntegrationTestBuilder
+	p *pageState
+}
+
+func (s *IntegrationTestPageHelper) siteIntsToMap(matrix, complements sitesmatrix.VectorStore) map[string]map[string][]string {
+	dconf := s.p.s.Conf.ConfiguredDimensions()
+	intSetsToMap := func(intSets sitesmatrix.VectorStore) map[string][]string {
+		var languages, versions, roles []string
+
+		keys1, keys2, keys3 := intSets.KeysSorted()
+
+		for _, v := range keys1 {
+			languages = append(languages, dconf.ConfiguredLanguages.ResolveName(v))
+		}
+		for _, v := range keys2 {
+			versions = append(versions, dconf.ConfiguredVersions.ResolveName(v))
+		}
+		for _, v := range keys3 {
+			roles = append(roles, dconf.ConfiguredRoles.ResolveName(v))
+		}
+
+		return map[string][]string{
+			"languages": languages,
+			"versions":  versions,
+			"roles":     roles,
+		}
+	}
+
+	return map[string]map[string][]string{
+		"matrix":      intSetsToMap(matrix),
+		"complements": intSetsToMap(complements),
+	}
+}
+
+func (s *IntegrationTestPageHelper) MatrixFromPageConfig() map[string]map[string][]string {
+	pc := s.p.m.pageConfigSource
+	return s.siteIntsToMap(pc.SitesMatrix, pc.SitesComplements)
+}
+
+func (s *IntegrationTestPageHelper) MatrixFromFile() map[string]map[string][]string {
+	if s.p.m.f == nil {
+		return nil
+	}
+	m := s.p.m.f.FileInfo().Meta()
+	return s.siteIntsToMap(m.SitesMatrix, m.SitesComplements)
+}
+
+func (s *IntegrationTestSiteHelper) PageHelper(path string) *IntegrationTestPageHelper {
+	p, err := s.S.GetPage(path)
+	s.Assert(err, qt.IsNil)
+	s.Assert(p, qt.Not(qt.IsNil), qt.Commentf("Page not found: %s", path))
+	ps, ok := p.(*pageState)
+	s.Assert(ok, qt.IsTrue, qt.Commentf("Expected pageState, got %T", p))
+	return &IntegrationTestPageHelper{
+		C: s.C,
+		b: s.b,
+		p: ps,
+	}
+}
+
+func (s *IntegrationTestSiteHelper) DimensionNames() types.Strings3 {
+	return types.Strings3{
+		s.S.Language().Name(),
+		s.S.Version().Name(),
+		s.S.Role().Name(),
+	}
+}
+
 type lockingBuffer struct {
 	sync.Mutex
 	buf bytes.Buffer
@@ -248,8 +346,28 @@ func (b *lockingBuffer) Write(p []byte) (n int, err error) {
 	return
 }
 
+// SiteHelper returns a helper for the given language, version and role.
+// Note that a blank value for an argument will use the default value for that dimension.
+func (s *IntegrationTestBuilder) SiteHelper(language, version, role string) *IntegrationTestSiteHelper {
+	s.Helper()
+	if s.H == nil {
+		s.Fatal("SiteHelper: no sites available")
+	}
+	v := s.H.Conf.ConfiguredDimensions().ResolveVector(types.Strings3{language, version, role})
+	site, found := s.H.sitesVersionsRolesMap[v]
+	if !found {
+		s.Fatalf("SiteHelper: no site found for vector %v", v)
+	}
+
+	return &IntegrationTestSiteHelper{
+		C: s.C,
+		b: s,
+		S: site,
+	}
+}
+
 // AssertLogContains asserts that the last build log contains the given strings.
-// Each string can be negated with a "! " prefix.
+// Each string can be negated with a hglob.NegationPrefix prefix.
 func (s *IntegrationTestBuilder) AssertLogContains(els ...string) {
 	s.Helper()
 	for _, el := range els {
@@ -264,7 +382,7 @@ func (s *IntegrationTestBuilder) AssertLogContains(els ...string) {
 }
 
 // AssertLogMatches asserts that the last build log matches the given regular expressions.
-// The regular expressions can be negated with a "! " prefix.
+// The regular expressions can be negated with a hglob.NegationPrefix prefix.
 func (s *IntegrationTestBuilder) AssertLogMatches(expression string) {
 	s.Helper()
 	var negate bool
@@ -276,16 +394,6 @@ func (s *IntegrationTestBuilder) AssertLogMatches(expression string) {
 	}
 
 	s.Assert(re.MatchString(s.lastBuildLog), checker, qt.Commentf(s.lastBuildLog))
-}
-
-func (s *IntegrationTestBuilder) AssertBuildCountData(count int) {
-	s.Helper()
-	s.Assert(s.H.init.data.InitCount(), qt.Equals, count)
-}
-
-func (s *IntegrationTestBuilder) AssertBuildCountGitInfo(count int) {
-	s.Helper()
-	s.Assert(s.H.init.gitInfo.InitCount(), qt.Equals, count)
 }
 
 func (s *IntegrationTestBuilder) AssertFileCount(dirname string, expected int) {
@@ -307,9 +415,9 @@ func (s *IntegrationTestBuilder) AssertFileCount(dirname string, expected int) {
 
 func (s *IntegrationTestBuilder) negate(match string) (string, bool) {
 	var negate bool
-	if strings.HasPrefix(match, "! ") {
+	if strings.HasPrefix(match, hglob.NegationPrefix) {
 		negate = true
-		match = strings.TrimPrefix(match, "! ")
+		match = strings.TrimPrefix(match, hglob.NegationPrefix)
 	}
 	return match, negate
 }
@@ -319,9 +427,9 @@ func (s *IntegrationTestBuilder) AssertFileContent(filename string, matches ...s
 	content := strings.TrimSpace(s.FileContent(filename))
 
 	for _, m := range matches {
-		cm := qt.Commentf("File: %s Match %s\nContent:\n%s", filename, m, content)
-		lines := strings.Split(m, "\n")
-		for _, match := range lines {
+		cm := qt.Commentf("File: %s Expect:\n%s Got:\n%s\nWith Space Visuals:\n%s", filename, m, content, util.VisualizeSpaces([]byte(content)))
+		lines := strings.SplitSeq(m, "\n")
+		for match := range lines {
 			match = strings.TrimSpace(match)
 			if match == "" || strings.HasPrefix(match, "#") {
 				continue
@@ -362,6 +470,63 @@ func (s *IntegrationTestBuilder) AssertNoRenderShortcodesArtifacts() {
 	}
 }
 
+type IntegrationTestImageHelper struct {
+	*qt.C
+	b *IntegrationTestBuilder
+
+	img        image.Image
+	formatName string
+	congig     image.Config
+}
+
+func (h *IntegrationTestImageHelper) AssertFormat(formatName string) *IntegrationTestImageHelper {
+	h.Assert(h.formatName, qt.Equals, formatName, qt.Commentf("Expected format %q, got %q", formatName, h.formatName))
+	return h
+}
+
+func (h *IntegrationTestImageHelper) AssertFrameDurations(expect []int) *IntegrationTestImageHelper {
+	anim, ok := h.img.(himage.AnimatedImage)
+	h.Assert(ok, qt.IsTrue, qt.Commentf("Image is not animated"))
+	h.Assert(anim.GetFrameDurations(), qt.DeepEquals, expect, qt.Commentf("Frame durations do not match"))
+	return h
+}
+
+func (h *IntegrationTestImageHelper) AssertLoopCount(expect int) *IntegrationTestImageHelper {
+	anim, ok := h.img.(himage.AnimatedImage)
+	h.Assert(ok, qt.IsTrue, qt.Commentf("Image is not animated"))
+	h.Assert(anim.GetLoopCount(), qt.Equals, expect, qt.Commentf("Loop count does not match"))
+	return h
+}
+
+func (h *IntegrationTestImageHelper) AssertIsAnimated(b bool) *IntegrationTestImageHelper {
+	_, ok := h.img.(himage.AnimatedImage)
+	if b {
+		h.Assert(ok, qt.IsTrue, qt.Commentf("Image is not animated"))
+		return h
+	}
+	h.Assert(ok, qt.IsFalse, qt.Commentf("Image is animated"))
+	return h
+}
+
+func (s *IntegrationTestBuilder) ImageHelper(filename string) *IntegrationTestImageHelper {
+	filename = filepath.Clean(filename)
+	fs := s.fs.WorkingDirReadOnly
+	b, err := afero.ReadFile(fs, filename)
+	s.Assert(err, qt.IsNil)
+	conf, format, err := s.H.ResourceSpec.Imaging.Codec.DecodeConfig(0, bytes.NewReader(b))
+	s.Assert(err, qt.IsNil)
+	img, err := s.H.ResourceSpec.Imaging.Codec.Decode(bytes.NewReader(b))
+	s.Assert(err, qt.IsNil)
+
+	return &IntegrationTestImageHelper{
+		C:          s.C,
+		b:          s,
+		img:        img,
+		formatName: format,
+		congig:     conf,
+	}
+}
+
 func (s *IntegrationTestBuilder) AssertPublishDir(matches ...string) {
 	s.AssertFs(s.fs.PublishDir, matches...)
 }
@@ -375,13 +540,13 @@ func (s *IntegrationTestBuilder) AssertFs(fs afero.Fs, matches ...string) {
 	content := strings.TrimSpace((strings.Join(printFsLines, "\n")))
 	for _, m := range matches {
 		cm := qt.Commentf("Match: %q\nIn:\n%s", m, content)
-		lines := strings.Split(m, "\n")
-		for _, match := range lines {
+		lines := strings.SplitSeq(m, "\n")
+		for match := range lines {
 			match = strings.TrimSpace(match)
 			var negate bool
-			if strings.HasPrefix(match, "! ") {
+			if strings.HasPrefix(match, hglob.NegationPrefix) {
 				negate = true
-				match = strings.TrimPrefix(match, "! ")
+				match = strings.TrimPrefix(match, hglob.NegationPrefix)
 			}
 			if negate {
 				s.Assert(content, qt.Not(qt.Contains), match, cm)
@@ -405,7 +570,9 @@ func (s *IntegrationTestBuilder) printAndCheckFs(fs afero.Fs, path string, w io.
 		if path == "" {
 			path = "."
 		}
+		var size int64
 		if !info.IsDir() {
+			size = info.Size()
 			f, err := fs.Open(path)
 			if err != nil {
 				return fmt.Errorf("error: path %q: %s", path, err)
@@ -415,7 +582,7 @@ func (s *IntegrationTestBuilder) printAndCheckFs(fs afero.Fs, path string, w io.
 			var buf [1]byte
 			io.ReadFull(f, buf[:])
 		}
-		fmt.Fprintln(w, path, info.IsDir())
+		fmt.Fprintf(w, "%06d %s %t\n", size, path, info.IsDir())
 		return nil
 	})
 }
@@ -425,16 +592,13 @@ func (s *IntegrationTestBuilder) AssertFileExists(filename string, b bool) {
 	if !b {
 		checker = qt.IsNotNil
 	}
+
 	_, err := s.fs.WorkingDirReadOnly.Stat(filename)
-	if !herrors.IsNotExist(err) {
+	if err != nil && !herrors.IsNotExist(err) {
 		s.Assert(err, qt.IsNil)
+		return
 	}
 	s.Assert(err, checker)
-}
-
-func (s *IntegrationTestBuilder) AssertIsFileError(err error) herrors.FileError {
-	s.Assert(err, qt.ErrorAs, new(herrors.FileError))
-	return herrors.UnwrapFileError(err)
 }
 
 func (s *IntegrationTestBuilder) AssertRenderCountContent(count int) {
@@ -456,13 +620,17 @@ func (s *IntegrationTestBuilder) AssertRenderCountPageBetween(from, to int) {
 func (s *IntegrationTestBuilder) Build() *IntegrationTestBuilder {
 	s.Helper()
 	_, err := s.BuildE()
+
+	if err != nil && strings.Contains(err.Error(), "error(s)") {
+		err = fmt.Errorf("%w: %s", err, s.lastBuildLog)
+	}
+
 	if s.Cfg.Verbose || err != nil {
-		fmt.Println(s.lastBuildLog)
 		if s.H != nil && err == nil {
-			for _, s := range s.H.Sites {
+			for s := range s.H.allSites(nil) {
 				m := s.pageMap
 				var buff bytes.Buffer
-				fmt.Fprintf(&buff, "PageMap for site %q\n\n", s.Language().Lang)
+				fmt.Fprintf(&buff, "======= PageMap for site %q  =======\n\n", s.resolveDimensionNames())
 				m.debugPrint("", 999, &buff)
 				fmt.Println(buff.String())
 			}
@@ -560,6 +728,16 @@ func (s *IntegrationTestBuilder) EditFileReplaceFunc(filename string, replacemen
 	return s
 }
 
+func (s *IntegrationTestBuilder) EditFileAppend(filename, contnt string) *IntegrationTestBuilder {
+	absFilename := s.absFilename(filename)
+	b, err := afero.ReadFile(s.fs.Source, absFilename)
+	s.Assert(err, qt.IsNil)
+	s.changedFiles = append(s.changedFiles, absFilename)
+	oldContent := string(b)
+	s.writeSource(absFilename, oldContent+contnt)
+	return s
+}
+
 func (s *IntegrationTestBuilder) EditFiles(filenameContent ...string) *IntegrationTestBuilder {
 	for i := 0; i < len(filenameContent); i += 2 {
 		filename, content := filepath.FromSlash(filenameContent[i]), filenameContent[i+1]
@@ -580,12 +758,30 @@ func (s *IntegrationTestBuilder) AddFiles(filenameContent ...string) *Integratio
 	return s
 }
 
+func (s *IntegrationTestBuilder) CreateDirs(dirnames ...string) *IntegrationTestBuilder {
+	for _, dirname := range dirnames {
+		absDir := s.absFilename(filepath.FromSlash(dirname))
+		s.Assert(s.fs.Source.MkdirAll(absDir, 0o777), qt.IsNil)
+		s.createdFiles = append(s.createdFiles, absDir)
+	}
+	return s
+}
+
 func (s *IntegrationTestBuilder) RemoveFiles(filenames ...string) *IntegrationTestBuilder {
 	for _, filename := range filenames {
 		absFilename := s.absFilename(filename)
 		s.removedFiles = append(s.removedFiles, absFilename)
 		s.Assert(s.fs.Source.Remove(absFilename), qt.IsNil)
 
+	}
+
+	return s
+}
+
+func (s *IntegrationTestBuilder) RemovePublishDir() *IntegrationTestBuilder {
+	s.Helper()
+	if err := s.fs.PublishDir.RemoveAll(""); err != nil && !herrors.IsNotExist(err) {
+		s.Fatalf("Failed to remove publish dir: %s", err)
 	}
 
 	return s
@@ -678,12 +874,12 @@ func (s *IntegrationTestBuilder) initBuilder() error {
 		}
 
 		if s.Cfg.Running {
-			flags.Set("internal", maps.Params{
+			flags.Set("internal", hmaps.Params{
 				"running": s.Cfg.Running,
 				"watch":   s.Cfg.Running,
 			})
 		} else if s.Cfg.Watching {
-			flags.Set("internal", maps.Params{
+			flags.Set("internal", hmaps.Params{
 				"watch": s.Cfg.Watching,
 			})
 		}
@@ -693,10 +889,15 @@ func (s *IntegrationTestBuilder) initBuilder() error {
 		}
 
 		var w io.Writer
-		if s.Cfg.LogLevel == logg.LevelTrace {
-			w = os.Stdout
+		if s.Cfg.Verbose || s.Cfg.LogLevel == logg.LevelTrace {
+			w = io.MultiWriter(os.Stdout, &s.logBuff)
 		} else {
 			w = &s.logBuff
+		}
+
+		var logHookLast func(e *logg.Entry) error
+		if s.Cfg.PanicOnWarning {
+			logHookLast = loggers.PanicOnWarningHook
 		}
 
 		logger := loggers.New(
@@ -705,6 +906,7 @@ func (s *IntegrationTestBuilder) initBuilder() error {
 				StdErr:        w,
 				Level:         s.Cfg.LogLevel,
 				DistinctLevel: logg.LevelWarn,
+				HandlerPost:   logHookLast,
 			},
 		)
 
@@ -726,7 +928,11 @@ func (s *IntegrationTestBuilder) initBuilder() error {
 
 		s.Assert(err, qt.IsNil)
 
-		depsCfg := deps.DepsCfg{Configs: res, Fs: fs, LogLevel: logger.Level(), StdErr: logger.StdErr()}
+		// changes received from Hugo in watch mode.
+		// In the full setup, this channel is created in the commands package.
+		changesFromBuild := make(chan []identity.Identity, 10)
+
+		depsCfg := deps.DepsCfg{Configs: res, Fs: fs, LogLevel: logger.Level(), StdErr: logger.StdErr(), ChangesFromBuild: changesFromBuild, IsIntegrationTest: true}
 		sites, err := NewHugoSites(depsCfg)
 		if err != nil {
 			initErr = err
@@ -736,6 +942,20 @@ func (s *IntegrationTestBuilder) initBuilder() error {
 			initErr = errors.New("no sites")
 			return
 		}
+
+		go func() {
+			for id := range changesFromBuild {
+				whatChanged := &WhatChanged{}
+				for _, v := range id {
+					whatChanged.Add(v)
+				}
+				bcfg := s.Cfg.BuildCfg
+				bcfg.WhatChanged = whatChanged
+				if err := s.build(bcfg); err != nil {
+					s.Fatalf("Build failed after change: %s", err)
+				}
+			}
+		}()
 
 		s.H = sites
 		s.fs = fs
@@ -939,11 +1159,14 @@ type IntegrationTestConfig struct {
 	// Note that the CLI for the server does allow for --watch=false, but that is not used in these test.
 	Watching bool
 
-	// Will print the log buffer after the build
+	// Enable verbose logging.
 	Verbose bool
 
 	// The log level to use.
 	LogLevel logg.Level
+
+	// Whether to panic on warnings.
+	PanicOnWarning bool
 
 	// Whether it needs the real file system (e.g. for js.Build tests).
 	NeedsOsFS bool

@@ -18,7 +18,7 @@ Please complete the following tasks before continuing:
 1. [Log in](https://github.com/login) to your GitHub account
 1. [Create](https://github.com/new) a GitHub repository for your project
 1. [Create](https://git-scm.com/docs/git-init) a local Git repository for your project with a [remote](https://git-scm.com/docs/git-remote) reference to your GitHub repository
-1. Create a Hugo site within your local Git repository and test it with the `hugo server` command
+1. Create a Hugo project within your local Git repository and test it with the `hugo server` command
 
 ## Procedure
 
@@ -35,13 +35,13 @@ Step 1
       staticPublishPath: public
       envVars:
         - key: DART_SASS_VERSION
-          value: 1.90.0
+          value: 1.98.0
         - key: GO_VERSION
-          value: 1.24.5
+          value: 1.26.1
         - key: HUGO_VERSION
-          value: 0.148.2
+          value: 0.158.0
         - key: NODE_VERSION
-          value: 22.18.0
+          value: 24.14.0
         - key: TZ
           value: Europe/Oslo
   ```
@@ -103,7 +103,7 @@ Step 2
 
     # Build the site
     echo "Building the site..."
-    hugo --gc --minify --baseURL "${RENDER_EXTERNAL_URL}"
+    hugo build --gc --minify --baseURL "${RENDER_EXTERNAL_URL}"
 
   }
 

@@ -31,14 +31,14 @@ import (
 
 	"github.com/evanw/esbuild/pkg/api"
 	"github.com/gohugoio/hugo/cache/dynacache"
+	"github.com/gohugoio/hugo/common/hmaps"
+	"github.com/gohugoio/hugo/common/hsync"
 	"github.com/gohugoio/hugo/common/hugio"
-	"github.com/gohugoio/hugo/common/maps"
 	"github.com/gohugoio/hugo/common/paths"
 	"github.com/gohugoio/hugo/deps"
 	"github.com/gohugoio/hugo/helpers"
 	"github.com/gohugoio/hugo/identity"
 	"github.com/gohugoio/hugo/internal/js"
-	"github.com/gohugoio/hugo/lazy"
 	"github.com/gohugoio/hugo/media"
 	"github.com/gohugoio/hugo/resources"
 	"github.com/gohugoio/hugo/resources/resource"
@@ -54,7 +54,6 @@ const (
 	NsBatch = "_hugo-js-batch"
 
 	propsKeyImportContext = "importContext"
-	propsResoure          = "resource"
 )
 
 //go:embed batch-esm-runner.gotmpl
@@ -72,10 +71,10 @@ var (
 func NewBatcherClient(deps *deps.Deps) (js.BatcherClient, error) {
 	c := &BatcherClient{
 		d:            deps,
-		buildClient:  NewBuildClient(deps.BaseFs.Assets, deps.ResourceSpec),
+		buildClient:  NewBuildClient(deps.BaseFs.Assets, deps.ResourceSpec, false),
 		createClient: create.New(deps.ResourceSpec),
-		batcherStore: maps.NewCache[string, js.Batcher](),
-		bundlesStore: maps.NewCache[string, js.BatchPackage](),
+		batcherStore: hmaps.NewCache[string, js.Batcher](),
+		bundlesStore: hmaps.NewCache[string, js.BatchPackage](),
 	}
 
 	deps.BuildEndListeners.Add(func(...any) bool {
@@ -123,8 +122,7 @@ func (o *opts[K, C]) Key() K {
 }
 
 func (o *opts[K, C]) Reset() {
-	mu := o.once.ResetWithLock()
-	defer mu.Unlock()
+	o.once.Reset()
 	o.h.resetCounter++
 }
 
@@ -197,8 +195,8 @@ type BatcherClient struct {
 	createClient *create.Client
 	buildClient  *BuildClient
 
-	batcherStore *maps.Cache[string, js.Batcher]
-	bundlesStore *maps.Cache[string, js.BatchPackage]
+	batcherStore *hmaps.Cache[string, js.Batcher]
+	bundlesStore *hmaps.Cache[string, js.BatchPackage]
 }
 
 // New creates a new Batcher with the given ID.
@@ -220,7 +218,7 @@ func (c *BatcherClient) New(id string) (js.Batcher, error) {
 		return nil, initErr
 	}
 
-	dependencyManager := c.d.Conf.NewIdentityManager("jsbatch_" + id)
+	dependencyManager := c.d.Conf.NewIdentityManager()
 	configID := "config_" + id
 
 	b := &batcher{
@@ -280,7 +278,7 @@ func (c *BatcherClient) New(id string) (js.Batcher, error) {
 	return b, nil
 }
 
-func (c *BatcherClient) Store() *maps.Cache[string, js.Batcher] {
+func (c *BatcherClient) Store() *hmaps.Cache[string, js.Batcher] {
 	return c.batcherStore
 }
 
@@ -362,7 +360,7 @@ func (b *batcher) Group(ctx context.Context, id string) js.BatcherGroup {
 
 	group, found := b.scriptGroups[id]
 	if !found {
-		idm := b.client.d.Conf.NewIdentityManager("jsbatch_" + id)
+		idm := b.client.d.Conf.NewIdentityManager()
 		b.dependencyManager.AddIdentity(idm)
 
 		group = &scriptGroup{
@@ -436,15 +434,15 @@ func (b *batcher) doBuild(ctx context.Context) (*Package, error) {
 	}
 
 	state := struct {
-		importResource        *maps.Cache[string, resource.Resource]
-		resultResource        *maps.Cache[string, resource.Resource]
-		importerImportContext *maps.Cache[string, importContext]
-		pathGroup             *maps.Cache[string, string]
+		importResource        *hmaps.Cache[string, resource.Resource]
+		resultResource        *hmaps.Cache[string, resource.Resource]
+		importerImportContext *hmaps.Cache[string, importContext]
+		pathGroup             *hmaps.Cache[string, string]
 	}{
-		importResource:        maps.NewCache[string, resource.Resource](),
-		resultResource:        maps.NewCache[string, resource.Resource](),
-		importerImportContext: maps.NewCache[string, importContext](),
-		pathGroup:             maps.NewCache[string, string](),
+		importResource:        hmaps.NewCache[string, resource.Resource](),
+		resultResource:        hmaps.NewCache[string, resource.Resource](),
+		importerImportContext: hmaps.NewCache[string, importContext](),
+		pathGroup:             hmaps.NewCache[string, string](),
 	}
 
 	multihostBasePaths := b.client.d.ResourceSpec.MultihostTargetBasePaths
@@ -864,7 +862,7 @@ type optionsMap[K key, C any] map[K]optionsGetSetter[K, C]
 type opts[K any, C optionsCompiler[C]] struct {
 	key  K
 	h    *optsHolder[C]
-	once lazy.OnceMore
+	once hsync.OnceMore
 }
 
 type optsHolder[C optionsCompiler[C]] struct {

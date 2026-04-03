@@ -16,7 +16,6 @@ package hugo
 import (
 	"context"
 	"fmt"
-	"html/template"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -25,16 +24,16 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bep/helpers/contexthelpers"
 	"github.com/bep/logg"
 
 	"github.com/bep/godartsass/v2"
 
 	"github.com/gohugoio/hugo/common/hexec"
 	"github.com/gohugoio/hugo/common/loggers"
-	"github.com/gohugoio/hugo/common/maps"
+	"github.com/gohugoio/hugo/common/version"
 	"github.com/gohugoio/hugo/hugofs/files"
 
-	"github.com/bep/helpers/contexthelpers"
 	"github.com/spf13/afero"
 
 	iofs "io/fs"
@@ -55,89 +54,24 @@ var (
 	vendorInfo string
 )
 
-var _ maps.StoreProvider = (*HugoInfo)(nil)
-
-// HugoInfo contains information about the current Hugo environment
-type HugoInfo struct {
-	CommitHash string
-	BuildDate  string
-
-	// The build environment.
-	// Defaults are "production" (hugo) and "development" (hugo server).
-	// This can also be set by the user.
-	// It can be any string, but it will be all lower case.
-	Environment string
-
-	// version of go that the Hugo binary was built with
-	GoVersion string
-
-	conf ConfigProvider
-	deps []*Dependency
-
-	store *maps.Scratch
-
-	// Context gives access to some of the context scoped variables.
-	Context Context
+// BuildInfo holds build information extracted from runtime/debug.
+type BuildInfo struct {
+	Revision     string
+	RevisionTime string
+	GoVersion    string
 }
 
-// Version returns the current version as a comparable version string.
-func (i HugoInfo) Version() VersionString {
-	return CurrentVersion.Version()
-}
-
-// Generator a Hugo meta generator HTML tag.
-func (i HugoInfo) Generator() template.HTML {
-	return template.HTML(fmt.Sprintf(`<meta name="generator" content="Hugo %s">`, CurrentVersion.String()))
-}
-
-// IsDevelopment reports whether the current running environment is "development".
-func (i HugoInfo) IsDevelopment() bool {
-	return i.Environment == EnvironmentDevelopment
-}
-
-// IsProduction reports whether the current running environment is "production".
-func (i HugoInfo) IsProduction() bool {
-	return i.Environment == EnvironmentProduction
-}
-
-// IsServer reports whether the built-in server is running.
-func (i HugoInfo) IsServer() bool {
-	return i.conf.Running()
-}
-
-// IsExtended reports whether the Hugo binary is the extended version.
-func (i HugoInfo) IsExtended() bool {
-	return IsExtended
-}
-
-// WorkingDir returns the project working directory.
-func (i HugoInfo) WorkingDir() string {
-	return i.conf.WorkingDir()
-}
-
-// Deps gets a list of dependencies for this Hugo build.
-func (i HugoInfo) Deps() []*Dependency {
-	return i.deps
-}
-
-func (i HugoInfo) Store() *maps.Scratch {
-	return i.store
-}
-
-// Deprecated: Use hugo.IsMultihost instead.
-func (i HugoInfo) IsMultiHost() bool {
-	Deprecate("hugo.IsMultiHost", "Use hugo.IsMultihost instead.", "v0.124.0")
-	return i.conf.IsMultihost()
-}
-
-// IsMultihost reports whether each configured language has a unique baseURL.
-func (i HugoInfo) IsMultihost() bool {
-	return i.conf.IsMultihost()
-}
-
-// IsMultilingual reports whether there are two or more configured languages.
-func (i HugoInfo) IsMultilingual() bool {
-	return i.conf.IsMultilingual()
+// GetBuildInfo returns the build info for the current binary.
+func GetBuildInfo() *BuildInfo {
+	bi := getBuildInfo()
+	if bi == nil {
+		return nil
+	}
+	return &BuildInfo{
+		Revision:     bi.Revision,
+		RevisionTime: bi.RevisionTime,
+		GoVersion:    bi.GoVersion,
+	}
 }
 
 type contextKey uint8
@@ -148,6 +82,7 @@ const (
 
 var markupScope = contexthelpers.NewContextDispatcher[string](contextKeyMarkupScope)
 
+// Context gives access to some of the context scoped variables.
 type Context struct{}
 
 func (c Context) MarkupScope(ctx context.Context) string {
@@ -162,44 +97,6 @@ func SetMarkupScope(ctx context.Context, s string) context.Context {
 // GetMarkupScope gets the markup scope from the context.
 func GetMarkupScope(ctx context.Context) string {
 	return markupScope.Get(ctx)
-}
-
-// ConfigProvider represents the config options that are relevant for HugoInfo.
-type ConfigProvider interface {
-	Environment() string
-	Running() bool
-	WorkingDir() string
-	IsMultihost() bool
-	IsMultilingual() bool
-}
-
-// NewInfo creates a new Hugo Info object.
-func NewInfo(conf ConfigProvider, deps []*Dependency) HugoInfo {
-	if conf.Environment() == "" {
-		panic("environment not set")
-	}
-	var (
-		commitHash string
-		buildDate  string
-		goVersion  string
-	)
-
-	bi := getBuildInfo()
-	if bi != nil {
-		commitHash = bi.Revision
-		buildDate = bi.RevisionTime
-		goVersion = bi.GoVersion
-	}
-
-	return HugoInfo{
-		CommitHash:  commitHash,
-		BuildDate:   buildDate,
-		Environment: conf.Environment(),
-		conf:        conf,
-		deps:        deps,
-		store:       maps.NewScratch(),
-		GoVersion:   goVersion,
-	}
 }
 
 // GetExecEnviron creates and gets the common os/exec environment used in the
@@ -309,13 +206,12 @@ func GetDependencyList() []string {
 
 // GetDependencyListNonGo returns a list of non-Go dependencies.
 func GetDependencyListNonGo() []string {
-	var deps []string
+	deps := []string{formatDep("github.com/webmproject/libwebp", "v1.6.0")} // via WASM. TODO(bep) get versions from the plugin setup.
 
 	if IsExtended {
 		deps = append(
 			deps,
 			formatDep("github.com/sass/libsass", "3.6.6"),
-			formatDep("github.com/webmproject/libwebp", "v1.3.2"),
 		)
 	}
 
@@ -438,8 +334,13 @@ func deprecateLevel(item, alternative, version string, level logg.Level) {
 
 // DeprecateLevel informs about a deprecation logging at the given level.
 func deprecateLevelWithLogger(item, alternative, version string, level logg.Level, log logg.Logger) {
+	//if strings.Contains(item, "module.mounts.lang") || strings.Contains(item, "includeFiles") {
+	// hdebug.Panicf("Deprecated")
+	//}
 	var msg string
 	if level == logg.LevelError {
+		// Useful to debug deprecation errors that needs to be removedor fixed. Comment out when done debugging.
+		// hdebug.Panicf("deprecation error: %s was removed in Hugo %s. %s", item, version, alternative)
 		msg = fmt.Sprintf("%s was deprecated in Hugo %s and subsequently removed. %s", item, version, alternative)
 	} else {
 		msg = fmt.Sprintf("%s was deprecated in Hugo %s and will be removed in a future release. %s", item, version, alternative)
@@ -452,7 +353,7 @@ func deprecateLevelWithLogger(item, alternative, version string, level logg.Leve
 // We want people to run at least the current and previous version without any warnings.
 // We want people who don't update Hugo that often to see the warnings and errors before we remove the feature.
 func deprecationLogLevelFromVersion(ver string) logg.Level {
-	from := MustParseVersion(ver)
+	from := version.MustParseVersion(ver)
 	to := CurrentVersion
 	minorDiff := to.Minor - from.Minor
 	switch {
@@ -465,4 +366,47 @@ func deprecationLogLevelFromVersion(ver string) logg.Level {
 	default:
 		return logg.LevelInfo
 	}
+}
+
+// BuildVersionString creates a version string. This is what you see when
+// running "hugo version".
+func BuildVersionString() string {
+	// program := "Hugo Static Site Generator"
+	program := "hugo"
+
+	version := "v" + CurrentVersion.String()
+
+	bi := getBuildInfo()
+	if bi == nil {
+		return version
+	}
+	if bi.Revision != "" {
+		version += "-" + bi.Revision
+	}
+	if IsExtended {
+		version += "+extended"
+	}
+	if IsWithdeploy {
+		version += "+withdeploy"
+	}
+
+	osArch := bi.GoOS + "/" + bi.GoArch
+
+	date := bi.RevisionTime
+	if date == "" {
+		// Accept vendor-specified build date if .git/ is unavailable.
+		date = buildDate
+	}
+	if date == "" {
+		date = "unknown"
+	}
+
+	versionString := fmt.Sprintf("%s %s %s BuildDate=%s",
+		program, version, osArch, date)
+
+	if vendorInfo != "" {
+		versionString += " VendorInfo=" + vendorInfo
+	}
+
+	return versionString
 }

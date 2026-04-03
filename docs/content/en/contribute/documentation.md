@@ -24,7 +24,15 @@ Follow Google's [developer documentation style guide].
 Adhere to these Markdown conventions:
 
 - Use [ATX] headings (levels 2-4), not [setext] headings.
-- Use [fenced code blocks], not [indented code blocks].
+- Use [collapsed link references][] instead of full or shortcut references. For example:
+
+    ```text
+    This is a [link][].
+
+    [link]: https://example.org
+    ```
+
+- Use [fenced code blocks] instead of [indented code blocks].
 - Use hyphens, not asterisks, for unordered [list items].
 - Use [callouts](#callouts) instead of bold text for emphasis.
 - Do not mix [raw HTML] within Markdown.
@@ -69,6 +77,7 @@ Link to the [glossary] as needed and use terms consistently. Pay particular atte
 - "server side" (noun), "server-side" (adjective)
 - "Markdown" (capitalized)
 - "open-source" (hyphenated adjective)
+- "Node.js" (first mention per page), "Node" (subsequent mentions), "node" (for the executable), "npm" (always lowercase)
 
 ### Template types
 
@@ -184,7 +193,7 @@ Field|Description|Required
 `params.minversion`|Applicable to the quick start page: the minimum Hugo version required|&nbsp;
 `params.permalink`|Reserved for use by the news content adapter|&nbsp;
 `params.reference (used in glossary term)`|Applicable to glossary entries: a URL for additional information|&nbsp;
-`params.searchable`|Whether to add the content of this page to the search index. The default value is cascaded down from the site configuration; `true` if the page kind is `page`, and `false` if the page kind is one of `home`, `section`, `taxonomy`, or `term`. Add this field to override the default value.|&nbsp;
+`params.searchable`|Whether to add the content of this page to the search index. The default value is cascaded down from the project configuration; `true` if the page kind is `page`, and `false` if the page kind is one of `home`, `section`, `taxonomy`, or `term`. Add this field to override the default value.|&nbsp;
 `params.show_publish_date`|Whether to show the `publishDate` when rendering the page|&nbsp;
 `weight`|The page weight|&nbsp;
 `aliases`|Previous URLs used to access this page|&nbsp;
@@ -199,10 +208,10 @@ When available, the "See also" sidebar displays related pages using Hugo's [rela
 If the title in the "See also" sidebar is ambiguous or the same as another page, you can define an alternate title in the front matter:
 
 {{< code-toggle file=hugo >}}
-title = "Long descriptive title"
-linkTitle = "Short title"
+title = 'Long descriptive title'
+linkTitle = 'Short title'
 [params]
-alt_title = "Whatever you want"
+alt_title = 'Whatever you want'
 {{< /code-toggle >}}
 
 Use of the alternate title is limited to the "See also" sidebar.
@@ -260,6 +269,18 @@ To wrap the code block within an initially-opened `details` element using a non-
 ```
 ````
 
+Whitespace trimming is enabled by default. To override this behavior and preserve leading and trailing spaces:
+
+````text
+```go-html-template {trim=false}
+
+{{ if eq $foo "bar" }}
+  {{ print "foo is bar" }}
+{{ end }}
+
+```
+````
+
 ### Shortcode calls
 
 Use this syntax :
@@ -271,14 +292,14 @@ Use this syntax :
 ```
 ````
 
-### Site configuration
+### Project configuration
 
-Use the [code-toggle shortcode](#code-toggle) to include site configuration examples:
+Use the [code-toggle shortcode](#code-toggle) to include project configuration examples:
 
 ```text
 {{</* code-toggle file=hugo */>}}
 baseURL = 'https://example.org/'
-languageCode = 'en-US'
+locale = 'en-US'
 title = 'My Site'
 {{</* /code-toggle */>}}
 ```
@@ -351,30 +372,30 @@ These shortcodes are commonly used throughout the documentation. Other shortcode
 
 ### code-toggle
 
-Use the `code-toggle` shortcode to display examples of site configuration, front matter, or data files. This shortcode takes these arguments:
+Use the `code-toggle` shortcode to display examples of project configuration, front matter, or data files. This shortcode takes these arguments:
 
 config
-: (`string`) The section of `site.Data.docs.config` to render.
+: (`string`) The section of `hugo.Data.docs.config` to render.
 
 copy
 : (`bool`) Whether to display a copy-to-clipboard button. Default is `false`.
 
 datakey:
-: (`string`) The section of `site.Data.docs` to render.
+: (`string`) The section of `hugo.Data.docs` to render.
 
 file
-: (`string`) The file name to display above the rendered code. Omit the file extension for site configuration examples.
+: (`string`) The file name to display above the rendered code. Omit the file extension for project configuration examples.
 
 fm
 : (`bool`) Whether to render the code as front matter. Default is `false`.
 
 skipHeader
-: (`bool`) Whether to omit top-level key(s) when rendering a section of `site.Data.docs.config`.
+: (`bool`) Whether to omit top-level key(s) when rendering a section of `hugo.Data.docs.config`.
 
 ```text
 {{</* code-toggle file=hugo copy=true */>}}
 baseURL = 'https://example.org/'
-languageCode = 'en-US'
+locale = 'en-US'
 title = 'My Site'
 {{</* /code-toggle */>}}
 ```
@@ -384,11 +405,14 @@ title = 'My Site'
 Use the `deprecated-in` shortcode to indicate that a feature is deprecated:
 
 ```text
+{{</* deprecated-in 0.144.0 /*/>}}
+```
+
+You can also include details:
+
+```text
 {{</* deprecated-in 0.144.0 */>}}
-
-Use [`hugo.IsServer`] instead.
-
-[`hugo.IsServer`]: /functions/hugo/isserver/
+Use [`hugo.IsServer`](/functions/hugo/isserver/) instead.
 {{</* /deprecated-in */>}}
 ```
 
@@ -399,7 +423,7 @@ Use the embedded template URL (`eturl`) shortcode to insert an absolute URL to t
 ```text
 This is a link to the [embedded alias template].
 
-[embedded alias template]: {{%/* eturl alias */%}}
+[embedded alias template]: <{{%/* eturl alias */%}}>
 ```
 
 ### glossary-term
@@ -436,33 +460,21 @@ This is a new feature.
 
 ## New features
 
-Use the [new-in shortcode](#new-in) to indicate a new feature:
+Use the [new-in](#new-in) shortcode to indicate a new feature.
 
-```text
-{{</* new-in 0.144.0 */>}}
-```
-
-The "new in" label will be hidden if the specified version is older than a predefined threshold, based on differences in major and minor versions. See&nbsp;[details](https://github.com/gohugoio/hugoDocs/blob/master/_vendor/github.com/gohugoio/gohugoioTheme/layouts/_shortcodes/new-in.html).
+The new-in shortcode will trigger a build warning if the specified version is older than a predefined threshold, based on differences in major and minor versions. This serves as a reminder to remove this shortcode call. See&nbsp;[details](https://github.com/gohugoio/hugoDocs/blob/master/layouts/_partials/layouts/blocks/feature-state.html).
 
 ## Deprecated features
 
-Use the [deprecated-in shorcode](#deprecated-in) shortcode to indicate that a feature is deprecated:
+Use the [deprecated-in](#deprecated-in) shortcode to indicate that a feature is deprecated.
 
-```text
-{{</* deprecated-in 0.144.0 */>}}
-Use [`hugo.IsServer`] instead.
+The deprecated-in shortcode will trigger a build warning if the specified version is older than a predefined threshold, based on differences in major and minor versions. This serves as a reminder to remove this shortcode call and the associated content. See&nbsp;[details](https://github.com/gohugoio/hugoDocs/blob/master/layouts/_partials/layouts/blocks/feature-state.html).
 
-[`hugo.IsServer`]: /functions/hugo/isserver/
-{{</* /deprecated-in */>}}
+When deprecating a feature that has its own page, also set the `expiryDate` in front matter to two years from the date of deprecation. Include a brief comment to explain the setting:
+
+```yaml
+expiryDate: 2028-03-03 # deprecated 2026-03-03 in v0.157.0
 ```
-
-When deprecating a function or method, add something like this to front matter:
-
-{{< code-toggle file=content/something/foo.md fm=true >}}
-expiryDate: 2027-02-17 # deprecated 2025-02-17 in v0.144.0
-{{< /code-toggle >}}
-
-Set the `expiryDate` to two years from the date of deprecation, and add a brief front matter comment to explain the setting.
 
 ## GitHub workflow
 
@@ -522,6 +534,7 @@ Step 9
 
 [ATX]: https://spec.commonmark.org/current/#atx-headings
 [basic english]: https://simple.wikipedia.org/wiki/Basic_English
+[collapsed link references]: https://discourse.gohugo.io/t/55714
 [developer documentation style guide]: https://developers.google.com/style
 [documentation repository]: https://github.com/gohugoio/hugoDocs/
 [fenced code blocks]: https://spec.commonmark.org/current/#fenced-code-blocks

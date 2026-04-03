@@ -16,6 +16,7 @@ package related_test
 import (
 	"fmt"
 	"math/rand"
+	"strings"
 	"testing"
 
 	"github.com/gohugoio/hugo/hugolib"
@@ -90,7 +91,7 @@ keywords: ['foo']
 
 ## Common p3, p4, p5
 
--- layouts/shortcodes/see-also.html --
+-- layouts/_shortcodes/see-also.html --
 {{ $p1 := site.GetPage "p1" }}
 {{ $p2 := site.GetPage "p2" }}
 {{ $p3 := site.GetPage "p3" }}
@@ -108,7 +109,7 @@ Related 2: {{ template "list-related" $related2 }}
 
 {{ define "list-related" }}{{ range $i, $e := . }} {{ $i }}: {{ .Title }}: {{ with .HeadingsFiltered}}{{ range $i, $e := .}}h{{ $i }}: {{ .Title }}|{{ .ID }}|{{ end }}{{ end }}::END{{ end }}{{ end }}
 
--- layouts/_default/single.html --
+-- layouts/single.html --
 Content: {{ .Content }}
 
 	
@@ -134,8 +135,9 @@ Related 2: 2
 }
 
 func BenchmarkRelatedSite(b *testing.B) {
-	files := `
--- config.toml --
+	var files strings.Builder
+	files.WriteString(`
+-- hugo.toml --
 baseURL = "http://example.com/"
 disableKinds = ["taxonomy", "term", "RSS", "sitemap", "robotsTXT"]
 [related]
@@ -149,9 +151,9 @@ disableKinds = ["taxonomy", "term", "RSS", "sitemap", "robotsTXT"]
   name = 'pagerefs'
   type = 'fragments'
   weight = 30	
--- layouts/_default/single.html --
+-- layouts/single.html --
 Len related: {{ site.RegularPages.Related . | len }}
-`
+`)
 
 	createContent := func(n int) string {
 		base := `---
@@ -168,22 +170,18 @@ keywords: ['k%d']
 	}
 
 	for i := 1; i < 100; i++ {
-		files += fmt.Sprintf("\n-- content/posts/p%d.md --\n"+createContent(i+1), i+1)
+		files.WriteString(fmt.Sprintf("\n-- content/posts/p%d.md --\n"+createContent(i+1), i+1))
 	}
 
 	cfg := hugolib.IntegrationTestConfig{
 		T:           b,
-		TxtarString: files,
-	}
-	builders := make([]*hugolib.IntegrationTestBuilder, b.N)
-
-	for i := range builders {
-		builders[i] = hugolib.NewIntegrationTestBuilder(cfg)
+		TxtarString: files.String(),
 	}
 
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		builders[i].Build()
+	for b.Loop() {
+		b.StopTimer()
+		bb := hugolib.NewIntegrationTestBuilder(cfg)
+		b.StartTimer()
+		bb.Build()
 	}
 }

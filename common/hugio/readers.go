@@ -19,17 +19,42 @@ import (
 	"strings"
 )
 
-// ReadSeeker wraps io.Reader and io.Seeker.
-type ReadSeeker interface {
-	io.Reader
-	io.Seeker
-}
-
 // ReadSeekCloser is implemented by afero.File. We use this as the common type for
 // content in Resource objects, even for strings.
 type ReadSeekCloser interface {
-	ReadSeeker
+	io.ReadSeeker
 	io.Closer
+}
+
+// Sizer provides the size of, typically, a io.Reader.
+// As implemented by e.g. os.File and io.SectionReader.
+type Sizer interface {
+	Size() int64
+}
+
+type SizeReader interface {
+	io.Reader
+	Sizer
+}
+
+// ToSizeReader converts the given io.Reader to a SizeReader.
+// Note that if r is not a SizeReader, the entire content will be read into memory
+func ToSizeReader(r io.Reader) (SizeReader, error) {
+	if sr, ok := r.(SizeReader); ok {
+		return sr, nil
+	}
+	b, err := io.ReadAll(r)
+	if err != nil {
+		return nil, err
+	}
+	return bytes.NewReader(b), nil
+}
+
+// CloserFunc is an adapter to allow the use of ordinary functions as io.Closers.
+type CloserFunc func() error
+
+func (f CloserFunc) Close() error {
+	return f()
 }
 
 // ReadSeekCloserProvider provides a ReadSeekCloser.
@@ -39,7 +64,7 @@ type ReadSeekCloserProvider interface {
 
 // readSeekerNopCloser implements ReadSeekCloser by doing nothing in Close.
 type readSeekerNopCloser struct {
-	ReadSeeker
+	io.ReadSeeker
 }
 
 // Close does nothing.
@@ -48,7 +73,7 @@ func (r readSeekerNopCloser) Close() error {
 }
 
 // NewReadSeekerNoOpCloser creates a new ReadSeekerNoOpCloser with the given ReadSeeker.
-func NewReadSeekerNoOpCloser(r ReadSeeker) ReadSeekCloser {
+func NewReadSeekerNoOpCloser(r io.ReadSeeker) ReadSeekCloser {
 	return readSeekerNopCloser{r}
 }
 
@@ -78,6 +103,22 @@ type StringReader interface {
 // from the given bytes slice.
 func NewReadSeekerNoOpCloserFromBytes(content []byte) readSeekerNopCloser {
 	return readSeekerNopCloser{bytes.NewReader(content)}
+}
+
+// NewReadSeekerNoOpCloserFromReader creates a new ReadSeekerNoOpCloser from the given io.Reader.
+// If the given io.Reader is not an io.ReadSeeker, the entire content will be read into memory.
+func NewReadSeekerNoOpCloserFromReader(r io.Reader) (readSeekerNopCloser, error) {
+	var rs io.ReadSeeker
+	if s, ok := r.(io.ReadSeeker); ok {
+		rs = s
+	} else {
+		b, err := io.ReadAll(r)
+		if err != nil {
+			return readSeekerNopCloser{rs}, err
+		}
+		rs = bytes.NewReader(b)
+	}
+	return readSeekerNopCloser{rs}, nil
 }
 
 // NewOpenReadSeekCloser creates a new ReadSeekCloser from the given ReadSeeker.

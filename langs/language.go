@@ -22,15 +22,21 @@ import (
 	"golang.org/x/text/collate"
 	"golang.org/x/text/language"
 
+	"github.com/bep/golocales"
+	"github.com/bep/logg"
+	"github.com/gohugoio/hugo/common/hmaps"
 	"github.com/gohugoio/hugo/common/htime"
-	"github.com/gohugoio/hugo/common/maps"
-	"github.com/gohugoio/locales"
-	translators "github.com/gohugoio/localescompressed"
+	"github.com/gohugoio/hugo/common/hugo"
+	"github.com/gohugoio/hugo/common/loggers"
+	"github.com/gohugoio/hugo/hugolib/sitesmatrix"
 )
+
+var _ sitesmatrix.DimensionInfo = (*Language)(nil)
 
 type Language struct {
 	// The language code, e.g. "en" or "no".
-	// This is currently only settable as the key in the language map in the config.
+	// This is the key used in the languages map in the configuration,
+	// and currently only settable as the key in the language map in the config.
 	Lang string
 
 	// Fields from the language config.
@@ -38,26 +44,46 @@ type Language struct {
 
 	// Used for date formatting etc. We don't want these exported to the
 	// templates.
-	translator    locales.Translator
+	translator    golocales.Translator
 	timeFormatter htime.TimeFormatter
 	tag           language.Tag
+
 	// collator1 and collator2 are the same, we have 2 to prevent deadlocks.
 	collator1 *Collator
 	collator2 *Collator
 
-	location *time.Location
+	location  *time.Location
+	isDefault bool
 
 	// This is just an alias of Site.Params.
-	params maps.Params
+	params hmaps.Params
+
+	logger loggers.Logger
+}
+
+// Name is an alias for Lang.
+func (l *Language) Name() string {
+	return l.Lang
+}
+
+func (l *Language) Logger() logg.Logger {
+	if l.logger == nil {
+		return loggers.Log().Logger()
+	}
+	return l.logger.Logger()
+}
+
+func (l *Language) IsDefault() bool {
+	return l.isDefault
 }
 
 // NewLanguage creates a new language.
-func NewLanguage(lang, defaultContentLanguage, timeZone string, languageConfig LanguageConfig) (*Language, error) {
-	translator := translators.GetTranslator(lang)
+func NewLanguage(lang, defaultContentLanguage, timeZone string, languageConfig LanguageConfig, logger loggers.Logger) (*Language, error) {
+	translator := golocales.New(lang)
 	if translator == nil {
-		translator = translators.GetTranslator(defaultContentLanguage)
+		translator = golocales.New(defaultContentLanguage)
 		if translator == nil {
-			translator = translators.GetTranslator("en")
+			translator = golocales.New("en")
 		}
 	}
 
@@ -87,6 +113,8 @@ func NewLanguage(lang, defaultContentLanguage, timeZone string, languageConfig L
 		tag:            tag,
 		collator1:      coll1,
 		collator2:      coll2,
+		isDefault:      lang == defaultContentLanguage,
+		logger:         logger,
 	}
 
 	return l, l.loadLocation(timeZone)
@@ -98,18 +126,53 @@ var DeprecationFunc = func(item, alternative string, err bool) {}
 // Params returns the language params.
 // Note that this is the same as the Site.Params, but we keep it here for legacy reasons.
 // Deprecated: Use the site.Params instead.
-func (l *Language) Params() maps.Params {
+func (l *Language) Params() hmaps.Params {
 	// TODO(bep) Remove this for now as it created a little too much noise. Need to think about this.
 	// See https://github.com/gohugoio/hugo/issues/11025
 	// DeprecationFunc(".Language.Params", paramsDeprecationWarning, false)
 	return l.params
 }
 
+// Deprecated: Use Locale instead.
 func (l *Language) LanguageCode() string {
+	hugo.DeprecateWithLogger(".Language.LanguageCode", "Use .Language.Locale instead.", "v0.158.0", l.Logger())
+	return l.Locale()
+}
+
+func (l *Language) Locale() string {
+	if l.LanguageConfig.Locale != "" {
+		return l.LanguageConfig.Locale
+	}
 	if l.LanguageConfig.LanguageCode != "" {
 		return l.LanguageConfig.LanguageCode
 	}
 	return l.Lang
+}
+
+// Deprecated: Use Direction instead.
+func (l *Language) LanguageDirection() string {
+	hugo.DeprecateWithLogger(".Language.LanguageDirection", "Use .Language.Direction instead.", "v0.158.0", l.Logger())
+	return l.Direction()
+}
+
+func (l *Language) Direction() string {
+	if l.LanguageConfig.Direction != "" {
+		return l.LanguageConfig.Direction
+	}
+	return l.LanguageConfig.LanguageDirection
+}
+
+// Deprecated: Use Label instead.
+func (l *Language) LanguageName() string {
+	hugo.DeprecateWithLogger(".Language.LanguageName", "Use .Language.Label instead.", "v0.158.0", l.Logger())
+	return l.Label()
+}
+
+func (l *Language) Label() string {
+	if l.LanguageConfig.Label != "" {
+		return l.LanguageConfig.Label
+	}
+	return l.LanguageConfig.LanguageName
 }
 
 func (l *Language) loadLocation(tzStr string) error {
@@ -151,7 +214,7 @@ func (l Languages) AsIndexSet() map[string]int {
 // Internal access to unexported Language fields.
 // This construct is to prevent them from leaking to the templates.
 
-func SetParams(l *Language, params maps.Params) {
+func SetParams(l *Language, params hmaps.Params) {
 	l.params = params
 }
 
@@ -159,7 +222,7 @@ func GetTimeFormatter(l *Language) htime.TimeFormatter {
 	return l.timeFormatter
 }
 
-func GetTranslator(l *Language) locales.Translator {
+func GetTranslator(l *Language) golocales.Translator {
 	return l.translator
 }
 
@@ -186,4 +249,14 @@ type Collator struct {
 // to acquire a lock on it before calling this method.
 func (c *Collator) CompareStrings(a, b string) int {
 	return c.c.CompareString(a, b)
+}
+
+// IndexDefault returns the index of the default language.
+func IndexDefault(languages Languages) int {
+	for i, l := range languages {
+		if l.isDefault {
+			return i
+		}
+	}
+	panic("no default lang found")
 }

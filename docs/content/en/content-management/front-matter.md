@@ -41,13 +41,13 @@ The most common front matter fields are `date`, `draft`, `title`, and `weight`, 
 [parameters]: #parameters
 
 aliases
-: (`string array`) An array of one or more aliases, where each alias is a relative URL that will redirect the browser to the current location. Access these values from a template using the [`Aliases`] method on a `Page` object. See the [aliases] section for details.
+: (`[]string`) An array of one or more [page-relative](g) or [site-relative](g) paths that should redirect to the current page. Hugo resolves these to [server-relative](g) URLs during the build process. Access these values from a template using the [`Aliases`] method on a `Page` object. See the [aliases] section for details.
 
 build
 : (`map`) A map of [build options].
 
 cascade
-: (`map`) A map of front matter keys whose values are passed down to the page's descendants unless overwritten by self or a closer ancestor's cascade. See the [cascade] section for details.
+: (`map`) A map (or a slice of maps) of front matter keys whose values are passed down to the page's descendants unless overwritten by self or a closer ancestor's cascade. See the [cascade] section for details.
 
 date
 : (`string`) The date associated with the page, typically the creation date. Note that the TOML format also supports unquoted date/time values. See the [dates](#dates) section for examples. Access this value from a template using the [`Date`] method on a `Page` object.
@@ -68,7 +68,7 @@ isCJKLanguage
 : (`bool`) Whether the content language is in the [CJK](g) family. This value determines how Hugo calculates word count, and affects the values returned by the [`WordCount`], [`FuzzyWordCount`], [`ReadingTime`], and [`Summary`] methods on a `Page` object.
 
 keywords
-: (`string array`) An array of keywords, typically rendered within a `meta` element within the `head` element of the published HTML file, or used as a [taxonomy](g) to classify content. Access these values from a template using the [`Keywords`] method on a `Page` object.
+: (`[]string`) An array of keywords, typically rendered within a `meta` element within the `head` element of the published HTML file, or used as a [taxonomy](g) to classify content. Access these values from a template using the [`Keywords`] method on a `Page` object.
 
 lastmod
 : (`string`) The date that the page was last modified. Note that the TOML format also supports unquoted date/time values. See the [dates](#dates) section for examples. Access this value from a template using the [`Lastmod`] method on a `Page` object.
@@ -83,16 +83,15 @@ markup
 : (`string`) An identifier corresponding to one of the supported [content formats]. If not provided, Hugo determines the content renderer based on the file extension.
 
 menus
-: (`string`, `string array`, or `map`) If set, Hugo adds the page to the given menu or menus. See the [menus] page for details.
+: (`string`, `[]string`, or `map`) If set, Hugo adds the page to the given menu or menus. See the [menus] page for details.
 
 modified
 : Alias to [lastmod](#lastmod).
 
 outputs
-: (`string array`) The [output formats] to render. See [configure outputs] for more information.
+: (`[]string`) The [output formats] to render. See [configure outputs] for more information.
 
 params
-: {{< new-in 0.123.0 />}}
 : (`map`) A map of custom [page parameters].
 
 pubdate
@@ -109,6 +108,24 @@ resources
 
 sitemap
 : (`map`) A map of sitemap options. See the [sitemap templates] page for details. Access these values from a template using the [`Sitemap`] method on a `Page` object.
+
+sites
+: {{< new-in 0.153.0 />}}
+: (`map`) A map to define [sites matrix](g) and [sites complements](g) for the page.
+
+  <!-- markdownlint-disable MD049 -->
+  
+  {{< code-toggle file=content/_index.md fm=true >}}
+  title = 'Home'
+  [sites.matrix]
+  languages = ["en","fr"]
+  versions = ["v1.2.*","v2.*.*"]
+  roles = ["**"]
+  [sites.complements]
+  versions = ["v3.*.*"]
+  {{< /code-toggle >}}
+
+  <!-- markdownlint-enable MD049 -->
 
 slug
 : (`string`) Overrides the last segment of the URL path. Not applicable to `home`, `section`, `taxonomy`, or `term` pages. See the [URL management] page for details. Access this value from a template using the [`Slug`] method on a `Page` object.
@@ -136,8 +153,6 @@ weight
 
 ## Parameters
 
-{{< new-in 0.123.0 />}}
-
 Specify custom page parameters under the `params` key in front matter:
 
 {{< code-toggle file=content/example.md fm=true >}}
@@ -163,7 +178,7 @@ The embedded templates will skip a parameter if not provided in front matter, bu
 
 ## Taxonomies
 
-Classify content by adding taxonomy terms to front matter. For example, with this site configuration:
+Classify content by adding taxonomy terms to front matter. For example, with this project configuration:
 
 {{< code-toggle file=hugo >}}
 [taxonomies]
@@ -219,12 +234,13 @@ title = 'Home'
 color = 'red'
 {{< /code-toggle >}}
 
+{{< new-in 0.153.0 />}}
+From Hugo 0.153.0, you can also set the [sites](#sites) front matter as cascade front matter values, which means that you can e.g. apply one or more languages to the `target` pages.
+
 ### Target
 
 <!-- TODO
-Update the <version> and <date> below when we actually get around to deprecating _target.
-
-We deprecated the `_target` front matter key in favor of `target` in <version> on <date>. Remove footnote #1 on or after 2026-03-10 (15 months after deprecation).
+We deprecated the `_target` front matter key in favor of `target` in v0.156.0 on 2026-02-17. Remove footnote #1 on or after 2027-05-17 (15 months after deprecation).
 -->
 
 The `target`[^1] keyword allows you to target specific pages or [environments](g). For example, to cascade a "color" parameter from the home page only to pages within the "articles" section, including the "articles" section page itself:
@@ -237,18 +253,24 @@ title = 'Home'
 color = 'red'
 [cascade.target]
 path = '{/articles,/articles/**}'
+[cascade.target.sites.matrix]
+languages = ['en','fr']
 {{< /code-toggle >}}
 
 Use any combination of these keywords to target pages and/or environments:
 
 environment
-: (`string`) A [glob](g) pattern matching the build [environment](g). For example: `{staging,production}`.
+: (`string`) A [glob pattern](g) matching the build [environment](g). For example: `{staging,production}`.
 
 kind
-: (`string`) A [glob](g) pattern matching the [page kind](g). For example: `{taxonomy,term}`.
+: (`string`) A [glob pattern](g) matching the [page kind](g). For example: `{taxonomy,term}`.
 
 path
-: (`string`) A [glob](g) pattern matching the page's [logical path](g). For example: `{/books,/books/**}`.
+: (`string`) A [glob pattern](g) matching the page's [logical path](g). For example: `{/books,/books/**}`.
+
+sites
+: {{< new-in 0.153.0 />}}
+: (`map`) A map to define [sites matrix](g) for the target, as in: Which sites should receive the cascaded values.
 
 ### Array
 
@@ -271,9 +293,9 @@ kind = 'page'
 {{< /code-toggle >}}
 
 > [!note]
-> For multilingual sites, defining cascade values in your site configuration is often more efficient. This avoids repeating the same cascade values on the home, section, taxonomy, or term page for each language. See&nbsp;[details](/configuration/cascade/).
+> For multilingual projects, defining cascade values in your project configuration is often more efficient. This avoids repeating the same cascade values on the home, section, taxonomy, or term page for each language. See&nbsp;[details](/configuration/cascade/).
 >
-> If you choose to define cascade values in front matter for a multilingual site, you must create a corresponding home, section, taxonomy, or term page for every language.
+> If you choose to define cascade values in front matter for a multilingual project, you must create a corresponding home, section, taxonomy, or term page for every language.
 
 ## Emacs Org Mode
 
@@ -306,10 +328,10 @@ When populating a date field, whether a [custom page parameter](#parameters) or 
 
 {{% include "/_common/parsable-date-time-strings.md" %}}
 
-To override the default time zone, set the [`timeZone`](/configuration/all/#timezone) in your site configuration. The order of precedence for determining the time zone is:
+To override the default time zone, set the [`timeZone`](/configuration/all/#timezone) in your project configuration. The order of precedence for determining the time zone is:
 
 1. The time zone offset in the date/time string
-1. The time zone specified in your site configuration
+1. The time zone specified in your project configuration
 1. The `Etc/UTC` time zone
 
 [`aliases`]: /methods/page/aliases/
@@ -322,18 +344,18 @@ To override the default time zone, set the [`timeZone`](/configuration/all/#time
 [`lastmod`]: /methods/page/date/
 [`layout`]: /methods/page/layout/
 [`linktitle`]: /methods/page/linktitle/
-[`opengraph.html`]: {{% eturl opengraph %}}
+[`opengraph.html`]: <{{% eturl opengraph %}}>
 [`Param`]: /methods/page/param/
 [`Params`]: /methods/page/params/
 [`publishdate`]: /methods/page/publishdate/
 [`readingtime`]: /methods/page/readingtime/
-[`schema.html`]: {{% eturl schema %}}
+[`schema.html`]: <{{% eturl schema %}}>
 [`sitemap`]: /methods/page/sitemap/
 [`slug`]: /methods/page/slug/
 [`Summary`]: /methods/page/summary/
 [`title`]: /methods/page/title/
 [`translationkey`]: /methods/page/translationkey/
-[`twitter_cards.html`]: {{% eturl twitter_cards %}}
+[`twitter_cards.html`]: <{{% eturl twitter_cards %}}>
 [`type`]: /methods/page/type/
 [`weight`]: /methods/page/weight/
 [`wordcount`]: /methods/page/wordcount/

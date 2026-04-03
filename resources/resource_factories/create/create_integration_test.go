@@ -20,18 +20,20 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/gohugoio/hugo/htesting"
 	"github.com/gohugoio/hugo/hugolib"
 )
 
 func TestGetRemoteHead(t *testing.T) {
 	files := `
--- config.toml --
+-- hugo.toml --
 [security]
   [security.http]
     methods = ['(?i)GET|POST|HEAD']
     urls = ['.*gohugo\.io.*']
--- layouts/index.html --
+-- layouts/home.html --
 {{ $url := "https://gohugo.io/img/hugo.png" }}
 {{ $opts := dict "method" "head" }}
 {{ with try (resources.GetRemote $url $opts) }}
@@ -62,12 +64,12 @@ func TestGetRemoteHead(t *testing.T) {
 
 func TestGetRemoteResponseHeaders(t *testing.T) {
 	files := `
--- config.toml --
+-- hugo.toml --
 [security]
   [security.http]
     methods = ['(?i)GET|POST|HEAD']
     urls = ['.*gohugo\.io.*']
--- layouts/index.html --
+-- layouts/home.html --
 {{ $url := "https://gohugo.io/img/hugo.png" }}
 {{ $opts := dict "method" "head" "responseHeaders" (slice "X-Frame-Options" "Server") }}
 {{ with try (resources.GetRemote $url $opts) }}
@@ -97,6 +99,7 @@ func TestGetRemoteResponseHeaders(t *testing.T) {
 
 func TestGetRemoteRetry(t *testing.T) {
 	t.Parallel()
+	htesting.SkipSlowTestUnlessCI(t)
 
 	temporaryHTTPCodes := []int{408, 429, 500, 502, 503, 504}
 	numPages := 20
@@ -121,7 +124,7 @@ timeout = "TIMEOUT"
 [security.http]
 urls = ['.*']
 mediaTypes = ['text/plain']
--- layouts/_default/single.html --
+-- layouts/single.html --
 {{ $url := printf "%s%s" "URL" .RelPermalink}}
 {{ $opts := dict }}
 {{ with try (resources.GetRemote $url $opts) }}
@@ -172,4 +175,95 @@ mediaTypes = ['text/plain']
 			b.AssertLogContains("retry timeout")
 		}
 	})
+}
+
+func TestGetRemotePerRequestTimeout(t *testing.T) {
+	t.Parallel()
+	htesting.SkipSlowTestUnlessCI(t)
+
+	// A server that always sleeps longer than the per-request timeout.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(2 * time.Second)
+		w.Header().Add("Content-Type", "text/plain")
+		w.Write([]byte("too late"))
+	}))
+	t.Cleanup(func() { srv.Close() })
+
+	files := `
+-- hugo.toml --
+timeout = "30s"
+[security]
+[security.http]
+urls = ['.*']
+mediaTypes = ['text/plain']
+-- layouts/home.html --
+{{ $url := "URL" }}
+{{ $opts := dict "timeout" "200ms" }}
+{{ with try (resources.GetRemote $url $opts) }}
+  {{ with .Err }}
+    Err: {{ . }}
+  {{ else with .Value }}
+    Content: {{ .Content }}
+  {{ end }}
+{{ end }}
+`
+	files = strings.ReplaceAll(files, "URL", srv.URL)
+
+	b := hugolib.NewIntegrationTestBuilder(
+		hugolib.IntegrationTestConfig{
+			T:           t,
+			TxtarString: files,
+		},
+	)
+	b.Build()
+
+	// The per-request timeout of 200ms should fire well before the global 30s timeout.
+	b.AssertFileContent("public/index.html", "Err:")
+}
+
+// Issue 14611.
+func TestGetRemotePerRequestTimeoutBodyRead(t *testing.T) {
+	t.Parallel()
+
+	// Server sends headers immediately but streams body with a delay.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Type", "text/plain")
+		w.WriteHeader(200)
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+		time.Sleep(300 * time.Millisecond)
+		w.Write([]byte("Hello from remote."))
+	}))
+	t.Cleanup(func() { srv.Close() })
+
+	files := `
+-- hugo.toml --
+timeout = "30s"
+[security]
+[security.http]
+urls = ['.*']
+mediaTypes = ['text/plain']
+-- layouts/home.html --
+{{ $url := "URL" }}
+{{ $opts := dict "timeout" "5s" }}
+{{ with try (resources.GetRemote $url $opts) }}
+  {{ with .Err }}
+    Err: {{ . }}
+  {{ else with .Value }}
+    Content: {{ .Content }}
+  {{ end }}
+{{ end }}
+`
+	files = strings.ReplaceAll(files, "URL", srv.URL)
+
+	b := hugolib.NewIntegrationTestBuilder(
+		hugolib.IntegrationTestConfig{
+			T:           t,
+			TxtarString: files,
+		},
+	)
+	b.Build()
+
+	b.AssertFileContent("public/index.html", "Content: Hello from remote.")
 }

@@ -36,13 +36,13 @@ iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAA
 -- assets/mydata.yaml --
 p1: "p1"
 draft: false
--- layouts/partials/get-value.html --
+-- layouts/_partials/get-value.html --
 {{ $val := "p1" }}
 {{ return $val }}
--- layouts/_default/baseof.html --
+-- layouts/baseof.html --
 Baseof:
 {{ block "main" . }}{{ end }}
--- layouts/_default/single.html --
+-- layouts/single.html --
 {{ define "main" }}
 Single: {{ .Title }}|{{ .Content }}|Params: {{ .Params.param1 }}|Path: {{ .Path }}|
 Dates: Date: {{ .Date.Format "2006-01-02" }}|Lastmod: {{ .Lastmod.Format "2006-01-02" }}|PublishDate: {{ .PublishDate.Format "2006-01-02" }}|ExpiryDate: {{ .ExpiryDate.Format "2006-01-02" }}|
@@ -55,7 +55,7 @@ Resized Featured Image: {{ .RelPermalink }}|{{ .Width }}|
 {{ end}}
 {{ end }}
 {{ end }}
--- layouts/_default/list.html --
+-- layouts/list.html --
 List: {{ .Title }}|{{ .Content }}|
 RegularPagesRecursive: {{ range .RegularPagesRecursive }}{{ .Title }}:{{ .Path }}|{{ end }}$
 Sections: {{ range .Sections }}{{ .Title }}:{{ .Path }}|{{ end }}$
@@ -122,7 +122,7 @@ docs/p1/sub/mymixcasetext2.txt
 		"RelPermalink: /docs/p1/sub/mymixcasetext2.txt|Name: sub/mymixcasetext2.txt|",
 		"RelPermalink: /mydata.yaml|Name: sub/data1.yaml|Title: Sub data|Params: map[]|",
 		"Featured Image: /a/pixel.png|featured.png|",
-		"Resized Featured Image: /a/pixel_hu_a32b3e361d55df1.png|10|",
+		"Resized Featured Image: /a/pixel_hu_a354833fd576551d.png|10|",
 		// Resource from string
 		"RelPermalink: /docs/p1/mytext.txt|Name: textresource|Title: My Text Resource|Params: map[param1:param1v]|",
 		// Dates
@@ -132,7 +132,7 @@ docs/p1/sub/mymixcasetext2.txt
 	b.AssertFileContent("public/docs/p3/index.html", "<strong>Hello World Default</strong>")
 }
 
-func TestPagesFromGoTmplAsciidocAndSimilar(t *testing.T) {
+func TestPagesFromGoTmplAsciiDocAndSimilar(t *testing.T) {
 	files := `
 -- hugo.toml --
 disableKinds = ["taxonomy", "term", "rss", "sitemap"]
@@ -140,7 +140,7 @@ baseURL = "https://example.com"
 [security]
 [security.exec]
 allow = ['asciidoctor', 'pandoc','rst2html', 'python']
--- layouts/_default/single.html --
+-- layouts/single.html --
 |Content: {{ .Content }}|Title: {{ .Title }}|Path: {{ .Path }}|
 -- content/docs/_content.gotmpl --
 {{ $.AddPage (dict "path" "asciidoc" "content" (dict "value" "Mark my words, #automation is essential#." "mediaType" "text/asciidoc" )) }}
@@ -153,7 +153,7 @@ allow = ['asciidoctor', 'pandoc','rst2html', 'python']
 
 	b := hugolib.Test(t, files)
 
-	if asciidocext.Supports() {
+	if ok, _ := asciidocext.Supports(); ok {
 		b.AssertFileContent("public/docs/asciidoc/index.html",
 			"Mark my words, <mark>automation is essential</mark>",
 			"Path: /docs/asciidoc|",
@@ -198,14 +198,6 @@ baseURL = "https://example.com"
 		b.Assert(err.Error(), qt.Contains, "error calling AddPage: empty path is reserved for the home page")
 	})
 
-	t.Run("AddPage, lang set", func(t *testing.T) {
-		files := strings.ReplaceAll(filesTemplate, "DICT", `(dict "kind" "page" "path" "p1" "lang" "en")`)
-		b, err := hugolib.TestE(t, files)
-		b.Assert(err, qt.IsNotNil)
-		b.Assert(err.Error(), qt.Contains, "_content.gotmpl:1:4")
-		b.Assert(err.Error(), qt.Contains, "error calling AddPage: lang must not be set")
-	})
-
 	t.Run("Site methods not ready", func(t *testing.T) {
 		filesTemplate := `
 -- hugo.toml --
@@ -247,7 +239,7 @@ func TestPagesFromGoTmplEditDataResource(t *testing.T) {
 func TestPagesFromGoTmplEditPartial(t *testing.T) {
 	t.Parallel()
 	b := hugolib.TestRunning(t, filesPagesFromDataTempleBasic)
-	b.EditFileReplaceAll("layouts/partials/get-value.html", "p1", "p1edited").Build()
+	b.EditFileReplaceAll("layouts/_partials/get-value.html", "p1", "p1edited").Build()
 	b.AssertFileContent("public/docs/p1/index.html", "Single: p1:p1edited|")
 	b.AssertFileContent("public/docs/index.html", "p1edited")
 }
@@ -378,7 +370,7 @@ title = "Title"
 weight = 2
 title = "Titre"
 disabled = DISABLE
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single: {{ .Title }}|{{ .Content }}|
 -- content/docs/_content.gotmpl --
 {{ $.AddPage  (dict "kind" "page" "path" "p1" "title" "Title" ) }}
@@ -403,7 +395,7 @@ func TestPagesFromGoTmplDefaultPageSort(t *testing.T) {
 	files := `
 -- hugo.toml --
 defaultContentLanguage = "en"
--- layouts/index.html --
+-- layouts/home.html --
 {{ range site.RegularPages }}{{ .RelPermalink }}|{{ end}}
 -- content/_content.gotmpl --
 {{ $.AddPage  (dict "kind" "page" "path" "docs/_p22" "title" "A" ) }}
@@ -472,7 +464,7 @@ func TestPagesFromGoTmplMarkdownify(t *testing.T) {
 -- hugo.toml --
 disableKinds = ["taxonomy", "term", "rss", "sitemap"]
 baseURL = "https://example.com"
--- layouts/_default/single.html --
+-- layouts/single.html --
 |Content: {{ .Content }}|Title: {{ .Title }}|Path: {{ .Path }}|
 -- content/docs/_content.gotmpl --
 {{ $content := "**Hello World**" | markdownify }}
@@ -493,7 +485,7 @@ func TestPagesFromGoTmplResourceWithoutExtensionWithMediaTypeProvided(t *testing
 -- hugo.toml --
 disableKinds = ["taxonomy", "term", "rss", "sitemap"]
 baseURL = "https://example.com"
--- layouts/_default/single.html --
+-- layouts/single.html --
 |Content: {{ .Content }}|Title: {{ .Title }}|Path: {{ .Path }}|
 {{ range .Resources }}
 |RelPermalink: {{ .RelPermalink }}|Name: {{ .Name }}|Title: {{ .Title }}|Params: {{ .Params }}|MediaType: {{ .MediaType }}|
@@ -511,11 +503,11 @@ baseURL = "https://example.com"
 func TestPagesFromGoTmplCascade(t *testing.T) {
 	t.Parallel()
 
-	files := ` 
+	files := `
 -- hugo.toml --
 disableKinds = ["taxonomy", "term", "rss", "sitemap"]
 baseURL = "https://example.com"
--- layouts/_default/single.html --
+-- layouts/single.html --
 |Content: {{ .Content }}|Title: {{ .Title }}|Path: {{ .Path }}|Params: {{ .Params }}|
 -- content/_content.gotmpl --
 {{ $cascade := dict "params" (dict "cascadeparam1" "cascadeparam1value" ) }}
@@ -531,11 +523,11 @@ baseURL = "https://example.com"
 func TestPagesFromGoBuildOptions(t *testing.T) {
 	t.Parallel()
 
-	files := ` 
+	files := `
 -- hugo.toml --
 disableKinds = ["taxonomy", "term", "rss", "sitemap"]
 baseURL = "https://example.com"
--- layouts/_default/single.html --
+-- layouts/single.html --
 |Content: {{ .Content }}|Title: {{ .Title }}|Path: {{ .Path }}|Params: {{ .Params }}|
 -- content/_content.gotmpl --
 {{ $.AddPage (dict "path" "docs/p1" "content" (dict "value" "**Hello World**" "mediaType" "text/markdown" )) }}
@@ -558,7 +550,7 @@ func TestPagesFromGoPathsWithDotsIssue12493(t *testing.T) {
 disableKinds = ['home','section','rss','sitemap','taxonomy','term']
 -- content/_content.gotmpl --
 {{ .AddPage (dict "path" "s-1.2.3/p-4.5.6" "title" "p-4.5.6") }}
--- layouts/_default/single.html --
+-- layouts/single.html --
 {{ .Title }}
 `
 
@@ -576,7 +568,7 @@ disableKinds = ['home','section','rss','sitemap','taxonomy','term']
 -- content/_content.gotmpl --
 {{ .AddPage (dict "path" "p1" "title" "p1" "params" (dict "paraM1" "param1v" )) }}
 {{ .AddResource (dict "path" "p1/data1.yaml" "content" (dict "value" "data1" ) "params" (dict "paraM1" "param1v" )) }}
--- layouts/_default/single.html --
+-- layouts/single.html --
 {{ .Title }}|{{ .Params.paraM1 }}
 {{ range .Resources }}
 {{ .Name }}|{{ .Params.paraM1 }}
@@ -591,73 +583,6 @@ disableKinds = ['home','section','rss','sitemap','taxonomy','term']
 	)
 }
 
-func TestPagesFromGoTmplPathWarningsPathPage(t *testing.T) {
-	t.Parallel()
-
-	files := `
--- hugo.toml --
-baseURL = "https://example.com"
-disableKinds = ['home','section','rss','sitemap','taxonomy','term']
-printPathWarnings = true
--- content/_content.gotmpl --
-{{ .AddPage (dict "path" "p1" "title" "p1" ) }}
-{{ .AddPage (dict "path" "p2" "title" "p2" ) }}
--- content/p1.md --
----
-title: "p1"
----
--- layouts/_default/single.html --
-{{ .Title }}|
-`
-
-	b := hugolib.Test(t, files, hugolib.TestOptWarn())
-
-	b.AssertFileContent("public/p1/index.html", "p1|")
-
-	b.AssertLogContains("Duplicate content path")
-
-	files = strings.ReplaceAll(files, `"path" "p1"`, `"path" "p1new"`)
-
-	b = hugolib.Test(t, files, hugolib.TestOptWarn())
-
-	b.AssertLogContains("! WARN")
-}
-
-func TestPagesFromGoTmplPathWarningsPathResource(t *testing.T) {
-	t.Parallel()
-
-	files := `
--- hugo.toml --
-baseURL = "https://example.com"
-disableKinds = ['home','section','rss','sitemap','taxonomy','term']
-printPathWarnings = true
--- content/_content.gotmpl --
-{{ .AddResource (dict "path" "p1/data1.yaml" "content" (dict "value" "data1" ) ) }}
-{{ .AddResource (dict "path" "p1/data2.yaml" "content" (dict "value" "data2" ) ) }}
-
--- content/p1/index.md --
----
-title: "p1"
----
--- content/p1/data1.yaml --
-value: data1
--- layouts/_default/single.html --
-{{ .Title }}|
-`
-
-	b := hugolib.Test(t, files, hugolib.TestOptWarn())
-
-	b.AssertFileContent("public/p1/index.html", "p1|")
-
-	b.AssertLogContains("Duplicate resource path")
-
-	files = strings.ReplaceAll(files, `"path" "p1/data1.yaml"`, `"path" "p1/data1new.yaml"`)
-
-	b = hugolib.Test(t, files, hugolib.TestOptWarn())
-
-	b.AssertLogContains("! WARN")
-}
-
 func TestPagesFromGoTmplShortcodeNoPreceddingCharacterIssue12544(t *testing.T) {
 	t.Parallel()
 
@@ -670,9 +595,9 @@ disableKinds = ['home','rss','section','sitemap','taxonomy','term']
 
 {{ $content := dict "mediaType" "text/html" "value" "{{< sc >}}" }}
 {{ .AddPage (dict "content" $content "path" "b") }}
--- layouts/_default/single.html --
+-- layouts/single.html --
 |{{ .Content }}|
--- layouts/shortcodes/sc.html --
+-- layouts/_shortcodes/sc.html --
 foo
 {{- /**/ -}}
 `
@@ -698,7 +623,7 @@ name = "Footer"
 -- content/_content.gotmpl --
 {{ .AddPage (dict "path" "p1" "title" "p1" "menus" "main" ) }}
 {{ .AddPage (dict "path" "p2" "title" "p2" "menus" (slice "main" "footer")) }}
--- layouts/index.html --
+-- layouts/home.html --
 Main: {{ range index site.Menus.main }}{{ .Name }}|{{ end }}|
 Footer: {{ range index site.Menus.footer }}{{ .Name }}|{{ end }}|
 
@@ -719,18 +644,18 @@ func TestPagesFromGoTmplMenusMap(t *testing.T) {
 -- hugo.toml --
 disableKinds = ['rss','section','sitemap','taxonomy','term']
 -- content/_content.gotmpl --
-{{ $menu1 := dict 
+{{ $menu1 := dict
     "parent" "main-page"
     "identifier" "id1"
 }}
-{{ $menu2 := dict 
+{{ $menu2 := dict
     "parent" "main-page"
     "identifier" "id2"
 }}
 {{ $menus := dict "m1" $menu1 "m2" $menu2 }}
 {{ .AddPage (dict "path" "p1" "title" "p1" "menus" $menus ) }}
 
--- layouts/index.html --
+-- layouts/home.html --
 Menus: {{ range $k, $v := site.Menus }}{{ $k }}|{{ end }}
 
 `
@@ -754,7 +679,7 @@ unsafe = true
 	"path" "p1"
   }}
   {{ .AddPage $page }}
--- layouts/_default/single.html --
+-- layouts/single.html --
 summary: {{ .Summary }}|content: {{ .Content}}
 `
 
@@ -784,9 +709,9 @@ tags: ["mytag"]
 -- content/tags/_content.gotmpl --
 {{ .AddPage (dict "path" "mothertag" "title" "My title" "kind" "term") }}
 --
--- layouts/_default/taxonomy.html --
+-- layouts/taxonomy.html --
 Terms: {{ range .Data.Terms.ByCount }}{{ .Name }}: {{ .Count }}|{{ end }}§s
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single.
 `
 
@@ -934,7 +859,7 @@ Title: {{ .Title }}|Content: {{ .Content }}|
 func TestPagesFromGoTmplHome(t *testing.T) {
 	t.Parallel()
 
-	files := ` 
+	files := `
 -- hugo.toml --
 disableKinds = ["taxonomy", "term", "rss", "sitemap"]
 baseURL = "https://example.com"
@@ -947,4 +872,50 @@ baseURL = "https://example.com"
 	b := hugolib.Test(t, files)
 
 	b.AssertFileContent("public/index.html", "home: My Home!|")
+}
+
+func TestPagesFromGoTmplIssue14299(t *testing.T) {
+	t.Parallel()
+
+	files := `
+-- hugo.toml --
+disableKinds = ["taxonomy", "term", "rss", "sitemap"]
+baseURL = "https://example.com"
+-- layouts/all.html --
+{{ .Kind }}: {{ .Title }}|
+-- content/_content.gotmpl --
+{{ $a := "foo" }}
+-- content/_index.md --
+-- content/bar/_content.gotmpl --
+{{ $a := "bar" }}
+-- content/bar/index.md --
+`
+	// _content.gotmpl which was siblings of index.md (leaf bundles) was mistakingly classified as a content resource.
+	hugolib.Test(t, files)
+}
+
+// Issue 14684
+func TestPagesFromGoTmplAddResourceFromStringContent(t *testing.T) {
+	t.Parallel()
+
+	files := `
+-- hugo.toml --
+disableKinds = ["taxonomy", "term", "rss", "sitemap"]
+baseURL = "https://example.com"
+-- assets/a/pixel.png --
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==
+-- layouts/single.html --
+{{ with .Resources.Get "pixel.png" }}
+{{ with .Resize "1x1" }}Resized: {{ .Width }}x{{ .Height }}|{{ end }}
+{{ end }}
+-- content/_content.gotmpl --
+{{ $pixel := resources.Get "a/pixel.png" }}
+{{ $content := dict "mediaType" $pixel.MediaType.Type "value" $pixel.Content }}
+{{ $.AddPage (dict "path" "p1" "title" "p1") }}
+{{ $.AddResource (dict "path" "p1/pixel.png" "content" $content) }}
+`
+
+	b := hugolib.Test(t, files)
+
+	b.AssertFileContent("public/p1/index.html", "Resized: 1x1|")
 }

@@ -55,7 +55,7 @@ func TestTailwindV4Basic(t *testing.T) {
   --color-neon-lime: oklch(91.5% 0.258 129);
   --color-neon-cyan: oklch(91.3% 0.139 195.8);
 }
--- layouts/index.html --
+-- layouts/home.html --
 {{ $css := resources.Get "css/styles.css" | css.TailwindCSS }}
 CSS: {{ $css.Content | safeCSS }}|
 `
@@ -74,6 +74,7 @@ CSS: {{ $css.Content | safeCSS }}|
 
 func TestTailwindCSSNoInlineImportsIssue13719(t *testing.T) {
 	t.Parallel()
+	htesting.SkipSlowTestUnlessCI(t)
 
 	files := `
 -- hugo.toml --

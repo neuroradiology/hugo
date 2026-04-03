@@ -25,7 +25,7 @@ Step 1
 : Install [Node.js].
 
 Step 2
-: Install the required Node.js packages in the root of your project:
+: Install the required Node packages in the root of your project:
 
   ```sh {copy=true}
   npm i -D postcss postcss-cli autoprefixer @fullhuman/postcss-purgecss
@@ -104,7 +104,7 @@ PWD
 
 HUGO_ENVIRONMENT
 : The current Hugo environment, set with the `--environment` command line flag.
-Default is `production` for `hugo` and `development` for `hugo server`.
+Default is `production` for `hugo build` and `development` for `hugo server`.
 
 HUGO_PUBLISHDIR
 : The absolute path to the publish directory, typically `public`. This value points to a directory on disk, even when rendering to memory with the `--renderToMemory` command line flag.

@@ -30,7 +30,7 @@ type Config struct {
 	Disqus          Disqus
 	GoogleAnalytics GoogleAnalytics
 	Instagram       Instagram
-	Twitter         Twitter // deprecated in favor of X in v0.141.0
+	Twitter         Twitter `json:"-"` // deprecated in favor of X in v0.141.0
 	Vimeo           Vimeo
 	YouTube         YouTube
 	X               X
@@ -112,12 +112,8 @@ type X struct {
 
 // DecodeConfig creates a privacy Config from a given Hugo configuration.
 func DecodeConfig(cfg config.Provider) (pc Config, err error) {
-	if !cfg.IsSet(privacyConfigKey) {
-		return
-	}
-
+	pc.GoogleAnalytics.RespectDoNotTrack = true
 	m := cfg.GetStringMap(privacyConfigKey)
-
 	err = mapstructure.WeakDecode(m, &pc)
 
 	return

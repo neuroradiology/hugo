@@ -45,7 +45,6 @@ Page
 : (`page`) A reference to the current page.
 
 PageInner
-: {{< new-in 0.125.0 />}}
 : (`page`) A reference to a page nested via the [`RenderShortcodes`] method. [See details](#pageinner-details).
 
 PlainText
@@ -90,7 +89,7 @@ To render standalone images within `figure` elements:
 {{- end -}}
 ```
 
-Note that the above requires the following site configuration:
+Note that the above requires the following project configuration:
 
 {{< code-toggle file=hugo >}}
 [markup.goldmark.parser]
@@ -99,22 +98,20 @@ wrapStandAloneImageWithinParagraph = false
 
 ## Embedded
 
-{{< new-in 0.123.0 />}}
-
-Hugo includes an [embedded image render hook] to resolve Markdown image destinations. You can adjust its behavior in your site configuration. This is the default setting:
+Hugo includes an [embedded image render hook] to resolve Markdown image destinations. You can adjust its behavior in your project configuration. This is the default setting:
 
 {{< code-toggle file=hugo >}}
 [markup.goldmark.renderHooks.image]
 useEmbedded = 'auto'
 {{< /code-toggle >}}
 
-When set to `auto` as shown above, Hugo automatically uses the embedded image render hook for multilingual single-host sites, specifically when the [duplication of shared page resources] feature is disabled. This is the default behavior for such sites. If custom image render hooks are defined by your project, modules, or themes, these will be used instead.
+When set to `auto` as shown above, Hugo automatically uses the embedded image render hook for multilingual single-host projects, specifically when the [duplication of shared page resources] feature is disabled. This is the default behavior for such projects. If custom image render hooks are defined by your project, modules, or themes, these will be used instead.
 
 You can also configure Hugo to `always` use the embedded image render hook, use it only as a `fallback`, or `never` use it. See&nbsp;[details](/configuration/markup/#renderhooksimageuseembedded).
 
 The embedded image render hook resolves internal Markdown destinations by looking for a matching [page resource](g), falling back to a matching [global resource](g). Remote destinations are passed through, and the render hook will not throw an error or warning if unable to resolve a destination.
 
-You must place global resources in the `assets` directory. If you have placed your resources in the `static` directory, and you are unable or unwilling to move them, you must mount the `static` directory to the `assets` directory by including both of these entries in your site configuration:
+You must place global resources in the `assets` directory. If you have placed your resources in the `static` directory, and you are unable or unwilling to move them, you must mount the `static` directory to the `assets` directory by including both of these entries in your project configuration:
 
 {{< code-toggle file=hugo >}}
 [[module.mounts]]
@@ -133,5 +130,5 @@ Note that the embedded image render hook does not perform image processing. Its 
 [`RenderShortcodes`]: /methods/page/rendershortcodes
 [CommonMark specification]: https://spec.commonmark.org/current/
 [duplication of shared page resources]: /configuration/markup/#duplicateresourcefiles
-[embedded image render hook]: {{% eturl render-image %}}
+[embedded image render hook]: <{{% eturl render-image %}}>
 [Markdown attributes]: /content-management/markdown-attributes/

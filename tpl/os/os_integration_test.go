@@ -24,13 +24,13 @@ func TestReadDirWorkDir(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 theme = "mytheme"
 -- myproject.txt --
 Hello project!
 -- themes/mytheme/mytheme.txt --
 Hello theme!
--- layouts/index.html --
+-- layouts/home.html --
 {{ $entries := (readDir ".") }}
 START:|{{ range $entry := $entries }}{{ if not $entry.IsDir }}{{ $entry.Name }}|{{ end }}{{ end }}:END:
 
@@ -46,7 +46,7 @@ START:|{{ range $entry := $entries }}{{ if not $entry.IsDir }}{{ $entry.Name }}|
 	).Build()
 
 	b.AssertFileContent("public/index.html", `
-START:|config.toml|myproject.txt|:END:
+START:|hugo.toml|myproject.txt|:END:
 `)
 }
 
@@ -55,8 +55,8 @@ func TestReadFileNotExists(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
--- layouts/index.html --
+-- hugo.toml --
+-- layouts/home.html --
 {{ $fi := (readFile "doesnotexist") }}
 {{ if $fi }}Failed{{ else }}OK{{ end }}
 

@@ -21,7 +21,7 @@ Please complete the following tasks before continuing:
 1. [Log in](https://github.com/login) to your GitHub account
 1. [Create](https://github.com/new) a GitHub repository for your project
 1. [Create](https://git-scm.com/docs/git-init) a local Git repository for your project with a [remote](https://git-scm.com/docs/git-remote) reference to your GitHub repository
-1. Create a Hugo site within your local Git repository and test it with the `hugo server` command
+1. Create a Hugo project within your local Git repository and test it with the `hugo server` command
 1. Commit the changes to your local Git repository and push to your GitHub repository
 
 ## Procedure
@@ -36,11 +36,11 @@ Step 1
   ![screen capture](gh-pages-02.png)
 
 Step 2
-: In your site configuration, change the location of the image cache to the [`cacheDir`] as shown below:
+: In your project configuration, change the location of the image cache to the [`cacheDir`] as shown below:
 
   {{< code-toggle file=hugo copy=true >}}
   [caches.images]
-  dir = ":cacheDir/images"
+  dir = ':cacheDir/images'
   {{< /code-toggle >}}
 
   See [configure file caches] for more information.
@@ -77,24 +77,24 @@ Step 4
     build:
       runs-on: ubuntu-latest
       env:
-        DART_SASS_VERSION: 1.90.0
-        GO_VERSION: 1.24.5
-        HUGO_VERSION: 0.148.2
-        NODE_VERSION: 22.18.0
+        DART_SASS_VERSION: 1.98.0
+        GO_VERSION: 1.26.1
+        HUGO_VERSION: 0.158.0
+        NODE_VERSION: 24.14.0
         TZ: Europe/Oslo
       steps:
         - name: Checkout
-          uses: actions/checkout@v5
+          uses: actions/checkout@v6
           with:
             submodules: recursive
             fetch-depth: 0
         - name: Setup Go
-          uses: actions/setup-go@v5
+          uses: actions/setup-go@v6
           with:
             go-version: ${{ env.GO_VERSION }}
             cache: false
         - name: Setup Node.js
-          uses: actions/setup-node@v4
+          uses: actions/setup-node@v6
           with:
             node-version: ${{ env.NODE_VERSION }}
         - name: Setup Pages
@@ -130,7 +130,7 @@ Step 4
             git config core.quotepath false
         - name: Cache restore
           id: cache-restore
-          uses: actions/cache/restore@v4
+          uses: actions/cache/restore@v5
           with:
             path: ${{ runner.temp }}/hugo_cache
             key: hugo-${{ github.run_id }}
@@ -138,14 +138,14 @@ Step 4
               hugo-
         - name: Build the site
           run: |
-            hugo \
+            hugo build \
               --gc \
               --minify \
               --baseURL "${{ steps.pages.outputs.base_url }}/" \
               --cacheDir "${{ runner.temp }}/hugo_cache"
         - name: Cache save
           id: cache-save
-          uses: actions/cache/save@v4
+          uses: actions/cache/save@v5
           with:
             path: ${{ runner.temp }}/hugo_cache
             key: ${{ steps.cache-restore.outputs.cache-primary-key }}
@@ -185,17 +185,6 @@ Step 8
 
 In the future, whenever you push a change from your local Git repository, GitHub Pages will rebuild and deploy your site.
 
-## Customize the workflow
-
-The example workflow above includes this step, which typically takes 10&#8209;15 seconds:
-
-```yaml
-- name: Install Dart Sass
-  run: sudo snap install dart-sass
-```
-
-You may remove this step if your site, themes, and modules do not transpile Sass to CSS using the [Dart Sass] transpiler.
-
 ## Other resources
 
 - [Learn more about GitHub Actions](https://docs.github.com/en/actions)
@@ -204,5 +193,4 @@ You may remove this step if your site, themes, and modules do not transpile Sass
 
 [`cacheDir`]: /configuration/all/#cachedir
 [configure file caches]: /configuration/caches/
-[Dart Sass]: /functions/css/sass/#dart-sass
 [GitHub Pages documentation]: https://docs.github.com/en/pages/getting-started-with-github-pages/about-github-pages#types-of-github-pages-sites

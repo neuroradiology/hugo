@@ -39,7 +39,7 @@ title: "p1"
 ---
 title: "p1"
 ---
--- layouts/_default/single.html --
+-- layouts/single.html --
 Title: {{ .Title }}
 	`
 
@@ -66,10 +66,12 @@ Title: {{ .Title }}
 	b.Assert(modConf.Mounts, qt.HasLen, 8)
 	b.Assert(modConf.Mounts[0].Source, qt.Equals, filepath.FromSlash("content/en"))
 	b.Assert(modConf.Mounts[0].Target, qt.Equals, "content")
-	b.Assert(modConf.Mounts[0].Lang, qt.Equals, "en")
+	b.Assert(modConf.Mounts[0].Lang, qt.Equals, "")
+	b.Assert(modConf.Mounts[0].Sites.Matrix.Languages, qt.DeepEquals, []string{"en"})
 	b.Assert(modConf.Mounts[1].Source, qt.Equals, filepath.FromSlash("content/sv"))
 	b.Assert(modConf.Mounts[1].Target, qt.Equals, "content")
-	b.Assert(modConf.Mounts[1].Lang, qt.Equals, "sv")
+	b.Assert(modConf.Mounts[1].Lang, qt.Equals, "")
+	b.Assert(modConf.Mounts[1].Sites.Matrix.Languages, qt.DeepEquals, []string{"sv"})
 }
 
 func TestConfigAliases(t *testing.T) {
@@ -139,7 +141,7 @@ disableKinds = ["taxonomy", "term"]
 [pagination]
 disableAliases = true
 pagerSize = 2
--- layouts/_default/list.html --
+-- layouts/list.html --
 {{ $paginator := .Paginate  site.RegularPages }}
 {{ template "_internal/pagination.html" . }}
 {{ range $paginator.Pages }}
@@ -189,35 +191,13 @@ func TestInvalidOutputFormat(t *testing.T) {
 disableKinds = ['page','rss','section','sitemap','taxonomy','term']
 [outputs]
 home = ['html','foo']
--- layouts/index.html --
+-- layouts/home.html --
 x
 `
 
 	b, err := hugolib.TestE(t, files)
 	b.Assert(err, qt.IsNotNil)
 	b.Assert(err.Error(), qt.Contains, `failed to create config: unknown output format "foo" for kind "home"`)
-}
-
-// Issue 13201
-func TestLanguageConfigSlice(t *testing.T) {
-	t.Parallel()
-
-	files := `
--- hugo.toml --
-disableKinds = ['page','rss','section','sitemap','taxonomy','term']
-[languages.en]
-title = 'TITLE_EN'
-weight = 2
-[languages.de]
-title = 'TITLE_DE'
-weight = 1
-[languages.fr]
-title = 'TITLE_FR'
-weight = 3
-`
-
-	b := hugolib.Test(t, files)
-	b.Assert(b.H.Configs.LanguageConfigSlice[0].Title, qt.Equals, `TITLE_DE`)
 }
 
 func TestContentTypesDefault(t *testing.T) {

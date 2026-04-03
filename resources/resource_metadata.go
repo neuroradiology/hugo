@@ -19,16 +19,17 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gohugoio/hugo/hugofs/glob"
+	"github.com/gohugoio/hugo/hugofs/hglob"
 	"github.com/gohugoio/hugo/media"
 	"github.com/gohugoio/hugo/resources/page/pagemeta"
 	"github.com/gohugoio/hugo/resources/resource"
 
 	"github.com/spf13/cast"
 
-	"github.com/gohugoio/hugo/common/maps"
-	"github.com/gohugoio/hugo/common/paths"
 	maps0 "maps"
+
+	"github.com/gohugoio/hugo/common/hmaps"
+	"github.com/gohugoio/hugo/common/paths"
 )
 
 var (
@@ -59,7 +60,7 @@ type metaResource struct {
 	changed bool
 	title   string
 	name    string
-	params  maps.Params
+	params  hmaps.Params
 }
 
 func (r *metaResource) Name() string {
@@ -70,7 +71,7 @@ func (r *metaResource) Title() string {
 	return r.title
 }
 
-func (r *metaResource) Params() maps.Params {
+func (r *metaResource) Params() hmaps.Params {
 	return r.params
 }
 
@@ -161,7 +162,7 @@ func assignMetadata(metadata []map[string]any, ma *metaResource) error {
 
 		srcKey := strings.ToLower(cast.ToString(src))
 
-		glob, err := glob.GetGlob(srcKey)
+		glob, err := hglob.GetGlob(srcKey)
 		if err != nil {
 			return fmt.Errorf("failed to match resource with metadata: %w", err)
 		}
@@ -208,9 +209,9 @@ func assignMetadata(metadata []map[string]any, ma *metaResource) error {
 
 			params, found := meta["params"]
 			if found {
-				m := maps.ToStringMap(params)
+				m := hmaps.ToStringMap(params)
 				// Needed for case insensitive fetching of params values
-				maps.PrepareParams(m)
+				hmaps.PrepareParams(m)
 				ma.updateParams(m)
 			}
 		}

@@ -39,12 +39,9 @@ assetDir = "assets"
 archeTypedir = "archetypes"
 
 [caches]
-[caches.getjson]
+[caches.misc]
 maxAge = "200ms"
 dir = "/cache/c"
-[caches.getcsv]
-maxAge = "200ms"
-dir = "/cache/d"
 [caches.assets]
 maxAge = "200ms"
 dir = ":resourceDir/_gen"
@@ -53,11 +50,14 @@ maxAge = "200ms"
 dir = ":resourceDir/_gen"
 `
 
-	for _, name := range []string{filecache.CacheKeyGetCSV, filecache.CacheKeyGetJSON, filecache.CacheKeyAssets, filecache.CacheKeyImages} {
+	for _, name := range []string{filecache.CacheKeyAssets, filecache.CacheKeyImages} {
 		msg := qt.Commentf("cache: %s", name)
-		p := newPathsSpec(t, afero.NewMemMapFs(), configStr)
-		caches, err := filecache.NewCaches(p)
+		fs := afero.NewMemMapFs()
+		p := newPathsSpec(t, fs, configStr)
+		fileCachConfig := p.Cfg.GetConfigSection("caches").(filecache.Configs)
+		caches, err := filecache.NewCaches(fileCachConfig, fs)
 		c.Assert(err, qt.IsNil)
+		caches.SetResourceFs(fs)
 		cache := caches[name]
 		for i := range 10 {
 			id := fmt.Sprintf("i%d", i)
@@ -84,8 +84,9 @@ dir = ":resourceDir/_gen"
 			}
 		}
 
-		caches, err = filecache.NewCaches(p)
+		caches, err = filecache.NewCaches(fileCachConfig, fs)
 		c.Assert(err, qt.IsNil)
+		caches.SetResourceFs(fs)
 		cache = caches[name]
 		// Touch one and then prune.
 		cache.GetOrCreateBytes("i5", func() ([]byte, error) {

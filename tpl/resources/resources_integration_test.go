@@ -26,11 +26,11 @@ func TestCopy(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 baseURL = "http://example.com/blog"
 -- assets/images/pixel.png --
 iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==
--- layouts/index.html --
+-- layouts/home.html --
 {{/* Image resources */}}
 {{ $img := resources.Get "images/pixel.png" }}
 {{ $imgCopy1 := $img | resources.Copy "images/copy.png"  }}
@@ -60,14 +60,13 @@ Copy3: {{ $copy3.RelPermalink}}|{{ $copy3.MediaType }}|{{ $copy3.Content | safeJ
 
 	b.AssertFileContent("public/index.html", `
 Image Orig:  /blog/images/pixel.png|image/png|1|1|
-Image Copy1:  /blog/images/copy_hu_1d9addfff177f388.png|image/png|3|4|
-Image Copy2:  /blog/images/copy2.png|image/png|3|4
+Image Copy1:  /blog/images/copy_hu_ef85c36d9b9eff0.png|image/png|3|4|
+Image Copy2:  /blog/images/copy2.png|image/png|3|4|
 Image Copy3:  image/png|3|4|
 Orig: /blog/js/foo.js|text/javascript|let foo;|
 Copy1: /blog/js/copies/bar.js|text/javascript|let foo;|
 Copy2: /blog/js/copies/baz.a677329fc6c4ad947e0c7116d91f37a2.js|text/javascript|let foo;|
 Copy3: /blog/js/copies/moo.a677329fc6c4ad947e0c7116d91f37a2.min.js|text/javascript|let foo|
-
 		`)
 
 	b.AssertFileExists("public/images/copy2.png", true)
@@ -79,8 +78,8 @@ func TestCopyPageShouldFail(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
--- layouts/index.html --
+-- hugo.toml --
+-- layouts/home.html --
 {{/* This is currently not supported. */}}
 {{ $copy := .Copy "copy.md" }}
 
@@ -99,11 +98,11 @@ func TestGet(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 baseURL = "http://example.com/blog"
 -- assets/images/pixel.png --
 iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==
--- layouts/index.html --
+-- layouts/home.html --
 {{ with resources.Get "images/pixel.png" }}Image OK{{ else }}Image not found{{ end }}
 {{ with resources.Get "" }}Failed{{ else }}Empty string not found{{ end }}
 
@@ -123,11 +122,11 @@ func TestResourcesGettersShouldNotNormalizePermalinks(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 baseURL = "http://example.com/"
 -- assets/401K Prospectus.txt --
 Prospectus.
--- layouts/index.html --
+-- layouts/home.html --
 {{ $name := "401K Prospectus.txt" }}
 Get: {{ with resources.Get $name }}{{ .RelPermalink }}|{{ .Permalink }}|{{ end }}
 GetMatch: {{ with resources.GetMatch $name }}{{ .RelPermalink }}|{{ .Permalink }}|{{ end }}
@@ -156,7 +155,7 @@ disableKinds = ['page','rss','section','sitemap','taxonomy','term']
 I am a.txt
 -- assets/b.txt --
 I am b.txt
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 {{ with resources.ByType "text" }}
   {{ with .Get "a.txt" }}
@@ -188,7 +187,7 @@ I am b.txt
 I am c.txt
 -- assets/files/C.txt --
 I am C.txt
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 {{ with resources.ByType "text" }}
   {{ with .Get "files/a.txt" }}
@@ -252,7 +251,7 @@ func TestDartSassVars(t *testing.T) {
 	files := `
 -- hugo.toml --
 disableKinds = ['page','section','rss','sitemap','taxonomy','term']
--- layouts/index.html --
+-- layouts/home.html --
 {{ $opts := dict "transpiler" "dartsass" "outputStyle" "compressed" "vars" (dict "color" "red") }}
 {{ with resources.Get "dartsass.scss" | css.Sass $opts }}
   {{ .Content }}

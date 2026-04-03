@@ -14,7 +14,6 @@
 package hugolib
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -22,7 +21,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/gohugoio/hugo/common/maps"
+	"github.com/gohugoio/hugo/common/hmaps"
 	"github.com/gohugoio/hugo/common/text"
 	"github.com/gohugoio/hugo/identity"
 	"github.com/gohugoio/hugo/tpl/tplimpl"
@@ -67,7 +66,7 @@ func newPageContentOutput(po *pageOutput) (*pageContentOutput, error) {
 	cp := &pageContentOutput{
 		po:           po,
 		renderHooks:  &renderHooks{},
-		otherOutputs: maps.NewCache[uint64, *pageContentOutput](),
+		otherOutputs: hmaps.NewCache[uint64, *pageContentOutput](),
 	}
 	return cp, nil
 }
@@ -83,13 +82,16 @@ type pageContentOutput struct {
 
 	// Other pages involved in rendering of this page,
 	// typically included with .RenderShortcodes.
-	otherOutputs *maps.Cache[uint64, *pageContentOutput]
+	otherOutputs *hmaps.Cache[uint64, *pageContentOutput]
 
 	contentRenderedVersion uint32      // Incremented on reset.
 	contentRendered        atomic.Bool // Set on content render.
 
 	// Renders Markdown hooks.
 	renderHooks *renderHooks
+
+	// Maps positions in the content sent to Goldmark back to the original source.
+	sourceMap []sourceMapEntry
 }
 
 func (pco *pageContentOutput) trackDependency(idp identity.IdentityProvider) {
@@ -244,24 +246,22 @@ func (pco *pageContentOutput) initRenderHooks() error {
 		renderCache := make(map[cacheKey]any)
 		var renderCacheMu sync.Mutex
 
-		resolvePosition := func(ctx any) text.Position {
-			source := pco.po.p.m.content.mustSource()
+		resolvePosition := func(_ any, _ []byte, pos int) text.Position {
+			if pos == -1 {
+				return text.Position{
+					Filename: pco.po.p.pathOrTitle(),
+				}
+			}
+			sourceOrig := pco.po.p.m.content.mustSource()
 			var offset int
 
-			switch v := ctx.(type) {
-			case hooks.PositionerSourceTargetProvider:
-				offset = bytes.Index(source, v.PositionerSourceTarget())
+			if sm := pco.sourceMap; len(sm) > 0 {
+				offset = resolveSourceOffset(sm, pos)
+			} else {
+				offset = pos + pco.po.p.m.content.pi.posMainContent
 			}
 
-			pos := pco.po.p.posFromInput(source, offset)
-
-			if pos.LineNumber > 0 {
-				// Move up to the code fence delimiter.
-				// This is in line with how we report on shortcodes.
-				pos.LineNumber = pos.LineNumber - 1
-			}
-
-			return pos
+			return pco.po.p.posFromInput(sourceOrig, offset)
 		}
 
 		pco.renderHooks.getRenderer = func(tp hooks.RendererType, id any) any {
@@ -352,10 +352,12 @@ func (pco *pageContentOutput) initRenderHooks() error {
 					Path:     base,
 					Category: tplimpl.CategoryMarkup,
 					Desc:     layoutDescriptor,
+					Sites:    pco.po.p.s.siteVector,
 					Consider: consider,
 				}
 
 				v := pco.po.p.s.TemplateStore.LookupPagesLayout(q)
+
 				return v, v != nil
 			}
 

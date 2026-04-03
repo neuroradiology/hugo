@@ -225,7 +225,7 @@ func BenchmarkSanitize(b *testing.B) {
 
 	// This should not allocate any memory.
 	b.Run("All allowed", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			got := Sanitize(allAlowedPath)
 			if got != allAlowedPath {
 				b.Fatal(got)
@@ -235,7 +235,7 @@ func BenchmarkSanitize(b *testing.B) {
 
 	// This will allocate some memory.
 	b.Run("Spaces", func(b *testing.B) {
-		for i := 0; i < b.N; i++ {
+		for b.Loop() {
 			got := Sanitize(spacePath)
 			if got != "foo-bar" {
 				b.Fatal(got)
@@ -309,5 +309,63 @@ func TestIsSameFilePath(t *testing.T) {
 		{"/a/b/c", "/a/b/c/././././", true},
 	} {
 		c.Assert(IsSameFilePath(filepath.FromSlash(this.a), filepath.FromSlash(this.b)), qt.Equals, this.expected, qt.Commentf("a: %s b: %s", this.a, this.b))
+	}
+}
+
+func BenchmarkAddLeadingSlash(b *testing.B) {
+	const (
+		noLeadingSlash   = "a/b/c"
+		withLeadingSlash = "/a/b/c"
+	)
+
+	// This should not allocate any memory.
+	b.Run("With leading slash", func(b *testing.B) {
+		for b.Loop() {
+			got := AddLeadingSlash(withLeadingSlash)
+			if got != withLeadingSlash {
+				b.Fatal(got)
+			}
+		}
+	})
+
+	// This will allocate some memory.
+	b.Run("Without leading slash", func(b *testing.B) {
+		for b.Loop() {
+			got := AddLeadingSlash(noLeadingSlash)
+			if got != "/a/b/c" {
+				b.Fatal(got)
+			}
+		}
+	})
+
+	b.Run("Blank string", func(b *testing.B) {
+		for b.Loop() {
+			got := AddLeadingSlash("")
+			if got != "/" {
+				b.Fatal(got)
+			}
+		}
+	})
+}
+
+func TestPathEscape(t *testing.T) {
+	c := qt.New(t)
+
+	for _, this := range []struct {
+		input    string
+		expected string
+	}{
+		{"/tags/欢迎", "/tags/%E6%AC%A2%E8%BF%8E"},
+		{"/path with spaces", "/path%20with%20spaces"},
+		{"/simple-path", "/simple-path"},
+		{"/path/with/slash", "/path/with/slash"},
+		{"/path/with special&chars", "/path/with%20special&chars"},
+	} {
+		in := this.input
+		for range 2 {
+			result := PathEscape(in)
+			c.Assert(result, qt.Equals, this.expected, qt.Commentf("input: %q", this.input))
+			in = result // test idempotency
+		}
 	}
 }

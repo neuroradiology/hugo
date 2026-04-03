@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"image"
 	"path"
+	"path/filepath"
 	"sync"
 
 	"github.com/bep/overlayfs"
@@ -28,14 +29,6 @@ import (
 	"github.com/gohugoio/hugo/resources/resource_factories/create"
 	"github.com/mitchellh/mapstructure"
 	"rsc.io/qr"
-
-	// Importing image codecs for image.DecodeConfig
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
-
-	// Import webp codec
-	_ "golang.org/x/image/webp"
 
 	"github.com/gohugoio/hugo/deps"
 	"github.com/spf13/afero"
@@ -102,7 +95,10 @@ func (ns *Namespace) Config(path any) (image.Config, error) {
 	}
 	defer f.Close()
 
-	config, _, err = image.DecodeConfig(f)
+	ext := filepath.Ext(filename)
+	format, _ := images.ImageFormatFromExt(ext)
+
+	config, _, err = ns.deps.ResourceSpec.Imaging.Codec.DecodeConfig(format, f)
 	if err != nil {
 		return config, err
 	}

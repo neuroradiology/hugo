@@ -23,7 +23,7 @@ func TestPassthroughRenderHook(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 [markup.goldmark.extensions.passthrough]
 enable = true
 [markup.goldmark.extensions.passthrough.delimiters]
@@ -43,11 +43,11 @@ $$a^*=x-b^*$$
 
 Some inline LaTeX 2: $a^*=x-b^*$.
 
--- layouts/_default/single.html --
+-- layouts/single.html --
 {{ .Content }}
--- layouts/_default/_markup/render-passthrough-block.html --
+-- layouts/_markup/render-passthrough-block.html --
 Passthrough block: {{ .Inner | safeHTML }}|{{ .Type }}|{{ .Ordinal }}:END
--- layouts/_default/_markup/render-passthrough-inline.html --
+-- layouts/_markup/render-passthrough-inline.html --
 Passthrough inline: {{ .Inner | safeHTML }}|{{ .Type }}|{{ .Ordinal }}:END
 
 `

@@ -27,8 +27,8 @@ func TestTransformMinify(t *testing.T) {
 	files := `
 -- assets/js/test.js --
 new Date(2002, 04, 11)
--- config.toml --
--- layouts/index.html --
+-- hugo.toml --
+-- layouts/home.html --
 {{ $js := resources.Get "js/test.js" | minify }}
 <script>
 {{ $js.Content }}

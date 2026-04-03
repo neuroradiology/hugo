@@ -14,6 +14,7 @@
 package page
 
 import (
+	"bytes"
 	"path"
 	"path/filepath"
 	"strings"
@@ -49,10 +50,18 @@ type TargetPathDescriptor struct {
 	// 2) the file base name (TranslationBaseName).
 	BaseName string
 
-	// Typically a language prefix added to file paths.
+	// PrefixFilePath contains zero or more content dimensions used as a file
+	// path prefix. Dimensions are ordered role/version/language for
+	// single-host and language/role/version for multihost.
+	// Example (single-host): guest/v1.0.0/en
+	// Example (multihost):   en/guest/v1.0.0
 	PrefixFilePath string
 
-	// Typically a language prefix added to links.
+	// PrefixLink contains zero or more content dimensions used as a link
+	// prefix. Dimensions are ordered role/version/language for single-host,
+	// but the language dimension is excluded for multihost.
+	// Example (single-host): guest/v1.0.0/en
+	// Example (multihost):   guest/v1.0.0
 	PrefixLink string
 
 	// If in multihost mode etc., every link/path needs to be prefixed, even
@@ -295,6 +304,7 @@ func CreateTargetPaths(d TargetPathDescriptor) (tp TargetPaths) {
 // When adding state here, remember to update putPagePathBuilder.
 type pagePathBuilder struct {
 	els []string
+	b   bytes.Buffer
 
 	d TargetPathDescriptor
 
@@ -386,8 +396,17 @@ func (p *pagePathBuilder) Path(upperOffset int) string {
 	if upperOffset > 0 {
 		upper -= upperOffset
 	}
-	pth := path.Join(p.els[:upper]...)
-	return paths.AddLeadingSlash(pth)
+	p.b.Reset()
+
+	var hadTrailingSlash bool
+	for _, el := range p.els[:upper] {
+		if !hadTrailingSlash && !strings.HasPrefix(el, "/") {
+			p.b.WriteByte('/')
+		}
+		hadTrailingSlash = strings.HasSuffix(el, "/")
+		p.b.WriteString(el)
+	}
+	return p.b.String()
 }
 
 func (p *pagePathBuilder) PathDir() string {
@@ -421,6 +440,7 @@ func (p *pagePathBuilder) PathDirBase() string {
 
 func (p *pagePathBuilder) PathFile() string {
 	dir := p.Path(0)
+
 	if p.prefixPath != "" {
 		dir = "/" + p.prefixPath + dir
 	}

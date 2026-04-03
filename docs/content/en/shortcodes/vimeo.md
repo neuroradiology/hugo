@@ -14,18 +14,18 @@ keywords: []
 To display a Vimeo video with this URL:
 
 ```text
-https://vimeo.com/channels/staffpicks/55073825
+https://vimeo.com/19899678
 ```
 
 Include this in your Markdown:
 
 ```text
-{{</* vimeo 55073825 */>}}
+{{</* vimeo 19899678 */>}}
 ```
 
 Hugo renders this to:
 
-{{< vimeo 55073825 >}}
+{{< vimeo 19899678 >}}
 
 ## Arguments
 
@@ -49,12 +49,12 @@ title
 Here's an example using some of the available arguments:
 
 ```text
-{{</* vimeo id=55073825 allowFullScreen=false loading=lazy */>}}
+{{</* vimeo id=19899678 allowFullScreen=false loading=lazy */>}}
 ```
 
 ## Privacy
 
-Adjust the relevant privacy settings in your site configuration.
+Adjust the relevant privacy settings in your project configuration.
 
 {{< code-toggle config=privacy.vimeo />}}
 
@@ -67,7 +67,7 @@ enableDNT
 simple
 : (`bool`) Whether to enable simple mode. If `true`, the video thumbnail is fetched from Vimeo and overlaid with a play button. Clicking the thumbnail opens the video in a new Vimeo tab. Default is `false`.
 
-The source code for the simple version of the shortcode is available [here].
+The source code for the simple version of the shortcode is available [in this file].
 
-[here]: {{% eturl vimeo_simple %}}
-[source code]: {{% eturl vimeo %}}
+[in this file]: <{{% eturl vimeo_simple %}}>
+[source code]: <{{% eturl vimeo %}}>

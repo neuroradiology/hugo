@@ -23,6 +23,7 @@ import (
 
 	qt "github.com/frankban/quicktest"
 
+	"github.com/gohugoio/hugo/htesting"
 	"github.com/gohugoio/hugo/htesting/hqt"
 	"github.com/gohugoio/hugo/hugolib"
 )
@@ -31,11 +32,11 @@ func TestInclude(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 baseURL = 'http://example.com/'
--- layouts/index.html --
+-- layouts/home.html --
 partial: {{ partials.Include "foo.html" . }}
--- layouts/partials/foo.html --
+-- layouts/_partials/foo.html --
 foo
   `
 
@@ -50,12 +51,12 @@ func TestIncludeCached(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 baseURL = 'http://example.com/'
--- layouts/index.html --
+-- layouts/home.html --
 partialCached: {{ partials.IncludeCached "foo.html" . }}
 partialCached: {{ partials.IncludeCached "foo.html" . }}
--- layouts/partials/foo.html --
+-- layouts/_partials/foo.html --
 foo
   `
 
@@ -72,13 +73,13 @@ func TestIncludeCachedRecursion(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 baseURL = 'http://example.com/'
--- layouts/index.html --
+-- layouts/home.html --
 {{ partials.IncludeCached "p1.html" . }}
--- layouts/partials/p1.html --
+-- layouts/_partials/p1.html --
 {{ partials.IncludeCached "p2.html" . }}
--- layouts/partials/p2.html --
+-- layouts/_partials/p2.html --
 P2
 
   `
@@ -95,20 +96,20 @@ func TestIncludeCachedRecursionShortcode(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 baseURL = 'http://example.com/'
 -- content/_index.md --
 ---
 title: "Index"
 ---
 {{< short >}}
--- layouts/index.html --
+-- layouts/home.html --
 {{ partials.IncludeCached "p1.html" . }}
--- layouts/partials/p1.html --
+-- layouts/_partials/p1.html --
 {{ .Content }}
 {{ partials.IncludeCached "p2.html" . }}
--- layouts/partials/p2.html --
--- layouts/shortcodes/short.html --
+-- layouts/_partials/p2.html --
+-- layouts/_shortcodes/short.html --
 SHORT
 {{ partials.IncludeCached "p2.html" . }}
 P2
@@ -127,14 +128,14 @@ func TestIncludeCacheHints(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 baseURL = 'http://example.com/'
 templateMetrics=true
 templateMetricsHints=true
 disableKinds = ["page", "section", "taxonomy", "term", "sitemap"]
 [outputs]
 home = ["HTML"]
--- layouts/index.html --
+-- layouts/home.html --
 {{ partials.IncludeCached "static1.html" . }}
 {{ partials.IncludeCached "static1.html" . }}
 {{ partials.Include "static2.html" . }}
@@ -147,13 +148,13 @@ H1I: {{ partials.Include "halfdynamic1.html" . }}
 H1C: {{ partials.IncludeCached "halfdynamic1.html" . }}
 H1C: {{ partials.IncludeCached "halfdynamic1.html" . }}
 
--- layouts/partials/static1.html --
+-- layouts/_partials/static1.html --
 P1
--- layouts/partials/static2.html --
+-- layouts/_partials/static2.html --
 P2
--- layouts/partials/dynamic1.html --
+-- layouts/_partials/dynamic1.html --
 {{ math.Counter }}
--- layouts/partials/halfdynamic1.html --
+-- layouts/_partials/halfdynamic1.html --
 D1
 {{ math.Counter }}
 
@@ -192,7 +193,7 @@ D1
 	got = normalize(got)
 
 	expect := `
-	0        0       0      1  index.html
+	0        0       0      1  home.html
 	100        0       0      1  _partials/static2.html
 	100       50       1      2  _partials/static1.html
 	25       50       2      4  _partials/dynamic1.html
@@ -204,20 +205,21 @@ D1
 
 // gobench --package ./tpl/partials
 func BenchmarkIncludeCached(b *testing.B) {
-	files := `
--- config.toml --
+	var files strings.Builder
+	files.WriteString(`
+-- hugo.toml --
 baseURL = 'http://example.com/'
--- layouts/index.html --
--- layouts/_default/single.html --
+-- layouts/home.html --
+-- layouts/single.html --
 {{ partialCached "heavy.html" "foo" }}
 {{ partialCached "easy1.html" "bar" }}
 {{ partialCached "easy1.html" "baz" }}
 {{ partialCached "easy2.html" "baz" }}
--- layouts/partials/easy1.html --
+-- layouts/_partials/easy1.html --
 ABCD
--- layouts/partials/easy2.html --
+-- layouts/_partials/easy2.html --
 ABCDE
--- layouts/partials/heavy.html --
+-- layouts/_partials/heavy.html --
 {{ $result := slice }}
 {{ range site.RegularPages }}
 {{ $result = $result | append (dict "title" .Title "link" .RelPermalink "readingTime" .ReadingTime) }}
@@ -227,38 +229,35 @@ ABCDE
 {{ end }}
 
 
-`
+`)
 
 	for i := 1; i < 100; i++ {
-		files += fmt.Sprintf("\n-- content/p%d.md --\n---\ntitle: page\n---\n"+strings.Repeat("FOO ", i), i)
+		files.WriteString(fmt.Sprintf("\n-- content/p%d.md --\n---\ntitle: page\n---\n"+strings.Repeat("FOO ", i), i))
 	}
 
 	cfg := hugolib.IntegrationTestConfig{
 		T:           b,
-		TxtarString: files,
-	}
-	builders := make([]*hugolib.IntegrationTestBuilder, b.N)
-
-	for i := range builders {
-		builders[i] = hugolib.NewIntegrationTestBuilder(cfg)
+		TxtarString: files.String(),
 	}
 
-	b.ResetTimer()
-
-	for i := 0; i < b.N; i++ {
-		builders[i].Build()
+	for b.Loop() {
+		b.StopTimer()
+		bb := hugolib.NewIntegrationTestBuilder(cfg)
+		b.StartTimer()
+		bb.Build()
 	}
 }
 
 func TestIncludeTimeout(t *testing.T) {
+	htesting.SkipSlowTestUnlessCI(t)
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 baseURL = 'http://example.com/'
--- layouts/index.html --
+-- layouts/home.html --
 {{ partials.Include "foo.html" . }}
--- layouts/partials/foo.html --
+-- layouts/_partials/foo.html --
 {{ partial "foo.html" . }}
   `
 
@@ -277,14 +276,14 @@ func TestIncludeCachedTimeout(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 baseURL = 'http://example.com/'
 timeout = '200ms'
--- layouts/index.html --
+-- layouts/home.html --
 {{ partials.IncludeCached "foo.html" . }}
--- layouts/partials/foo.html --
+-- layouts/_partials/foo.html --
 {{ partialCached "bar.html" . }}
--- layouts/partials/bar.html --
+-- layouts/_partials/bar.html --
 {{ partialCached "foo.html" . }}
   `
 
@@ -304,18 +303,18 @@ func TestIncludeCachedDifferentKey(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 baseURL = 'http://example.com/'
 timeout = '200ms'
--- layouts/index.html --
+-- layouts/home.html --
 {{ partialCached "foo.html" "a" "a" }}
--- layouts/partials/foo.html --
+-- layouts/_partials/foo.html --
 {{ if eq . "a" }}
 {{ partialCached "bar.html" . }}
 {{ else }}
 DONE
 {{ end }}
--- layouts/partials/bar.html --
+-- layouts/_partials/bar.html --
 {{ partialCached "foo.html" "b" "b" }}
   `
 	b := hugolib.Test(t, files)
@@ -330,15 +329,15 @@ func TestReturnExecuteFromTemplateInPartial(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 baseURL = 'http://example.com/'
--- layouts/index.html --
+-- layouts/home.html --
 {{ $r :=  partial "foo" }}
 FOO:{{ $r.Content }}
--- layouts/partials/foo.html --
+-- layouts/_partials/foo.html --
 {{ $r := §§{{ partial "bar" }}§§ | resources.FromString "bar.html" | resources.ExecuteAsTemplate "bar.html" . }}
 {{ return $r }}
--- layouts/partials/bar.html --
+-- layouts/_partials/bar.html --
 BAR
   `
 

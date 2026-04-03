@@ -23,6 +23,7 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/gohugoio/hashstructure"
+	"github.com/gohugoio/hugo/common/hugio"
 	"github.com/gohugoio/hugo/identity"
 )
 
@@ -36,6 +37,34 @@ func XXHashFromReader(r io.Reader) (uint64, int64, error) {
 		return 0, 0, err
 	}
 	return h.Sum64(), size, nil
+}
+
+type Hasher interface {
+	io.StringWriter
+	io.Writer
+	io.ReaderFrom
+	Sum64() uint64
+}
+
+type HashCloser interface {
+	Hasher
+	io.Closer
+}
+
+// XxHasher returns a Hasher that uses xxHash.
+// Remember to call Close when done.
+func XxHasher() HashCloser {
+	h := getXxHashReadFrom()
+	return struct {
+		Hasher
+		io.Closer
+	}{
+		Hasher: h,
+		Closer: hugio.CloserFunc(func() error {
+			putXxHashReadFrom(h)
+			return nil
+		}),
+	}
 }
 
 // XxHashFromReaderHexEncoded calculates the xxHash for the given reader
@@ -58,11 +87,13 @@ func XXHashFromString(s string) (uint64, error) {
 	return h.Sum64(), nil
 }
 
-// XxHashFromStringHexEncoded calculates the xxHash for the given string
+// XxHashFromStringHexEncoded calculates the xxHash for the given strings
 // and returns the hash as a hex encoded string.
-func XxHashFromStringHexEncoded(f string) string {
+func XxHashFromStringHexEncoded(s ...string) string {
 	h := xxhash.New()
-	h.WriteString(f)
+	for _, f := range s {
+		h.WriteString(f)
+	}
 	hash := h.Sum(nil)
 	return hex.EncodeToString(hash)
 }

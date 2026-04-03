@@ -20,7 +20,7 @@ import (
 
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/config/allconfig"
-	"github.com/gohugoio/hugo/lazy"
+	"github.com/gohugoio/hugo/internal/warpc"
 	"github.com/gohugoio/hugo/output"
 	"github.com/gohugoio/hugo/resources/internal"
 	"github.com/gohugoio/hugo/resources/jsconfig"
@@ -28,6 +28,7 @@ import (
 
 	"github.com/gohugoio/hugo/common/herrors"
 	"github.com/gohugoio/hugo/common/hexec"
+	"github.com/gohugoio/hugo/common/hsync"
 	"github.com/gohugoio/hugo/common/loggers"
 	"github.com/gohugoio/hugo/common/paths"
 	"github.com/gohugoio/hugo/common/types"
@@ -48,6 +49,7 @@ import (
 func NewSpec(
 	s *helpers.PathSpec,
 	common *SpecCommon, // may be nil
+	wasmDispatchers *warpc.Dispatchers,
 	fileCaches filecache.Caches,
 	memCache *dynacache.Cache,
 	incr identity.Incrementer,
@@ -55,14 +57,15 @@ func NewSpec(
 	errorHandler herrors.ErrorSender,
 	execHelper *hexec.Exec,
 	buildClosers types.CloseAdder,
-	rebuilder identity.SignalRebuilder,
+	rebuilder Rebuilder,
 ) (*Spec, error) {
 	conf := s.Cfg.GetConfig().(*allconfig.Config)
 	imgConfig := conf.Imaging
 
+	imagesDebugl := logger.DebugCommand("images")
 	imagesWarnl := logger.WarnCommand("images")
 
-	imaging, err := images.NewImageProcessor(imagesWarnl, imgConfig)
+	imaging, err := images.NewImageProcessor(imagesDebugl, imagesWarnl, wasmDispatchers, imgConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +100,7 @@ func NewSpec(
 		ErrorSender:  errorHandler,
 		BuildClosers: buildClosers,
 		Rebuilder:    rebuilder,
-		imaging:      imaging,
+		Imaging:      imaging,
 		ImageCache: newImageCache(
 			fileCaches.ImageCache(),
 			memCache,
@@ -115,20 +118,25 @@ func NewSpec(
 	return rs, nil
 }
 
+type Rebuilder interface {
+	identity.SignalRebuilder
+	identity.IsRebuildProvider
+}
+
 type Spec struct {
 	*helpers.PathSpec
 
 	Logger       loggers.Logger
 	ErrorSender  herrors.ErrorSender
 	BuildClosers types.CloseAdder
-	Rebuilder    identity.SignalRebuilder
+	Rebuilder    Rebuilder
 
 	Permalinks page.PermalinkExpander
 
 	ImageCache *ImageCache
 
 	// Holds default filter settings etc.
-	imaging *images.ImageProcessor
+	Imaging *images.ImageProcessor
 
 	ExecHelper *hexec.Exec
 
@@ -183,14 +191,15 @@ func (r *Spec) NewResource(rd ResourceSourceDescriptor) (resource.Resource, erro
 
 	isImage := rd.MediaType.MainType == "image"
 	var imgFormat images.Format
+	var imgOpsSupport images.ImageResourceType
 	if isImage {
-		imgFormat, isImage = images.ImageFormatFromMediaSubType(rd.MediaType.SubType)
+		imgFormat, imgOpsSupport = images.ImageFormatFromMediaSubType(rd.MediaType.SubType)
 	}
 
 	gr := &genericResource{
 		Staler:           &AtomicStaler{},
 		h:                &resourceHash{},
-		publishInit:      &lazy.OnceMore{},
+		publishInit:      &hsync.OnceMore{},
 		keyInit:          &sync.Once{},
 		includeHashInKey: isImage,
 		paths:            rp,
@@ -201,14 +210,9 @@ func (r *Spec) NewResource(rd ResourceSourceDescriptor) (resource.Resource, erro
 		title:            rd.Title,
 	}
 
-	if isImage {
-		ir := &imageResource{
-			Image:        images.NewImage(imgFormat, r.imaging, nil, gr),
-			baseResource: gr,
-		}
-		ir.root = ir
+	if imgOpsSupport >= images.ImageResourceTypeMetaOnly {
+		ir := newImageResource(images.NewImage(imgFormat, r.Imaging, nil, gr), gr)
 		return newResourceAdapter(gr.spec, rd.LazyPublish, ir), nil
-
 	}
 
 	return newResourceAdapter(gr.spec, rd.LazyPublish, gr), nil

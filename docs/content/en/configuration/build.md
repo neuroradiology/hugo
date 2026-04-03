@@ -33,17 +33,17 @@ The `build.cachebusters` configuration option was added to support development u
   [build.buildStats]
     enable = true
   [[build.cachebusters]]
-    source = "assets/watching/hugo_stats\\.json"
-    target = "styles\\.css"
+    source = 'assets/watching/hugo_stats\.json'
+    target = 'styles\.css'
   [[build.cachebusters]]
-    source = "(postcss|tailwind)\\.config\\.js"
-    target = "css"
+    source = '(postcss|tailwind)\.config\.js'
+    target = 'css'
   [[build.cachebusters]]
-    source = "assets/.*\\.(js|ts|jsx|tsx)"
-    target = "js"
+    source = 'assets/.*\.(js|ts|jsx|tsx)'
+    target = 'js'
   [[build.cachebusters]]
-    source = "assets/.*\\.(.*)$"
-    target = "$1"
+    source = 'assets/.*\.(.*)$'
+    target = '$1'
 {{< /code-toggle >}}
 <!-- markdownlint-enable MD049 -->
 
@@ -78,6 +78,6 @@ disableClasses
 >
 > Built for speed, there may be "false positive" detections (e.g., HTML elements that are not HTML elements) while parsing the published site. These "false positives" are infrequent and inconsequential.
 
-Due to the nature of partial server builds, new HTML entities are added while the server is running, but old values will not be removed until you restart the server or run a regular `hugo` build.
+Due to the nature of partial server builds, new HTML entities are added while the server is running, but old values will not be removed until you restart the server or run `hugo build`.
 
 [`config/production`]: /configuration/introduction/#configuration-directory

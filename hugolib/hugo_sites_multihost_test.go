@@ -20,7 +20,7 @@ enableRobotsTXT = true
 pagerSize = 1
 
 [permalinks]
-other = "/somewhere/else/:filename"
+other = "/somewhere/else/:contentbasename"
 
 [taxonomies]
 tag = "tags"
@@ -54,9 +54,9 @@ title: "My Bundle en"
 My Bundle
 -- content/mysect/mybundle/foo.txt --
 Foo
--- layouts/_default/list.html --
+-- layouts/list.html --
 List|{{ .Title }}|{{ .Lang }}|{{ .Permalink}}|{{ .RelPermalink }}|
--- layouts/_default/single.html --
+-- layouts/single.html --
 Single|{{ .Title }}|{{ .Lang }}|{{ .Permalink}}|{{ .RelPermalink }}|
 {{ $foo := .Resources.Get "foo.txt" | fingerprint }}
 Foo: {{ $foo.Permalink }}|
@@ -107,9 +107,11 @@ robots|{{ site.Language.Lang }}
 	b.AssertFileContent("public/fr/mysect/mybundle/index.html", "Foo: https://example.fr/mysect/mybundle/foo.1cbec737f863e4922cee63cc2ebbfaafcd1cff8b790d8cfd2e6a5d550b648afa.txt|")
 
 	// Assets CSS fingerprinted
-	b.AssertFileContent("public/en/mysect/mybundle/index.html", "CSS: https://example.fr/css/main.5de625c36355cce7c1d5408826a0b21abfb49fb6c0e1f16c945a6f2aef38200c.css|")
+	// Note that before Hugo v0.149.0 we rendered the project starting with defaultContentLanguage,
+	// now with a more complex matrix, we have one sort order.
+	b.AssertFileContent("public/en/mysect/mybundle/index.html", "CSS: https://example.com/docs/css/main.5de625c36355cce7c1d5408826a0b21abfb49fb6c0e1f16c945a6f2aef38200c.css|")
 	b.AssertFileContent("public/en/css/main.5de625c36355cce7c1d5408826a0b21abfb49fb6c0e1f16c945a6f2aef38200c.css", "body { color: red; }")
-	b.AssertFileContent("public/fr/mysect/mybundle/index.html", "CSS: https://example.fr/css/main.5de625c36355cce7c1d5408826a0b21abfb49fb6c0e1f16c945a6f2aef38200c.css|")
+	b.AssertFileContent("public/fr/mysect/mybundle/index.html", "CSS: https://example.com/docs/css/main.5de625c36355cce7c1d5408826a0b21abfb49fb6c0e1f16c945a6f2aef38200c.css|")
 	b.AssertFileContent("public/fr/css/main.5de625c36355cce7c1d5408826a0b21abfb49fb6c0e1f16c945a6f2aef38200c.css", "body { color: red; }")
 }
 
@@ -145,7 +147,7 @@ title: "Mybundle fr"
 .body {
 	color: french;
 }
--- layouts/_default/single.html --
+-- layouts/single.html --
 {{ $data := .Resources.GetMatch "styles*" | minify }}
 {{ .Lang }}: {{ $data.Content}}|{{ $data.RelPermalink }}|
 
@@ -189,7 +191,7 @@ iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAA
 ---
 title: mybundle-en
 ---
--- layouts/_default/single.html --
+-- layouts/single.html --
 {{ with .Resources.Get "pixel.png" }}
   {{ with .Resize "2x2" }}
     {{ .RelPermalink }}|
@@ -205,12 +207,12 @@ title: mybundle-en
 	b.AssertFileExists("public/de/mybundle/pixel.png", true)
 	b.AssertFileExists("public/en/mybundle/pixel.png", true)
 
-	b.AssertFileExists("public/de/mybundle/pixel_hu_58204cbc58507d74.png", true)
+	b.AssertFileExists("public/de/mybundle/pixel_hu_c8522c65d73a0421.png", true)
 	// failing test below
-	b.AssertFileExists("public/en/mybundle/pixel_hu_58204cbc58507d74.png", true)
+	b.AssertFileExists("public/en/mybundle/pixel_hu_c8522c65d73a0421.png", true)
 }
 
-func TestMultihostResourceOneBaseURLWithSuPath(t *testing.T) {
+func TestMultihostResourceOneBaseURLWithSubPath(t *testing.T) {
 	files := `
 -- hugo.toml --
 defaultContentLanguage = "en"
@@ -238,7 +240,7 @@ File 1 fr.
 File 1 en.
 -- content/en/section/mybundle/file2.txt --
 File 2 en.
--- layouts/_default/single.html --
+-- layouts/single.html --
 {{ $files := .Resources.Match "file*" }}
 Files: {{ range $files }}{{ .Permalink }}|{{ end }}$
 
@@ -272,7 +274,7 @@ baseURL = "https://example.fr"
 weight = 2
 --  assets/css/main.css --
 body { color: red; }
--- layouts/index.html --
+-- layouts/home.html --
 {{ $css := resources.Get "css/main.css" | minify }}
 CSS: {{ $css.Permalink }}|{{ $css.RelPermalink }}|
 `

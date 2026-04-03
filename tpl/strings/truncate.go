@@ -111,7 +111,11 @@ func (ns *Namespace) Truncate(s any, options ...any) (template.HTML, error) {
 		if unicode.IsSpace(r) {
 			lastWordIndex = lastNonSpace
 		} else if unicode.In(r, unicode.Han, unicode.Hangul, unicode.Hiragana, unicode.Katakana) {
-			lastWordIndex = i
+			lastWordIndex = lastNonSpace
+			lastNonSpace = i + utf8.RuneLen(r)
+			if currentLen <= length {
+				lastWordIndex = lastNonSpace
+			}
 		} else {
 			lastNonSpace = i + utf8.RuneLen(r)
 		}
@@ -122,9 +126,10 @@ func (ns *Namespace) Truncate(s any, options ...any) (template.HTML, error) {
 			} else {
 				endTextPos = lastWordIndex
 			}
-			out := text[0:endTextPos]
+			var out strings.Builder
+			out.WriteString(text[0:endTextPos])
 			if isHTML {
-				out += ellipsis
+				out.WriteString(ellipsis)
 				// Close out any open HTML tags
 				var currentTag *htmlTag
 				for i := len(tags) - 1; i >= 0; i-- {
@@ -137,15 +142,15 @@ func (ns *Namespace) Truncate(s any, options ...any) (template.HTML, error) {
 					}
 
 					if tag.openTag {
-						out += ("</" + tag.name + ">")
+						out.WriteString(("</" + tag.name + ">"))
 					} else {
 						currentTag = &tag
 					}
 				}
 
-				return template.HTML(out), nil
+				return template.HTML(out.String()), nil
 			}
-			return template.HTML(html.EscapeString(out) + ellipsis), nil
+			return template.HTML(html.EscapeString(out.String()) + ellipsis), nil
 		}
 	}
 

@@ -1,3 +1,16 @@
+// Copyright 2025 The Hugo Authors. All rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package deps
 
 import (
@@ -15,8 +28,8 @@ import (
 	"github.com/gohugoio/hugo/cache/dynacache"
 	"github.com/gohugoio/hugo/cache/filecache"
 	"github.com/gohugoio/hugo/common/hexec"
+	"github.com/gohugoio/hugo/common/hmaps"
 	"github.com/gohugoio/hugo/common/loggers"
-	"github.com/gohugoio/hugo/common/maps"
 	"github.com/gohugoio/hugo/common/types"
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/config/allconfig"
@@ -160,8 +173,8 @@ func (d *Deps) Init() error {
 			d.BuildState.DeferredExecutionsGroupedByRenderingContext = make(map[tpl.RenderingContext]*DeferredExecutions)
 		}
 		d.BuildState.DeferredExecutions = &DeferredExecutions{
-			Executions:              maps.NewCache[string, *tpl.DeferredExecution](),
-			FilenamesWithPostPrefix: maps.NewCache[string, bool](),
+			Executions:              hmaps.NewCache[string, *tpl.DeferredExecution](),
+			FilenamesWithPostPrefix: hmaps.NewCache[string, bool](),
 		}
 	}
 
@@ -217,14 +230,14 @@ func (d *Deps) Init() error {
 			[]byte(tpl.HugoDeferredTemplatePrefix),
 			[]byte(postpub.PostProcessPrefix))
 
-		pathSpec, err := helpers.NewPathSpec(d.Fs, d.Conf, d.Log)
+		pathSpec, err := helpers.NewPathSpec(d.Fs, d.Conf, d.Log, nil)
 		if err != nil {
 			return err
 		}
 		d.PathSpec = pathSpec
 	} else {
 		var err error
-		d.PathSpec, err = helpers.NewPathSpecWithBaseBaseFsProvided(d.Fs, d.Conf, d.Log, d.PathSpec.BaseFs)
+		d.PathSpec, err = helpers.NewPathSpec(d.Fs, d.Conf, d.Log, d.PathSpec.BaseFs)
 		if err != nil {
 			return err
 		}
@@ -247,12 +260,12 @@ func (d *Deps) Init() error {
 		common = d.ResourceSpec.SpecCommon
 	}
 
-	fileCaches, err := filecache.NewCaches(d.PathSpec)
-	if err != nil {
-		return fmt.Errorf("failed to create file caches from configuration: %w", err)
-	}
+	d.Cfg.BaseConfig()
 
-	resourceSpec, err := resources.NewSpec(d.PathSpec, common, fileCaches, d.MemCache, d.BuildState, d.Log, d, d.ExecHelper, d.BuildClosers, d.BuildState)
+	fileCaches := d.Cfg.FileCaches().(filecache.Caches)
+	fileCaches.SetResourceFs(d.BaseFs.ResourcesCache)
+
+	resourceSpec, err := resources.NewSpec(d.PathSpec, common, d.WasmDispatchers, fileCaches, d.MemCache, d.BuildState, d.Log, d, d.ExecHelper, d.BuildClosers, d.BuildState)
 	if err != nil {
 		return fmt.Errorf("failed to create resource spec: %w", err)
 	}
@@ -417,6 +430,9 @@ type DepsCfg struct {
 	// i18n handling.
 	TranslationProvider ResourceProvider
 
+	// Build triggered by the IntegrationTest framework.
+	IsIntegrationTest bool
+
 	// ChangesFromBuild for changes passed back to the server/watch process.
 	ChangesFromBuild chan []identity.Identity
 }
@@ -424,6 +440,9 @@ type DepsCfg struct {
 // BuildState are state used during a build.
 type BuildState struct {
 	counter uint64
+
+	// Tracks invocations of the Build method.
+	BuildCounter atomic.Uint64
 
 	mu sync.Mutex // protects state below.
 
@@ -448,13 +467,18 @@ type Counters struct {
 type DeferredExecutions struct {
 	// A set of filenames in /public that
 	// contains a post-processing prefix.
-	FilenamesWithPostPrefix *maps.Cache[string, bool]
+	FilenamesWithPostPrefix *hmaps.Cache[string, bool]
 
 	// Maps a placeholder to a deferred execution.
-	Executions *maps.Cache[string, *tpl.DeferredExecution]
+	Executions *hmaps.Cache[string, *tpl.DeferredExecution]
 }
 
 var _ identity.SignalRebuilder = (*BuildState)(nil)
+
+// IsRebuild reports whether this is a rebuild.
+func (b *BuildState) IsRebuild() bool {
+	return b.BuildCounter.Load() > 0
+}
 
 // StartStageRender will be called before a stage is rendered.
 func (b *BuildState) StartStageRender(stage tpl.RenderingContext) {
@@ -464,8 +488,8 @@ func (b *BuildState) StartStageRender(stage tpl.RenderingContext) {
 func (b *BuildState) StopStageRender(stage tpl.RenderingContext) {
 	b.DeferredExecutionsGroupedByRenderingContext[stage] = b.DeferredExecutions
 	b.DeferredExecutions = &DeferredExecutions{
-		Executions:              maps.NewCache[string, *tpl.DeferredExecution](),
-		FilenamesWithPostPrefix: maps.NewCache[string, bool](),
+		Executions:              hmaps.NewCache[string, *tpl.DeferredExecution](),
+		FilenamesWithPostPrefix: hmaps.NewCache[string, bool](),
 	}
 }
 

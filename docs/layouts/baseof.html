@@ -1,7 +1,7 @@
 <!doctype html>
 <html
   class="h-full antialiased scheme-light dark:scheme-dark"
-  lang="{{ or site.Language.LanguageCode `en-US` }}">
+  lang="{{ site.Language.Locale }}">
   <head>
     <meta charset="utf-8">
     <title>
@@ -27,8 +27,11 @@
     {{ $noop := .WordCount }}
     {{ if .Page.Store.Get "hasMath" }}
       <link
-        href="https://cdn.jsdelivr.net/npm/katex@0.16.21/dist/katex.min.css"
-        rel="stylesheet">
+        rel="stylesheet"
+        href="https://cdn.jsdelivr.net/npm/katex@0.16.25/dist/katex.min.css"
+        integrity="sha384-WcoG4HRXMzYzfCgiyfrySxx90XSl2rxY5mnVY5TwtWE6KLrArNKn0T/mOgNL0Mmi"
+        crossorigin="anonymous"
+      >
     {{ end }}
     {{ partial "layouts/head/head.html" . }}
   </head>

@@ -1,6 +1,6 @@
 ---
 title: Sitemap
-description: Returns the sitemap settings for the given page as defined in front matter, falling back to the sitemap settings as defined in the site configuration.
+description: Returns the sitemap settings for the given page as defined in front matter, falling back to the sitemap settings as defined in your project configuration.
 categories: []
 keywords: []
 params:
@@ -23,8 +23,6 @@ Access to the `Sitemap` method on a `Page` object is restricted to [sitemap temp
 
 ### Disable
 
-{{< new-in 0.125.0 />}}
-
 (`bool`) Whether to disable page inclusion. Default is `false`. Set to `true` in front matter to exclude the page.
 
 ```go-html-template
@@ -41,7 +39,7 @@ Access to the `Sitemap` method on a `Page` object is restricted to [sitemap temp
 
 ## Example
 
-With this site configuration:
+With this project configuration:
 
 {{< code-toggle file=hugo >}}
 [sitemap]

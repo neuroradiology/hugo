@@ -19,6 +19,7 @@ import (
 
 	"github.com/bep/logg"
 	qt "github.com/frankban/quicktest"
+	"github.com/gohugoio/hugo/common/herrors"
 	"github.com/gohugoio/hugo/htesting"
 	"github.com/gohugoio/hugo/hugolib"
 	"github.com/gohugoio/hugo/resources/resource_transformers/tocss/dartsass"
@@ -39,8 +40,8 @@ $moolor: #fff;
 moo {
   color: $moolor;
 }
--- config.toml --
--- layouts/index.html --
+-- hugo.toml --
+-- layouts/home.html --
 {{ $cssOpts := (dict "includePaths" (slice "node_modules/foo") "transpiler" "dartsass" ) }}
 {{ $r := resources.Get "scss/main.scss" |  toCSS $cssOpts  | minify  }}
 T1: {{ $r.Content }}
@@ -80,8 +81,8 @@ moo {
 /* foo */
 -- assets/scss/regular.css --
 
--- config.toml --
--- layouts/index.html --
+-- hugo.toml --
+-- layouts/home.html --
 {{ $r := resources.Get "scss/main.scss" |  toCSS (dict "transpiler" "dartsass")  }}
 T1: {{ $r.Content | safeHTML }}
 
@@ -124,8 +125,8 @@ func TestTransformImportIndentedSASS(t *testing.T) {
 @import "moo";
 
 /* foo */
--- config.toml --
--- layouts/index.html --
+-- hugo.toml --
+-- layouts/home.html --
 {{ $r := resources.Get "scss/main.scss" |  toCSS (dict "transpiler" "dartsass")  }}
 T1: {{ $r.Content | safeHTML }}
 
@@ -164,10 +165,10 @@ a {color: import-this-file-css;}
 a {color: compile-this-mounted-file-css;}
 -- foo/_import-this-mounted-file.css --
 a {color: import-this-mounted-file-css;}
--- layouts/index.html --
+-- layouts/home.html --
 {{- $opts := dict "transpiler" "dartsass" }}
 {{- with resources.Get "main.scss" | toCSS $opts }}{{ .Content | safeHTML }}{{ end }}
--- config.toml --
+-- hugo.toml --
 disableKinds = ['RSS','sitemap','taxonomy','term','page','section']
 
 [[module.mounts]]
@@ -222,9 +223,9 @@ $moolor: #ccc;
 moo {
 	color: $moolor;
 }
--- config.toml --
+-- hugo.toml --
 theme = 'mytheme'
--- layouts/index.html --
+-- layouts/home.html --
 {{ $cssOpts := (dict "includePaths" (slice "node_modules/foo" ) "transpiler" "dartsass" ) }}
 {{ $r := resources.Get "scss/main.scss" |  toCSS $cssOpts  | minify  }}
 T1: {{ $r.Content }}
@@ -276,9 +277,9 @@ func TestTransformLogging(t *testing.T) {
 @warn "foo";
 @debug "bar";
 
--- config.toml --
+-- hugo.toml --
 disableKinds = ["term", "taxonomy", "section", "page"]
--- layouts/index.html --
+-- layouts/home.html --
 {{ $cssOpts := (dict  "transpiler" "dartsass" ) }}
 {{ $r := resources.Get "scss/main.scss" |  toCSS $cssOpts   }}
 T1: {{ $r.Content }}
@@ -305,7 +306,7 @@ func TestTransformErrors(t *testing.T) {
 	c := qt.New(t)
 
 	const filesTemplate = `
--- config.toml --
+-- hugo.toml --
 -- assets/scss/components/_foo.scss --
 /* comment line 1 */
 $foocolor: #ccc;
@@ -325,7 +326,7 @@ body {
 	color: $maincolor;
 }
 
--- layouts/index.html --
+-- layouts/home.html --
 {{ $cssOpts := dict "transpiler" "dartsass" }}
 {{ $r := resources.Get "scss/main.scss" |  toCSS $cssOpts  | minify  }}
 T1: {{ $r.Content }}
@@ -343,10 +344,18 @@ T1: {{ $r.Content }}
 		b.Assert(err, qt.IsNotNil)
 		b.Assert(err.Error(), qt.Contains, `main.scss:8:13":`)
 		b.Assert(err.Error(), qt.Contains, `: expected ":".`)
-		fe := b.AssertIsFileError(err)
-		b.Assert(fe.ErrorContext(), qt.IsNotNil)
-		b.Assert(fe.ErrorContext().Lines, qt.DeepEquals, []string{"  $maincolor #eee;", "", "body {", "\tcolor: $maincolor;", "}"})
-		b.Assert(fe.ErrorContext().ChromaLexer, qt.Equals, "scss")
+		fileErrs := herrors.UnwrapFileErrors(err)
+		b.Assert(len(fileErrs), qt.Equals, 2) // template + scss.
+
+		templErr := fileErrs[0]
+		b.Assert(templErr.ErrorContext(), qt.IsNotNil)
+		b.Assert(templErr.ErrorContext().Lines, qt.DeepEquals, []string{"{{ $cssOpts := dict \"transpiler\" \"dartsass\" }}", "{{ $r := resources.Get \"scss/main.scss\" |  toCSS $cssOpts  | minify  }}", "T1: {{ $r.Content }}", "", "\t"})
+		b.Assert(templErr.ErrorContext().ChromaLexer, qt.Equals, "go-html-template")
+
+		scssErr := fileErrs[1]
+		b.Assert(scssErr.ErrorContext(), qt.IsNotNil)
+		b.Assert(scssErr.ErrorContext().Lines, qt.DeepEquals, []string{"  $maincolor #eee;", "", "body {", "\tcolor: $maincolor;", "}"})
+		b.Assert(scssErr.ErrorContext().ChromaLexer, qt.Equals, "scss")
 	})
 
 	c.Run("error in import", func(c *qt.C) {
@@ -360,10 +369,12 @@ T1: {{ $r.Content }}
 		b.Assert(err, qt.IsNotNil)
 		b.Assert(err.Error(), qt.Contains, `_foo.scss:2:10":`)
 		b.Assert(err.Error(), qt.Contains, `: expected ":".`)
-		fe := b.AssertIsFileError(err)
-		b.Assert(fe.ErrorContext(), qt.IsNotNil)
-		b.Assert(fe.ErrorContext().Lines, qt.DeepEquals, []string{"/* comment line 1 */", "$foocolor #ccc;", "", "foo {"})
-		b.Assert(fe.ErrorContext().ChromaLexer, qt.Equals, "scss")
+		fileErrs := herrors.UnwrapFileErrors(err)
+		b.Assert(len(fileErrs), qt.Equals, 2) // template + scss.
+		scssErr := fileErrs[1]
+		b.Assert(scssErr.ErrorContext(), qt.IsNotNil)
+		b.Assert(scssErr.ErrorContext().Lines, qt.DeepEquals, []string{"/* comment line 1 */", "$foocolor #ccc;", "", "foo {"})
+		b.Assert(scssErr.ErrorContext().ChromaLexer, qt.Equals, "scss")
 	})
 }
 
@@ -392,7 +403,7 @@ p {
 b {
 	color: vars.$color2;
 }
--- layouts/index.html --
+-- layouts/home.html --
 {{ $image := "images/hero.jpg" }}
 {{ $font := "Hugo's New Roman" }}
 {{ $vars := dict "$color1" "blue" "$color2" "green" "font_size" "24px" "image" $image "font" $font }}
@@ -418,7 +429,7 @@ func TestOptionVarsParams(t *testing.T) {
 	}
 
 	files := `
--- config.toml --
+-- hugo.toml --
 [params]
 [params.sassvars]
 color1 = "blue"
@@ -442,7 +453,7 @@ p {
 b {
 	color: vars.$color2;
 }
--- layouts/index.html --
+-- layouts/home.html --
 {{ $vars := site.Params.sassvars}}
 {{ $cssOpts := (dict "transpiler" "dartsass" "outputStyle" "compressed" "vars" $vars ) }}
 {{ $r := resources.Get "scss/main.scss" |  toCSS $cssOpts }}
@@ -466,7 +477,7 @@ func TestVarsCasting(t *testing.T) {
 	}
 
 	files := `
--- config.toml --
+-- hugo.toml --
 disableKinds = ["term", "taxonomy", "section", "page"]
 
 [params]
@@ -497,7 +508,7 @@ float = 3.14
 @debug meta.type-of(vars.$integer);
 @debug meta.type-of(vars.$float);
 @debug meta.type-of(vars.$a_number);
--- layouts/index.html --
+-- layouts/home.html --
 {{ $vars := site.Params.sassvars}}
 {{ $vars = merge $vars (dict "not_a_number" ("32xxx" | css.Quoted) "a_number" ("234" | css.Unquoted) )}}
 {{ $cssOpts := (dict "transpiler" "dartsass" "vars" $vars ) }}
@@ -547,7 +558,7 @@ path="github.com/gohugoio/hugo-mod-bootstrap-scss/v5"
 module github.com/gohugoio/tests/testHugoModules
 -- assets/scss/main.scss --
 @import "bootstrap/bootstrap";
--- layouts/index.html --
+-- layouts/home.html --
 {{ $cssOpts := (dict "transpiler" "dartsass" ) }}
 {{ $r := resources.Get "scss/main.scss" |  toCSS $cssOpts }}
 Styles: {{ $r.RelPermalink }}
@@ -580,7 +591,7 @@ target = 'assets'
 [[module.mounts]]
 source = "miscellaneous/sass"
 target = "assets/sass"
--- layouts/index.html --
+-- layouts/home.html --
 {{ $opts := dict "transpiler" "dartsass" "outputStyle" "compressed" }}
 {{ (resources.Get "sass/main.scss" | toCSS $opts).Content }}
 -- assets/sass/main.scss --
@@ -625,8 +636,8 @@ $moolor: #fff;
 moo {
   color: $moolor;
 }
--- config.toml --
--- layouts/index.html --
+-- hugo.toml --
+-- layouts/home.html --
 {{ $cssOpts := (dict "includePaths" (slice "node_modules/foo") "transpiler" "dartsass" ) }}
 {{ $r := resources.Get "scss/main.scss" |  toCSS $cssOpts  | minify  }}
 T1: {{ $r.Content }}
@@ -645,11 +656,14 @@ T1: {{ $r.Content }}
 
 func TestSilenceDependencyDeprecations(t *testing.T) {
 	t.Parallel()
+	if !dartsass.Supports() {
+		t.Skip()
+	}
 
 	files := `
 -- hugo.toml --
 disableKinds = ['page','rss','section','sitemap','taxonomy','term']
--- layouts/index.html --
+-- layouts/home.html --
 {{ $opts := dict
   "transpiler" "dartsass"
   "outputStyle" "compressed"

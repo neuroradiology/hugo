@@ -27,7 +27,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gohugoio/hugo/hugofs/glob"
+	"github.com/gohugoio/hugo/hugofs/hglob"
+	"github.com/gohugoio/hugo/hugolib/sitesmatrix"
 
 	"golang.org/x/text/unicode/norm"
 
@@ -43,6 +44,25 @@ func NewFileMeta() *FileMeta {
 	return &FileMeta{}
 }
 
+// A subset of modules.Module used to avoid circular dependencies.
+// Note that it's safe to type assert to the full modules.Module when needed.
+type Module interface {
+	// Returns the path to this module.
+	// This will either be the module path, e.g. "github.com/gohugoio/myshortcodes",
+	// or the path below your /theme folder, e.g. "mytheme".
+	Path() string
+
+	// Directory holding files for this module.
+	Dir() string
+
+	// Returns whether this is a Go Module.
+	IsGoMod() bool
+
+	// The module version.
+	Version() string
+}
+
+// FileMeta holds metadata about a file or directory.
 type FileMeta struct {
 	PathInfo *paths.Path
 	Name     string
@@ -50,7 +70,7 @@ type FileMeta struct {
 
 	BaseDir       string
 	SourceRoot    string
-	Module        string
+	Module        Module
 	ModuleOrdinal int
 	Component     string
 
@@ -58,19 +78,17 @@ type FileMeta struct {
 	IsProject bool
 	Watch     bool
 
-	// The lang associated with this file. This may be
-	// either the language set in the filename or
-	// the language defined in the source mount configuration.
-	Lang string
-	// The language index for the above lang. This is the index
-	// in the sorted list of languages/sites.
-	LangIndex int
+	// This file/directory  will be built for these sites.
+	SitesMatrix sitesmatrix.VectorStore
+
+	// This file/directory complements these other sites.
+	SitesComplements sitesmatrix.VectorStore
 
 	OpenFunc     func() (afero.File, error)
 	JoinStatFunc func(name string) (FileMetaInfo, error)
 
 	// Include only files or directories that match.
-	InclusionFilter *glob.FilenameFilter
+	InclusionFilter *hglob.FilenameFilter
 
 	// Rename the name part of the file (not the directory).
 	// Returns the new name and a boolean indicating if the file
@@ -129,6 +147,13 @@ func (f *FileMeta) JoinStat(name string) (FileMetaInfo, error) {
 		return nil, os.ErrNotExist
 	}
 	return f.JoinStatFunc(name)
+}
+
+func (m *FileMeta) ModulePath() string {
+	if m.Module == nil {
+		return ""
+	}
+	return m.Module.Path()
 }
 
 type FileMetaInfo interface {

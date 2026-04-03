@@ -21,9 +21,11 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
+	"github.com/gohugoio/go-radix"
 	"github.com/gohugoio/hugo/common/herrors"
 	"github.com/gohugoio/hugo/common/text"
 	"github.com/gohugoio/hugo/htesting"
@@ -72,8 +74,8 @@ func MakeTitle(inpath string) string {
 // MakeTitleInPath converts the path given to a suitable title, trimming whitespace
 func MakePathRelative(inPath string, possibleDirectories ...string) (string, error) {
 	for _, currentPath := range possibleDirectories {
-		if strings.HasPrefix(inPath, currentPath) {
-			return strings.TrimPrefix(inPath, currentPath), nil
+		if after, ok := strings.CutPrefix(inPath, currentPath); ok {
+			return after, nil
 		}
 	}
 	return inPath, errors.New("can't extract relative path, unknown prefix")
@@ -107,13 +109,13 @@ func GetDottedRelativePath(inPath string) string {
 		return "./"
 	}
 
-	var dottedPath string
+	var dottedPath strings.Builder
 
 	for i := 1; i < sectionCount; i++ {
-		dottedPath += "../"
+		dottedPath.WriteString("../")
 	}
 
-	return dottedPath
+	return dottedPath.String()
 }
 
 type NamedSlice struct {
@@ -128,113 +130,71 @@ func (n NamedSlice) String() string {
 	return fmt.Sprintf("%s%s{%s}", n.Name, FilePathSeparator, strings.Join(n.Slice, ","))
 }
 
-func ExtractAndGroupRootPaths(paths []string) []NamedSlice {
-	if len(paths) == 0 {
+// ExtractAndGroupRootPaths extracts and groups root paths from the supplied list of paths.
+// Note that the in slice will be sorted in place.
+func ExtractAndGroupRootPaths(in []string) []string {
+	if len(in) == 0 {
 		return nil
 	}
+	const maxGroups = 5
+	const maxRootGroups = 10
+	sort.Strings(in)
+	var groups []string
+	tree := radix.New[[]string]()
 
-	pathsCopy := make([]string, len(paths))
-	hadSlashPrefix := strings.HasPrefix(paths[0], FilePathSeparator)
-
-	for i, p := range paths {
-		pathsCopy[i] = strings.Trim(filepath.ToSlash(p), "/")
-	}
-
-	sort.Strings(pathsCopy)
-
-	pathsParts := make([][]string, len(pathsCopy))
-
-	for i, p := range pathsCopy {
-		pathsParts[i] = strings.Split(p, "/")
-	}
-
-	var groups [][]string
-
-	for i, p1 := range pathsParts {
-		c1 := -1
-
-		for j, p2 := range pathsParts {
-			if i == j {
-				continue
+LOOP:
+	for _, s := range in {
+		s = filepath.ToSlash(s)
+		if ss, g, found := tree.LongestPrefix(s); found {
+			if len(g) > maxGroups {
+				continue LOOP
+			}
+			parts := strings.Split(strings.TrimPrefix(strings.TrimPrefix(s, ss), "/"), "/")
+			if len(parts) > 0 && parts[0] != "" && !slices.Contains(g, parts[0]) {
+				g = append(g, parts[0])
+				tree.Insert(ss, g)
 			}
 
-			c2 := -1
-
-			for i, v := range p1 {
-				if i >= len(p2) {
-					break
-				}
-				if v != p2[i] {
-					break
-				}
-
-				c2 = i
-			}
-
-			if c1 == -1 || (c2 != -1 && c2 < c1) {
-				c1 = c2
-			}
-		}
-
-		if c1 != -1 {
-			groups = append(groups, p1[:c1+1])
 		} else {
-			groups = append(groups, p1)
+			tree.Insert(s, []string{})
 		}
 	}
 
-	groupsStr := make([]string, len(groups))
-	for i, g := range groups {
-		groupsStr[i] = strings.Join(g, "/")
+	var collect radix.WalkFn[[]string] = func(s string, g []string) (radix.WalkFlag, []string, error) {
+		if len(g) == 0 {
+			groups = append(groups, s)
+			return radix.WalkContinue, nil, nil
+		}
+		if len(g) == 1 {
+			groups = append(groups, path.Join(s, g[0]))
+			return radix.WalkContinue, nil, nil
+		}
+		var sb strings.Builder
+		sb.WriteString(s)
+		// This is used to print "Watching for changes in /Users/bep/dev/sites/hugotestsites/60k/content/{section0,section1,section10..."
+		// Having too many groups here is not helpful.
+		if len(g) > maxGroups {
+			// This will modify the slice in the tree, but that is OK since we are done with it.
+			g = g[:maxGroups]
+			g = append(g, "...")
+		}
+		sb.WriteString("/{")
+		sb.WriteString(strings.Join(g, ","))
+		sb.WriteString("}")
+		groups = append(groups, sb.String())
+		return radix.WalkContinue, nil, nil
 	}
 
-	groupsStr = UniqueStringsSorted(groupsStr)
+	tree.Walk(collect)
 
-	var result []NamedSlice
-
-	for _, g := range groupsStr {
-		name := filepath.FromSlash(g)
-		if hadSlashPrefix {
-			name = FilePathSeparator + name
-		}
-		ns := NamedSlice{Name: name}
-		for _, p := range pathsCopy {
-			if !strings.HasPrefix(p, g) {
-				continue
-			}
-
-			p = strings.TrimPrefix(p, g)
-			if p != "" {
-				ns.Slice = append(ns.Slice, p)
-			}
-		}
-
-		ns.Slice = UniqueStrings(ExtractRootPaths(ns.Slice))
-
-		result = append(result, ns)
+	// Limit the total number of root groups to keep output manageable
+	if len(groups) > maxRootGroups {
+		remaining := len(groups) - maxRootGroups
+		groups = groups[:maxRootGroups]
+		groups = append(groups, fmt.Sprintf("... and %d more", remaining))
 	}
 
-	return result
-}
-
-// ExtractRootPaths extracts the root paths from the supplied list of paths.
-// The resulting root path will not contain any file separators, but there
-// may be duplicates.
-// So "/content/section/" becomes "content"
-func ExtractRootPaths(paths []string) []string {
-	r := make([]string, len(paths))
-	for i, p := range paths {
-		root := filepath.ToSlash(p)
-		sections := strings.Split(root, "/")
-		for _, section := range sections {
-			if section != "" {
-				root = section
-				break
-			}
-		}
-		r[i] = root
-	}
-	return r
+	return groups
 }
 
 // FindCWD returns the current working directory from where the Hugo

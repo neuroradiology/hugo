@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -346,44 +345,47 @@ func TestAbsPathify(t *testing.T) {
 }
 
 func TestExtractAndGroupRootPaths(t *testing.T) {
-	in := []string{
-		filepath.FromSlash("/a/b/c/d"),
-		filepath.FromSlash("/a/b/c/e"),
-		filepath.FromSlash("/a/b/e/f"),
-		filepath.FromSlash("/a/b"),
-		filepath.FromSlash("/a/b/c/b/g"),
-		filepath.FromSlash("/c/d/e"),
-	}
-
-	inCopy := make([]string, len(in))
-	copy(inCopy, in)
-
-	result := helpers.ExtractAndGroupRootPaths(in)
-
 	c := qt.New(t)
-	c.Assert(fmt.Sprint(result), qt.Equals, filepath.FromSlash("[/a/b/{c,e} /c/d/e]"))
 
-	// Make sure the original is preserved
-	c.Assert(in, qt.DeepEquals, inCopy)
+	t.Run("Basic grouping", func(t *testing.T) {
+		in := []string{
+			filepath.FromSlash("/a/b/c/d"),
+			filepath.FromSlash("/a/b/c/e"),
+			filepath.FromSlash("/a/b/e/f"),
+			filepath.FromSlash("/a/b"),
+			filepath.FromSlash("/a/b/c/b/g"),
+			filepath.FromSlash("/c/d/e"),
+		}
+
+		result := helpers.ExtractAndGroupRootPaths(in)
+		c.Assert(result, qt.DeepEquals, []string{"/a/b/{c,e}", "/c/d/e"})
+	})
+
+	t.Run("Limits number of root groups", func(t *testing.T) {
+		in := []string{}
+		// Create 15 different root paths to exceed maxRootGroups (10)
+		for i := range 15 {
+			in = append(in, filepath.FromSlash(fmt.Sprintf("/path%d/subdir", i)))
+		}
+
+		result := helpers.ExtractAndGroupRootPaths(in)
+		// Should have 10 paths + 1 "... and X more" message
+		c.Assert(len(result), qt.Equals, 11)
+		c.Assert(result[10], qt.Matches, `\.\.\. and \d+ more`)
+	})
 }
 
-func TestExtractRootPaths(t *testing.T) {
-	tests := []struct {
-		input    []string
-		expected []string
-	}{{
-		[]string{
-			filepath.FromSlash("a/b"), filepath.FromSlash("a/b/c/"), "b",
-			filepath.FromSlash("/c/d"), filepath.FromSlash("d/"), filepath.FromSlash("//e//"),
-		},
-		[]string{"a", "a", "b", "c", "d", "e"},
-	}}
-
-	for _, test := range tests {
-		output := helpers.ExtractRootPaths(test.input)
-		if !reflect.DeepEqual(output, test.expected) {
-			t.Errorf("Expected %#v, got %#v\n", test.expected, output)
+func BenchmarkExtractAndGroupRootPaths(b *testing.B) {
+	in := []string{}
+	for i := range 10 {
+		for j := range 1000 {
+			in = append(in, fmt.Sprintf("/a/b/c/s%d/p%d", i, j))
 		}
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		helpers.ExtractAndGroupRootPaths(in)
 	}
 }
 

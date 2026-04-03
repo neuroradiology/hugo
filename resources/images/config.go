@@ -17,18 +17,18 @@ import (
 	"errors"
 	"fmt"
 	"image/color"
+	"maps"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/gohugoio/hugo/common/hashing"
-	"github.com/gohugoio/hugo/common/maps"
+	"github.com/gohugoio/hugo/common/hmaps"
 	"github.com/gohugoio/hugo/config"
 	"github.com/gohugoio/hugo/media"
 	"github.com/mitchellh/mapstructure"
 
-	"github.com/bep/gowebp/libwebp/webpoptions"
-
-	"github.com/disintegration/gift"
+	"github.com/gohugoio/gift"
 )
 
 const (
@@ -58,9 +58,13 @@ var (
 		".bmp":  BMP,
 		".gif":  GIF,
 		".webp": WEBP,
+		".avif": AVIF,
+		".heif": HEIF,
+		".heic": HEIC,
 	}
 
-	imageFormatsBySubType = map[string]Format{
+	// These are the image types we can process.
+	processableImageSubTypes = map[string]Format{
 		media.Builtin.JPEGType.SubType: JPEG,
 		media.Builtin.PNGType.SubType:  PNG,
 		media.Builtin.TIFFType.SubType: TIFF,
@@ -69,17 +73,16 @@ var (
 		media.Builtin.WEBPType.SubType: WEBP,
 	}
 
-	// Add or increment if changes to an image format's processing requires
-	// re-generation.
-	imageFormatsVersions = map[Format]int{
-		PNG:  0,
-		WEBP: 0,
-		GIF:  0,
+	// We cannot process these formats, but we can provide metadata support for them (including width/height).
+	metaOnlyImageSubTypes = map[string]Format{
+		media.Builtin.AVIFType.SubType: AVIF,
+		media.Builtin.HEIFType.SubType: HEIF,
+		media.Builtin.HEICType.SubType: HEIC,
 	}
 
 	// Increment to mark all processed images as stale. Only use when absolutely needed.
-	// See the finer grained smartCropVersionNumber and imageFormatsVersions.
-	mainImageVersionNumber = 0
+	// See the finer grained smartCropVersionNumber.
+	mainImageVersionNumber = 1
 )
 
 var anchorPositions = map[string]gift.Anchor{
@@ -95,13 +98,18 @@ var anchorPositions = map[string]gift.Anchor{
 	smartCropIdentifier:            SmartCropAnchor,
 }
 
+var compressionMethods = map[string]bool{
+	"lossy":    true,
+	"lossless": true,
+}
+
 // These encoding hints are currently only relevant for Webp.
-var hints = map[string]webpoptions.EncodingPreset{
-	"picture": webpoptions.EncodingPresetPicture,
-	"photo":   webpoptions.EncodingPresetPhoto,
-	"drawing": webpoptions.EncodingPresetDrawing,
-	"icon":    webpoptions.EncodingPresetIcon,
-	"text":    webpoptions.EncodingPresetText,
+var hints = map[string]bool{
+	"picture": true,
+	"photo":   true,
+	"drawing": true,
+	"icon":    true,
+	"text":    true,
 }
 
 var imageFilters = map[string]gift.Resampling{
@@ -127,16 +135,39 @@ func ImageFormatFromExt(ext string) (Format, bool) {
 	return f, found
 }
 
-func ImageFormatFromMediaSubType(sub string) (Format, bool) {
-	f, found := imageFormatsBySubType[sub]
-	return f, found
+type ImageResourceType int
+
+const (
+	// ImageResourceTypeNone means that the resource is not an image, and thus does not support any image operations.
+	ImageResourceTypeNone ImageResourceType = iota
+	// This is an image, but with no support for any image operations.
+	ImageResourceTypeBasic
+	// ImageResourceTypeMetaOnly means that only metadata operations (e.g. getting width/height and other metadata) are supported for this format.
+	ImageResourceTypeMetaOnly
+	// ImageResourceTypeProcessable means that all image operations (resizing, cropping, etc.) are supported for this format.
+	ImageResourceTypeProcessable
+)
+
+// ImageFormatFromMediaSubType returns the image format for the given media subtype, and how much image processing operations are supported for this format.
+func ImageFormatFromMediaSubType(sub string) (Format, ImageResourceType) {
+	f, found := processableImageSubTypes[sub]
+	if found {
+		return f, ImageResourceTypeProcessable
+	}
+	if f, found = metaOnlyImageSubTypes[sub]; found {
+		return f, ImageResourceTypeMetaOnly
+	}
+	return f, ImageResourceTypeBasic
 }
 
 const (
-	defaultJPEGQuality    = 75
-	defaultResampleFilter = "box"
-	defaultBgColor        = "#ffffff"
-	defaultHint           = "photo"
+	defaultJPEGQuality     = 75
+	defaultResampleFilter  = "box"
+	defaultBgColor         = "#ffffff"
+	defaultHint            = "photo"
+	defaultCompression     = "lossy"
+	defaultWebpUseSharpYuv = false
+	defaultWebpMethod      = 2
 )
 
 var (
@@ -145,6 +176,11 @@ var (
 		"bgColor":        defaultBgColor,
 		"hint":           defaultHint,
 		"quality":        defaultJPEGQuality,
+		"compression":    defaultCompression,
+		"webp": map[string]any{
+			"useSharpYuv": defaultWebpUseSharpYuv,
+			"method":      defaultWebpMethod,
+		},
 	}
 
 	defaultImageConfig *config.ConfigNamespace[ImagingConfig, ImagingConfigInternal]
@@ -164,12 +200,17 @@ func DecodeConfig(in map[string]any) (*config.ConfigNamespace[ImagingConfig, Ima
 	}
 
 	buildConfig := func(in any) (ImagingConfigInternal, any, error) {
-		m, err := maps.ToStringMapE(in)
+		m, err := hmaps.ToStringMapE(in)
 		if err != nil {
 			return ImagingConfigInternal{}, nil, err
 		}
 		// Merge in the defaults.
-		maps.MergeShallow(m, defaultImaging)
+		hmaps.MergeShallow(m, defaultImaging)
+
+		// Deep merge webp defaults.
+		if webp, ok := m["webp"].(map[string]any); ok {
+			hmaps.MergeShallow(webp, defaultImaging["webp"].(map[string]any))
+		}
 
 		var i ImagingConfigInternal
 		if err := mapstructure.Decode(m, &i.Imaging); err != nil {
@@ -200,12 +241,12 @@ func DecodeConfig(in map[string]any) (*config.ConfigNamespace[ImagingConfig, Ima
 
 		i.ResampleFilter = filter
 
-		return i, nil, nil
+		return i, i.Imaging, nil
 	}
 
 	ns, err := config.DecodeNamespace[ImagingConfig](in, buildConfig)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode media types: %w", err)
+		return nil, err
 	}
 	return ns, nil
 }
@@ -234,8 +275,10 @@ func DecodeImageConfig(options []string, defaults *config.ConfigNamespace[Imagin
 			c.Anchor = pos
 		} else if filter, ok := imageFilters[part]; ok {
 			c.Filter = filter
-		} else if hint, ok := hints[part]; ok {
-			c.Hint = hint
+		} else if _, ok := hints[part]; ok {
+			c.Hint = part
+		} else if _, ok := compressionMethods[part]; ok {
+			c.Compression = part
 		} else if part[0] == '#' {
 			c.BgColor, err = hexStringToColorGo(part[1:])
 			if err != nil {
@@ -249,7 +292,6 @@ func DecodeImageConfig(options []string, defaults *config.ConfigNamespace[Imagin
 			if c.Quality < 1 || c.Quality > 100 {
 				return c, errors.New("quality ranges from 1 to 100 inclusive")
 			}
-			c.qualitySetForImage = true
 		} else if part[0] == 'r' {
 			c.Rotate, err = strconv.Atoi(part[1:])
 			if err != nil {
@@ -302,8 +344,8 @@ func DecodeImageConfig(options []string, defaults *config.ConfigNamespace[Imagin
 		c.Filter = defaults.Config.ResampleFilter
 	}
 
-	if c.Hint == 0 {
-		c.Hint = webpoptions.EncodingPresetPhoto
+	if c.Hint == "" {
+		c.Hint = defaults.Config.Imaging.Webp.Hint
 	}
 
 	if c.Action != "" && c.Anchor == -1 {
@@ -316,8 +358,13 @@ func DecodeImageConfig(options []string, defaults *config.ConfigNamespace[Imagin
 	}
 
 	if c.Quality <= 0 && c.TargetFormat.RequiresDefaultQuality() {
-		// We need a quality setting for all JPEGs and WEBPs.
+		// We need a quality setting for all JPEGs and WEBPs,
+		// unless the user explicitly set quality.
 		c.Quality = defaults.Config.Imaging.Quality
+	}
+
+	if c.Compression == "" {
+		c.Compression = defaults.Config.Imaging.Compression
 	}
 
 	if c.BgColor == nil && c.TargetFormat != sourceFormat {
@@ -328,10 +375,6 @@ func DecodeImageConfig(options []string, defaults *config.ConfigNamespace[Imagin
 
 	if mainImageVersionNumber > 0 {
 		options = append(options, strconv.Itoa(mainImageVersionNumber))
-	}
-
-	if v, ok := imageFormatsVersions[sourceFormat]; ok && v > 0 {
-		options = append(options, strconv.Itoa(v))
 	}
 
 	if smartCropVersionNumber > 0 && c.Anchor == SmartCropAnchor {
@@ -355,16 +398,16 @@ type ImageConfig struct {
 
 	// Quality ranges from 1 to 100 inclusive, higher is better.
 	// This is only relevant for JPEG and WEBP images.
+	// For WEBP it's only relevant for lossy encoding.
 	// Default is 75.
-	Quality            int
-	qualitySetForImage bool // Whether the above is set for this image.
+	Quality int
 
 	// Rotate rotates an image by the given angle counter-clockwise.
 	// The rotation will be performed first.
 	Rotate int
 
 	// Used to fill any transparency.
-	// When set in site config, it's used when converting to a format that does
+	// When set in project config, it's used when converting to a format that does
 	// not support transparency.
 	// When set per image operation, it's used even for formats that does support
 	// transparency.
@@ -372,7 +415,13 @@ type ImageConfig struct {
 
 	// Hint about what type of picture this is. Used to optimize encoding
 	// when target is set to webp.
-	Hint webpoptions.EncodingPreset
+	Hint string
+
+	Compression string
+
+	// WebP-specific options.
+	UseSharpYuv bool
+	Method      int
 
 	Width  int
 	Height int
@@ -390,7 +439,6 @@ func (cfg ImageConfig) Reanchor(a gift.Anchor) ImageConfig {
 
 type ImagingConfigInternal struct {
 	BgColor        color.Color
-	Hint           webpoptions.EncodingPreset
 	ResampleFilter gift.Resampling
 	Anchor         gift.Anchor
 
@@ -424,8 +472,13 @@ func (i *ImagingConfigInternal) Compile(externalCfg *ImagingConfig) error {
 // ImagingConfig contains default image processing configuration. This will be fetched
 // from site (or language) config.
 type ImagingConfig struct {
-	// Default image quality setting (1-100). Only used for JPEG images.
+	// Default image quality setting (1-100). Only used for JPEG and WebP images.
 	Quality int
+
+	// Compression method to use.
+	// One of "lossy" or "lossless".
+	// Note that lossless is currently only supported for WebP.
+	Compression string
 
 	// Resample filter to use in resize operations.
 	ResampleFilter string
@@ -434,7 +487,8 @@ type ImagingConfig struct {
 	// Currently only used when encoding to Webp.
 	// Default is "photo".
 	// Valid values are "picture", "photo", "drawing", "icon", or "text".
-	Hint string
+	// Moved to WebpConfig in v0.155.0, but kept here for backwards compatibility.
+	Hint string `json:"-"`
 
 	// The anchor to use in Fill. Default is "smart", i.e. Smart Crop.
 	Anchor string
@@ -443,10 +497,18 @@ type ImagingConfig struct {
 	BgColor string
 
 	Exif ExifConfig
+	Meta MetaConfig
+	Webp WebpConfig
+}
+
+var validMetaSources = map[string]bool{
+	"exif": true,
+	"iptc": true,
+	"xmp":  true,
 }
 
 func (cfg *ImagingConfig) init() error {
-	if cfg.Quality < 0 || cfg.Quality > 100 {
+	if cfg.Quality < 1 || cfg.Quality > 100 {
 		return errors.New("image quality must be a number between 1 and 100")
 	}
 
@@ -454,6 +516,7 @@ func (cfg *ImagingConfig) init() error {
 	cfg.Anchor = strings.ToLower(cfg.Anchor)
 	cfg.ResampleFilter = strings.ToLower(cfg.ResampleFilter)
 	cfg.Hint = strings.ToLower(cfg.Hint)
+	cfg.Compression = strings.ToLower(cfg.Compression)
 
 	if cfg.Anchor == "" {
 		cfg.Anchor = smartCropIdentifier
@@ -462,6 +525,49 @@ func (cfg *ImagingConfig) init() error {
 	if strings.TrimSpace(cfg.Exif.IncludeFields) == "" && strings.TrimSpace(cfg.Exif.ExcludeFields) == "" {
 		// Don't change this for no good reason. Please don't.
 		cfg.Exif.ExcludeFields = "GPS|Exif|Exposure[M|P|B]|Contrast|Resolution|Sharp|JPEG|Metering|Sensing|Saturation|ColorSpace|Flash|WhiteBalance"
+	}
+
+	if len(cfg.Meta.Fields) == 0 {
+		// Default: include all fields except technical metadata.
+		// Don't change this for no good reason. Please don't.
+		cfg.Meta.Fields = []string{
+			"! *{GPS,Exif,Exposure[MPB],Contrast,Resolution,Sharp,JPEG,Metering,Sensing,Saturation,ColorSpace,Flash,WhiteBalance}*",
+		}
+	}
+
+	if len(cfg.Meta.Sources) == 0 {
+		// Default to EXIF and IPTC (XMP is slower to decode).
+		cfg.Meta.Sources = []string{"exif", "iptc"}
+	} else {
+		// Normalize to lowercase.
+		for i, s := range cfg.Meta.Sources {
+			cfg.Meta.Sources[i] = strings.ToLower(s)
+			if !validMetaSources[cfg.Meta.Sources[i]] {
+				keys := slices.Collect(maps.Keys(validMetaSources))
+				slices.Sort(keys)
+				return fmt.Errorf("invalid metadata source %q in imaging.meta.sources config; must be one of %s", s, keys)
+			}
+		}
+	}
+
+	// WebP config with backwards compatibility for root-level Hint.
+	cfg.Webp.Hint = strings.ToLower(cfg.Webp.Hint)
+	if cfg.Webp.Hint == "" {
+		// Fall back to root-level hint for backwards compatibility.
+		if cfg.Hint != "" {
+			cfg.Webp.Hint = cfg.Hint
+		} else {
+			cfg.Webp.Hint = defaultHint
+		}
+	}
+	if cfg.Webp.Hint != "" && !hints[cfg.Webp.Hint] {
+		return fmt.Errorf("invalid webp hint %q; must be one of picture, photo, drawing, icon, or text", cfg.Webp.Hint)
+	}
+	if cfg.Webp.Method == 0 {
+		cfg.Webp.Method = defaultWebpMethod
+	}
+	if cfg.Webp.Method < 0 || cfg.Webp.Method > 6 {
+		return fmt.Errorf("webp method must be between 0 and 6, got %d", cfg.Webp.Method)
 	}
 
 	return nil
@@ -487,4 +593,34 @@ type ExifConfig struct {
 	// Hugo extracts the "photo taken where" (GPS latitude and longitude) into
 	// .Long and .Lat. Set this to true to turn it off.
 	DisableLatLong bool
+}
+
+type MetaConfig struct {
+	// Glob patterns for which metadata fields to include.
+	// Use "! " prefix to exclude patterns (e.g., "! *GPS*" excludes GPS fields).
+	// Patterns are OR'd together for inclusion, AND'd for exclusion.
+	// If empty, a default set excluding technical metadata is used.
+	// Use ["**"] to include all fields.
+	Fields []string
+
+	// Which metadata sources to include.
+	// Valid values are "exif", "iptc", "xmp".
+	// Default is ["exif", "iptc"] (XMP is excluded for performance reasons).
+	Sources []string
+}
+
+// WebpConfig holds WebP-specific encoding configuration.
+type WebpConfig struct {
+	// Hint about what type of image this is.
+	// Valid values are "picture", "photo", "drawing", "icon", or "text".
+	// Default is "photo".
+	Hint string
+
+	// Use sharp (and slow) RGB->YUV conversion.
+	// Default is true.
+	UseSharpYuv bool
+
+	// Quality/speed trade-off (0=fast, 6=slower-better).
+	// Default is 2.
+	Method int
 }

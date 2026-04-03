@@ -16,6 +16,7 @@ package images_test
 import (
 	"testing"
 
+	"github.com/gohugoio/hugo/htesting"
 	"github.com/gohugoio/hugo/hugolib"
 )
 
@@ -24,7 +25,7 @@ func TestAutoOrient(t *testing.T) {
 -- hugo.toml --
 -- assets/rotate270.jpg --
 sourcefilename: ../testdata/exif/orientation6.jpg
--- layouts/index.html --
+-- layouts/home.html --
 {{ $img := resources.Get "rotate270.jpg" }}
 W/H original: {{ $img.Width }}/{{ $img.Height }}
 {{ $rotated := $img.Filter images.AutoOrient }}
@@ -41,7 +42,7 @@ func TestOrientationEq(t *testing.T) {
 -- hugo.toml --
 -- assets/rotate270.jpg --
 sourcefilename: ../testdata/exif/orientation6.jpg
--- layouts/index.html --
+-- layouts/home.html --
 {{ $img := resources.Get "rotate270.jpg" }}
 {{ $orientation := $img.Exif.Tags.Orientation }}
 Orientation: {{ $orientation }}|eq 6: {{ eq $orientation 6 }}|Type: {{ printf "%T" $orientation }}|
@@ -49,4 +50,85 @@ Orientation: {{ $orientation }}|eq 6: {{ eq $orientation 6 }}|Type: {{ printf "%
 
 	b := hugolib.Test(t, files)
 	b.AssertFileContent("public/index.html", "Orientation: 6|eq 6: true|")
+}
+
+func TestColorsIssue14453(t *testing.T) {
+	// Go changed their JPEG implementation in Go 1.26, so we cannot run this test on earlier versions. See https://go.dev/doc/go1.26#imagejpegpkgimagejpeg
+	if htesting.GoMinorVersion() < 26 {
+		t.Skip("Go 1.26+ required")
+	}
+	files := `
+-- hugo.toml --
+-- assets/sunset.jpg --
+sourcefilename: ../testdata/sunset.jpg
+-- layouts/home.html --
+{{ $img := resources.Get "sunset.jpg" }}
+{{ $img := $img.Fit "100x100" }}
+{{ $img := $img.Filter (slice images.AutoOrient (images.Process "fit 100x100 webp")) -}}
+{{ $colors := $img.Colors }}
+Colors: {{ $colors }}|
+`
+	tempDir := t.TempDir()
+	for range 2 {
+		b := hugolib.Test(t, files, hugolib.TestOptWithConfig(func(cfg *hugolib.IntegrationTestConfig) {
+			cfg.NeedsOsFS = true
+			cfg.WorkingDir = tempDir
+		}))
+		b.AssertFileContent("public/index.html", "Colors: [#2e2f33 #a69e94 #d29d59 #a26a3f #747c83 #7b848b]|")
+
+	}
+}
+
+func BenchmarkImageResize(b *testing.B) {
+	files := `
+-- content/p1/sunrise.jpg --
+sourcefilename: ../../resources/testdata/sunrise.jpg
+-- content/p1/index.md --
+-- content/p2/sunrise.jpg --
+sourcefilename: ../../resources/testdata/sunrise.jpg
+-- content/p2/index.md --
+-- content/p3/sunrise.jpg --
+sourcefilename: ../../resources/testdata/sunrise.jpg
+-- content/p3/index.md --
+-- content/p4/sunrise.jpg --
+sourcefilename: ../../resources/testdata/sunrise.jpg
+-- content/p4/index.md --
+-- content/p5/sunrise.jpg --
+sourcefilename: ../../resources/testdata/sunrise.jpg
+-- content/p5/index.md --
+-- content/p6/sunrise.jpg --
+sourcefilename: ../../resources/testdata/sunrise.jpg
+-- content/p6/index.md --
+-- content/p7/sunrise.jpg --
+sourcefilename: ../../resources/testdata/sunrise.jpg
+-- content/p7/index.md --
+-- content/p8/sunrise.jpg --
+sourcefilename: ../../resources/testdata/sunrise.jpg
+-- content/p8/index.md --
+-- content/p9/sunrise.jpg --
+sourcefilename: ../../resources/testdata/sunrise.jpg
+-- content/p9/index.md --
+-- content/p10/sunrise.jpg --
+sourcefilename: ../../resources/testdata/sunrise.jpg
+-- content/p10/index.md --
+-- layouts/home.html --
+Home.
+-- layouts/page.html --
+Page.
+{{ $image := .Resources.Get "sunrise.jpg" }}
+{{ ($image.Process "resize 200x200").Publish }}
+
+`
+
+	cfg := hugolib.IntegrationTestConfig{
+		T:           b,
+		TxtarString: files,
+	}
+
+	for b.Loop() {
+		b.StopTimer()
+		builder := hugolib.NewIntegrationTestBuilder(cfg).Init()
+		b.StartTimer()
+		builder.Build()
+	}
 }

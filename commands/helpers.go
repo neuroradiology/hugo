@@ -76,12 +76,12 @@ func flagsToCfgWithAdditionalConfigBase(cd *simplecobra.Commandeer, cfg config.P
 
 	// Flags with a different name in the config.
 	keyMap := map[string]string{
-		"minify":      "minifyOutput",
+		"minify":      "minify.minifyOutput",
 		"destination": "publishDir",
 		"editor":      "newContentEditor",
 	}
 
-	// Flags that we for some reason don't want to expose in the site config.
+	// Flags that we for some reason don't want to expose in the project config.
 	internalKeySet := map[string]bool{
 		"quiet":          true,
 		"verbose":        true,

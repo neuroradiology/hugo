@@ -16,7 +16,7 @@ Hugo comes with all the code you need to load Disqus into your templates. Before
 
 ### Configure Disqus
 
-Disqus comments require you set a single value in your [site's configuration file][configuration] like so:
+Disqus comments require you set a single value in your [project configuration][configuration]:
 
 {{< code-toggle file=hugo >}}
 [services.disqus]
@@ -41,6 +41,7 @@ Disqus has its own [internal template](/templates/embedded/#disqus) available, t
 
 Commercial commenting systems:
 
+- [Commentix](https://www.commentix.com/)
 - [Emote](https://emote.com/)
 - [Graph Comment](https://graphcomment.com/)
 - [Hyvor Talk](https://talk.hyvor.com/)
@@ -60,6 +61,7 @@ Open-source commenting systems:
 - [Staticman](https://staticman.net/)
 - [Talkyard](https://blog-comments.talkyard.io/)
 - [Utterances](https://utteranc.es/)
+- [Zoomment](https://zoomment.com/)
 
 [configuration]: /configuration/
 [disquspartial]: /templates/embedded/#disqus

@@ -11,7 +11,7 @@ keywords: []
 This Markdown example contains a fenced code block:
 
 ````text {file="content/example.md"}
-```bash {class="my-class" id="my-codeblock" lineNos=inline tabWidth=2}
+```sh {class="my-class" id="my-codeblock" lineNos=inline tabWidth=2}
 declare a=1
 echo "$a"
 exit
@@ -59,7 +59,6 @@ Page
 : (`page`) A reference to the current page.
 
 PageInner
-: {{< new-in 0.125.0 />}}
 : (`page`) A reference to a page nested via the [`RenderShortcodes`] method. [See details](#pageinner-details).
 
 Position
@@ -119,7 +118,7 @@ Hugo includes an [embedded code block render hook] to render [GoAT diagrams].
 [Chroma]: https://github.com/alecthomas/chroma/
 [code fence]: https://spec.commonmark.org/current/#code-fence
 [diagrams]: /content-management/diagrams/#mermaid-diagrams
-[embedded code block render hook]: {{% eturl render-codeblock-goat %}}
+[embedded code block render hook]: <{{% eturl render-codeblock-goat %}}>
 [GoAT diagrams]: /content-management/diagrams/#goat-diagrams-ascii
 [highlighting options]: /functions/transform/highlight/#options
 [info string]: https://spec.commonmark.org/current/#info-string

@@ -1,11 +1,9 @@
 ---
 title: Content adapters
-description: Create content adapters to dynamically add content when building your site.
+description: Create content adapters to dynamically add content when building your project.
 categories: []
 keywords: []
 ---
-
-{{< new-in 0.126.0 />}}
 
 ## Overview
 
@@ -99,7 +97,9 @@ Returns a persistent "scratch pad" to store and manipulate data. The main use ca
 
 ### EnableAllLanguages
 
-By default, Hugo executes the content adapter for the language defined by the `_content.gotmpl` file. Use this method to activate the content adapter for all languages.
+By default, Hugo executes the content adapter only once for the first matching site in the [sites matrix](g). Use this method to expand execution to all languages while maintaining the current role and version.
+
+For more fine-grained control, define a `sites.matrix` in front matter or in a content mount.
 
 ```go-html-template {file="content/books/_content.gotmpl"}
 {{ .EnableAllLanguages }}
@@ -115,6 +115,14 @@ By default, Hugo executes the content adapter for the language defined by the `_
 }}
 {{ .AddPage $page }}
 ```
+
+### EnableAllDimensions
+
+By default, Hugo executes the content adapter only once for the first matching site in the [sites matrix](g). Use this method to expand execution to every possible combination of language, version, and role.
+
+For more fine-grained control, define a `sites.matrix` in front matter or in a content mount.
+
+{{< new-in v0.153.0 />}}
 
 ## Page map
 
@@ -265,16 +273,16 @@ Step 4
   {{ end }}
   ```
 
-## Multilingual sites
+## Multilingual projects
 
-With multilingual sites you can:
+With multilingual projects you can:
 
 1. Create one content adapter for all languages using the [`EnableAllLanguages`](#enablealllanguages) method as described above.
 1. Create content adapters unique to each language. See the examples below.
 
 ### Translations by file name
 
-With this site configuration:
+With this project configuration:
 
 {{< code-toggle file=hugo >}}
 [languages.en]
@@ -297,7 +305,7 @@ content/
 
 ### Translations by content directory
 
-With this site configuration:
+With this project configuration:
 
 {{< code-toggle file=hugo >}}
 [languages.en]
@@ -337,7 +345,7 @@ content/
 
 If the content adapter also creates `books/the-hunchback-of-notre-dame`, the content of the published page is indeterminate. You can not define the processing order.
 
-To detect page collisions, use the `--printPathWarnings` flag when building your site.
+To detect page collisions, use the `--printPathWarnings` flag when building your project.
 
 [content formats]: /content-management/formats/#classification
 [front matter field]: /content-management/front-matter/#fields

@@ -14,8 +14,10 @@
 package i18n_test
 
 import (
+	"strings"
 	"testing"
 
+	qt "github.com/frankban/quicktest"
 	"github.com/gohugoio/hugo/hugolib"
 )
 
@@ -23,7 +25,7 @@ func TestI18nFromTheme(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 [module]
 [[module.imports]]
 path = "mytheme"
@@ -39,7 +41,7 @@ other = 'l1theme'
 other = 'l2theme'
 [l3]
 other = 'l3theme'
--- layouts/index.html --
+-- layouts/home.html --
 l1: {{ i18n "l1"  }}|l2: {{ i18n "l2"  }}|l3: {{ i18n "l3"  }}
 
 `
@@ -55,7 +57,7 @@ func TestPassPageToI18n(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 -- content/_index.md --
 ---
 title: "Home"
@@ -82,7 +84,7 @@ Irure excepteur ex occaecat ipsum laboris fugiat exercitation. Exercitation adip
 -- i18n/en.toml --
 [a]
 other = 'Reading time: {{ .ReadingTime }}'
--- layouts/index.html --
+-- layouts/home.html --
 i18n: {{ i18n "a" . }}|
 
 `
@@ -99,7 +101,7 @@ func TestI18nDefaultContentLanguage(t *testing.T) {
 	t.Parallel()
 
 	files := `
--- config.toml --
+-- hugo.toml --
 disableKinds = ['RSS','sitemap','taxonomy','term','page','section']
 defaultContentLanguage = 'es'
 defaultContentLanguageInSubdir = true
@@ -109,7 +111,7 @@ defaultContentLanguageInSubdir = true
 cat = 'gato'
 -- i18n/fr.toml --
 # this file intentionally empty
--- layouts/index.html --
+-- layouts/home.html --
 {{ .Title }}_{{ T "cat" }}
 -- content/_index.fr.md --
 ---
@@ -125,4 +127,96 @@ title: home_es
 
 	b.AssertFileContent("public/es/index.html", `home_es_gato`)
 	b.AssertFileContent("public/fr/index.html", `home_fr_gato`)
+}
+
+// See issue #14061
+func TestI18nReservedKeyMap(t *testing.T) {
+	t.Parallel()
+
+	files := `
+-- hugo.toml --
+-- i18n/en.toml --
+[description]
+other = 'This is a description from i18n.'
+-- layouts/all.html --
+description: {{ T "description" }}|
+`
+
+	b := hugolib.Test(t, files)
+
+	b.AssertFileContent("public/index.html", `description: This is a description from i18n.|`)
+}
+
+// See issue #14061
+func TestI18nReservedKeyScalar(t *testing.T) {
+	t.Parallel()
+
+	files := `
+-- hugo.toml --
+disableKinds = ['home','page','rss','section','sitemap','taxonomy','term']
+-- i18n/en.toml --
+a = 'a translated'
+description = 'description translated'
+b = 'b translated'
+
+`
+
+	b, err := hugolib.TestE(t, files)
+
+	b.Assert(err, qt.IsNotNil)
+	b.Assert(err.Error(), qt.Contains, "failed to load translations: reserved keys [description] mixed with unreserved keys [a b]: see the lang.Translate documentation for a list of reserved keys")
+}
+
+func TestI18nUseLanguageCodeWhenBothTranslationFilesArePresent(t *testing.T) {
+	t.Parallel()
+
+	filesTemplate := `
+-- hugo.yaml --
+languages:
+  en:
+    languageCode: en-us
+-- i18n/en.yml --
+hello: Greetings from en!
+-- i18n/en-us.yml --
+hello: Greetings from en-us!
+-- layouts/all.html --
+{{ T "hello" }}
+`
+
+	runTest := func(s string) {
+		b := hugolib.Test(t, s)
+		b.AssertFileContent("public/index.html", `Greetings from en-us!`)
+	}
+
+	runTest(filesTemplate)
+	runTest(strings.ReplaceAll(filesTemplate, "languageCode: en-us", "languageCode: En-US"))
+	runTest(strings.ReplaceAll(filesTemplate, "-- i18n/en-us.yml --", "-- i18n/en-US.yml --"))
+}
+
+func TestI18nUseLangWhenLanguageCodeFileIsMissing(t *testing.T) {
+	t.Parallel()
+
+	filesTemplate := `
+-- hugo.yaml --
+languages:
+  en:
+    title: English
+  pt:
+    languageCode: pt-br
+-- i18n/en.yml --
+hello: Greetings from en!
+-- i18n/pt.yml --
+hello: Greetings from pt!
+-- layouts/all.html --
+{{ T "hello" }}
+`
+
+	runTest := func(s string) {
+		b := hugolib.Test(t, s)
+		b.AssertFileContent("public/pt/index.html", `Greetings from pt!`)
+	}
+
+	runTest(filesTemplate)
+	runTest(strings.ReplaceAll(filesTemplate, "pt:", "PT:"))
+	runTest(strings.ReplaceAll(filesTemplate, "-- i18n/pt.yml --", "-- i18n/pT.yml --"))
 }

@@ -21,6 +21,17 @@ import (
 	"github.com/gohugoio/hugo/resources/images/imagetesting"
 )
 
+const goldenProcess = `
+{{ define "process"}}
+{{ $img := .img.Process .spec }}
+{{ $ext := path.Ext $img.RelPermalink }}
+{{ $name := printf "images/%s%s" (.spec | anchorize) $ext  }}
+{{ with $img | resources.Copy $name }}
+{{ .Publish }}
+{{ end }}
+{{ end }}
+`
+
 // Note, if you're enabling writeGoldenFiles on a MacOS ARM 64 you need to run the test with GOARCH=amd64, e.g.
 func TestImagesGoldenFiltersMisc(t *testing.T) {
 	t.Parallel()
@@ -40,7 +51,7 @@ sourcefilename: ../testdata/exif/orientation6.jpg
 sourcefilename: ../testdata/sunset.jpg
 -- assets/gopher.png --
 sourcefilename: ../testdata/gopher-hero8.png
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 {{ $sunset := (resources.Get "sunset.jpg").Resize "x300" }}
 {{ $sunsetGrayscale := $sunset.Filter (images.Grayscale) }}
@@ -120,7 +131,7 @@ sourcefilename: ../testdata/sunset.jpg
 -- assets/mask.png --
 sourcefilename: ../testdata/mask.png
 
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 {{ $sunset := resources.Get "sunset.jpg" }}
 {{ $mask := resources.Get "mask.png" }}
@@ -184,7 +195,7 @@ sourcefilename: ../testdata/sunset.jpg
 -- assets/mask.png --
 sourcefilename: ../testdata/mask.png
 
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 {{ $sunset := resources.Get "sunset.jpg" }}
 {{ $mask := resources.Get "mask.png" }}
@@ -244,7 +255,7 @@ func TestImagesGoldenFiltersText(t *testing.T) {
 -- assets/sunset.jpg --
 sourcefilename: ../testdata/sunset.jpg
 
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 {{ $sunset := resources.Get "sunset.jpg" }}
 {{ $textOpts := dict
@@ -308,7 +319,7 @@ sourcefilename: ../testdata/giphy.gif
 sourcefilename: ../testdata/sunset.jpg
 -- assets/gopher.png --
 sourcefilename: ../testdata/gopher-hero8.png
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 {{ $sunset := resources.Get "sunset.jpg" }}
 {{ $sunsetGrayscale := $sunset.Filter (images.Grayscale) }}
@@ -324,6 +335,73 @@ Home.
 {{ template "process" (dict "spec" "resize 100x100 r180" "img" $gopher) }}
 {{ template "process" (dict "spec" "resize 300x300 jpg #b31280" "img" $gopher) }}
 
+
+` + goldenProcess
+
+	opts := imagetesting.DefaultGoldenOpts
+	opts.T = t
+	opts.Name = name
+	opts.Files = files
+
+	imagetesting.RunGolden(opts)
+}
+
+func TestImagesGoldenProcessWebP(t *testing.T) {
+	t.Parallel()
+
+	if imagetesting.SkipGoldenTests {
+		t.Skip("Skip golden test on this architecture")
+	}
+
+	// Will be used as the base folder for generated images.
+	name := "process/webp"
+
+	files := `
+-- hugo.toml --
+-- assets/highcontrast.webp --
+sourcefilename: ../testdata/webp/highcontrast.webp
+-- assets/anim.webp --
+sourcefilename: ../testdata/webp/anim.webp
+-- assets/fuzzycircle.webp --
+sourcefilename: ../testdata/webp/fuzzy-cirlcle-transparent-32.webp
+-- assets/fuzzycircle.png --
+sourcefilename: ../testdata/fuzzy-cirlcle.png
+-- assets/giphy.gif --
+sourcefilename: ../testdata/giphy.gif
+-- assets/sunset.jpg --
+sourcefilename: ../testdata/sunset.jpg
+-- layouts/home.html --
+Home.
+{{ $fuzzyCircle := resources.Get "fuzzycircle.webp" }}
+{{ $highContrast := resources.Get "highcontrast.webp" }}
+{{ $sunset := resources.Get "sunset.jpg" }}
+{{ $sunsetGrayscale := $sunset.Filter (images.Grayscale) }}
+{{ $animWebp := resources.Get "anim.webp" }}
+{{ $giphy := resources.Get "giphy.gif" }}
+
+{{/* These are sorted. The end file name will be created from the spec + extension, so make sure these are unique. */}}
+{{ template "process" (dict "spec" "crop 300x300 gif" "img" $animWebp) }}
+{{ template "process" (dict "spec" "crop 300x300 smart" "img" $fuzzyCircle) }}
+{{ template "process" (dict "spec" "crop 300x300 smart #ff9999" "img" $fuzzyCircle) }}
+{{ template "process" (dict "spec" "crop 300x300" "img" $animWebp) }}
+{{ template "process" (dict "spec" "crop 500x200 smart webp" "img" $sunset) }}
+{{ template "process" (dict "spec" "crop 500x200 smart webp" "img" $sunset) }}
+{{ template "process" (dict "spec" "fit 300x400 webp" "img" $sunsetGrayscale) }}
+{{ template "process" (dict "spec" "fit 400x500 webp" "img" $sunset) }}
+{{ template "process" (dict "spec" "gif" "img" $highContrast) }}
+{{ template "process" (dict "spec" "png" "img" $highContrast) }}
+{{ template "process" (dict "spec" "resize 300x300" "img" $giphy) }}
+{{ template "process" (dict "spec" "resize 300x300 webp" "img" $giphy) }}
+{{ template "process" (dict "spec" "resize 300x300 webp lossless" "img" $sunset) }}
+{{ template "process" (dict "spec" "resize 300x300 webp q1" "img" $sunset) }}
+{{ template "process" (dict "spec" "resize 300x300 webp q33" "img" $sunset) }}
+{{ template "process" (dict "spec" "resize 300x300 webp q75" "img" $sunset) }}
+{{ template "process" (dict "spec" "resize 300x300 webp q100" "img" $sunset) }}
+{{ template "process" (dict "spec" "resize 300x300 webp drawing" "img" $sunset) }}
+{{ template "process" (dict "spec" "resize 300x300 webp icon" "img" $sunset) }}
+{{ template "process" (dict "spec" "resize 300x300 webp q50 drawing" "img" $sunset) }}
+{{ template "process" (dict "spec" "resize 400x" "img" $highContrast) }}
+
 {{ define "process"}}
 {{ $img := .img.Process .spec }}
 {{ $ext := path.Ext $img.RelPermalink }}
@@ -332,6 +410,41 @@ Home.
 {{ .Publish }}
 {{ end }}
 {{ end }}
+`
+
+	opts := imagetesting.DefaultGoldenOpts
+	opts.T = t
+	opts.Name = name
+	opts.Files = files
+
+	imagetesting.RunGolden(opts)
+}
+
+func TestImagesGoldenWebPAnimation(t *testing.T) {
+	t.Parallel()
+
+	if imagetesting.SkipGoldenTests {
+		t.Skip("Skip golden test on this architecture")
+	}
+
+	// Will be used as the base folder for generated images.
+	name := "webp/animation"
+
+	files := `
+-- hugo.toml --
+disableKinds = ["page", "section", "taxonomy", "term", "sitemap", "robotsTXT", "404"]
+-- assets/images/anim.webp --
+sourcefilename: ../testdata/webp/anim.webp
+-- assets/images/giphy.gif --
+sourcefilename: ../testdata/giphy.gif
+-- layouts/home.html --
+Home.
+{{ $webpAnim := resources.Get "images/anim.webp" }}
+{{ $gifAnim := resources.Get "images/giphy.gif" }}
+{{ ($webpAnim.Resize "100x100 webp").Publish }}
+{{ ($webpAnim.Resize "100x100 gif").Publish }}
+{{ ($gifAnim.Resize "100x100 gif").Publish }}
+{{ ($gifAnim.Resize "100x100 webp").Publish }}
 `
 
 	opts := imagetesting.DefaultGoldenOpts
@@ -364,7 +477,7 @@ sourcefilename: ../testdata/sunset.jpg
 -- assets/gopher.png --
 sourcefilename: ../testdata/gopher-hero8.png
 
--- layouts/index.html --
+-- layouts/home.html --
 Home.
 {{ $sunset := resources.Get "sunset.jpg" }}
 {{ $gopher := resources.Get "gopher.png" }}
@@ -377,7 +490,7 @@ Home.
 {{ template "invoke" (dict "copyFormat" "jpg" "base" $sunset "method" "fit"  "spec" "200x200" ) }}
 {{ template "invoke" (dict "copyFormat" "jpg" "base" $sunset "method" "crop"  "spec" "200x200" ) }}
 {{ template "invoke" (dict "copyFormat" "jpg" "base" $sunset "method" "crop"  "spec" "350x400 center" ) }}
- {{ template "invoke" (dict "copyFormat" "jpg" "base" $sunset "method" "crop"  "spec" "350x400 smart" ) }}
+{{ template "invoke" (dict "copyFormat" "jpg" "base" $sunset "method" "crop"  "spec" "350x400 smart" ) }}
 {{ template "invoke" (dict "copyFormat" "jpg" "base" $sunset "method" "crop"  "spec" "350x400 center r90" ) }}
 {{ template "invoke" (dict "copyFormat" "jpg" "base" $sunset "method" "crop"  "spec" "350x400 center q20" ) }}
 {{ template "invoke" (dict "copyFormat" "png" "base" $gopher "method" "resize"  "spec" "100x" ) }}
@@ -404,6 +517,40 @@ Home.
 {{ end }}
 {{ end }}
 `
+
+	opts := imagetesting.DefaultGoldenOpts
+	opts.T = t
+	opts.Name = name
+	opts.Files = files
+
+	imagetesting.RunGolden(opts)
+}
+
+func TestImagesGoldenConfigLossyVsQuality(t *testing.T) {
+	t.Parallel()
+
+	if imagetesting.SkipGoldenTests {
+		t.Skip("Skip golden test on this architecture")
+	}
+
+	files := `
+-- hugo.toml --
+[imaging]
+quality = 90 # will only apply to jpeg in this setup.
+compression = "lossless" # for webp
+-- assets/sunset.jpg --
+sourcefilename: ../testdata/sunset.jpg
+-- layouts/home.html --
+Home.
+{{ $sunset := resources.Get "sunset.jpg" }}
+{{ template "process" (dict "spec" "resize 300x300 webp" "img" $sunset) }}
+{{ template "process" (dict "spec" "resize 300x300 webp lossy" "img" $sunset) }}
+{{ template "process" (dict "spec" "resize 300x300 jpeg" "img" $sunset) }}
+
+` + goldenProcess
+
+	// Will be used as the base folder for generated images.
+	name := "losslessvsquality"
 
 	opts := imagetesting.DefaultGoldenOpts
 	opts.T = t

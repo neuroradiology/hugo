@@ -1,7 +1,7 @@
 ---
 title: Param shortcode
 linkTitle: Param
-description: Insert a parameter from front matter or site configuration into your content using the param shortcode.
+description: Insert a parameter from front matter or your project configuration into your content using the param shortcode.
 categories: []
 keywords: []
 ---
@@ -35,4 +35,4 @@ Access nested values by [chaining](g) the [identifiers](g):
 {{%/* param my.nested.param */%}}
 ```
 
-[source code]: {{% eturl param %}}
+[source code]: <{{% eturl param %}}>

@@ -3,7 +3,7 @@ title: Embedded partial templates
 description: Hugo provides embedded partial templates for common use cases.
 categories: []
 keywords: []
-weight: 170
+weight: 180
 aliases: [/templates/internal]
 ---
 
@@ -12,7 +12,7 @@ aliases: [/templates/internal]
 ## Disqus
 
 > [!note]
-> To override Hugo's embedded Disqus template, copy the [source code]({{% eturl disqus %}}) to a file with the same name in the `layouts/_partials` directory, then call it from your templates using the [`partial`] function:
+> To override Hugo's embedded Disqus template, copy the [source code](<{{% eturl disqus %}}>) to a file with the same name in the `layouts/_partials` directory, then call it from your templates using the [`partial`] function:
 >
 > `{{ partial "disqus.html" . }}`
 
@@ -47,7 +47,7 @@ You can also set the following in the front matter for a given piece of content:
 
 ### Privacy {#privacy-disqus}
 
-Adjust the relevant privacy settings in your site configuration.
+Adjust the relevant privacy settings in your project configuration.
 
 {{< code-toggle config=privacy.disqus />}}
 
@@ -57,7 +57,7 @@ disable
 ## Google Analytics
 
 > [!note]
-> To override Hugo's embedded Google Analytics template, copy the [source code]({{% eturl google_analytics %}}) to a file with the same name in the `layouts/_partials` directory, then call it from your templates using the [`partial`] function:
+> To override Hugo's embedded Google Analytics template, copy the [source code](<{{% eturl google_analytics %}}>) to a file with the same name in the `layouts/_partials` directory, then call it from your templates using the [`partial`] function:
 >
 > `{{ partial "google_analytics.html" . }}`
 
@@ -75,14 +75,14 @@ Provide your tracking ID in your configuration file:
 
 {{< code-toggle file=hugo >}}
 [services.googleAnalytics]
-id = "G-MEASUREMENT_ID"
+id = 'G-MEASUREMENT_ID'
 {{</ code-toggle >}}
 
 To use this value in your own template, access the configured ID with `{{ site.Config.Services.GoogleAnalytics.ID }}`.
 
 ### Privacy {#privacy-google-analytics}
 
-Adjust the relevant privacy settings in your site configuration.
+Adjust the relevant privacy settings in your project configuration.
 
 {{< code-toggle config=privacy.googleAnalytics />}}
 
@@ -90,12 +90,12 @@ disable
 : (`bool`) Whether to disable the template. Default is `false`.
 
 respectDoNotTrack
-: (`bool`) Whether to respect the browser's "do not track" setting. Default is `false`.
+: (`bool`) Whether to respect the browser's "do not track" setting. Default is `true`.
 
 ## Open Graph
 
 > [!note]
-> To override Hugo's embedded Open Graph template, copy the [source code]({{% eturl opengraph %}}) to a file with the same name in the `layouts/_partials` directory, then call it from your templates using the [`partial`] function:
+> To override Hugo's embedded Open Graph template, copy the [source code](<{{% eturl opengraph %}}>) to a file with the same name in the `layouts/_partials` directory, then call it from your templates using the [`partial`] function:
 >
 > `{{ partial "opengraph.html" . }}`
 
@@ -124,8 +124,8 @@ Hugo's Open Graph template is configured using a mix of configuration settings a
 {{</ code-toggle >}}
 
 {{< code-toggle file=content/blog/my-post.md fm=true >}}
-title = "Post title"
-description = "Text about this post"
+title = 'Post title'
+description = 'Text about this post'
 date = 2024-03-08T08:18:11-08:00
 images = ["post-cover.png"]
 audio = []
@@ -134,9 +134,7 @@ series = []
 tags = []
 {{</ code-toggle >}}
 
-Hugo uses the page title and description for the title and description metadata.
-The first 6 URLs from the `images` array are used for image metadata.
-If [page bundles](/content-management/page-bundles/) are used and the `images` array is empty or undefined, images with file names matching `*feature*`, `*cover*`, or `*thumbnail*` are used for image metadata.
+Hugo uses the page title and description for the title and description metadata. The first 6 URLs from the `images` array are used for image metadata. If [page bundles](/content-management/page-bundles/) are used and the `images` array is empty or undefined, images with file names matching `*feature*`, `*cover*`, or `*thumbnail*` are used for image metadata.
 
 Various optional metadata can also be set:
 
@@ -154,7 +152,7 @@ See&nbsp;[details](/templates/pagination/).
 ## Schema
 
 > [!note]
-> To override Hugo's embedded Schema template, copy the [source code]({{% eturl schema %}}) to a file with the same name in the `layouts/_partials` directory, then call it from your templates using the [`partial`] function:
+> To override Hugo's embedded Schema template, copy the [source code](<{{% eturl schema %}}>) to a file with the same name in the `layouts/_partials` directory, then call it from your templates using the [`partial`] function:
 >
 > `{{ partial "schema.html" . }}`
 
@@ -169,12 +167,11 @@ To include the embedded template:
 ## X (Twitter) Cards
 
 > [!note]
-> To override Hugo's embedded Twitter Cards template, copy the [source code]({{% eturl twitter_cards %}}) to a file with the same name in the `layouts/_partials` directory, then call it from your templates using the [`partial`] function:
+> To override Hugo's embedded Twitter Cards template, copy the [source code](<{{% eturl twitter_cards %}}>) to a file with the same name in the `layouts/_partials` directory, then call it from your templates using the [`partial`] function:
 >
 > `{{ partial "twitter_cards.html" . }}`
 
-Hugo includes an embedded template for [X (Twitter) Cards](https://developer.x.com/en/docs/twitter-for-websites/cards/overview/abouts-cards),
-metadata used to attach rich media to Tweets linking to your site.
+Hugo includes an embedded template for [X (Twitter) Cards](https://developer.x.com/en/docs/twitter-for-websites/cards/overview/abouts-cards), metadata used to attach rich media to Tweets linking to your site.
 
 To include the embedded template:
 
@@ -189,26 +186,24 @@ Hugo's X (Twitter) Card template is configured using a mix of configuration sett
 {{< code-toggle file=hugo >}}
 [params]
   images = ["site-feature-image.jpg"]
-  description = "Text about my cool site"
+  description = 'Text about my cool site'
 {{</ code-toggle >}}
 
 {{< code-toggle file=content/blog/my-post.md fm=true >}}
-title = "Post title"
-description = "Text about this post"
+title = 'Post title'
+description = 'Text about this post'
 images = ["post-cover.png"]
 {{</ code-toggle >}}
 
-If [page bundles](/content-management/page-bundles/) are used and the `images` array is empty or undefined, images with file names matching `*feature*`, `*cover*`, or `*thumbnail*` are used for image metadata.
-If no image resources with those names are found, the images defined in the [site config](/configuration/) are used instead.
-If no images are found at all, then an image-less Twitter `summary` card is used instead of `summary_large_image`.
+If [page bundles](/content-management/page-bundles/) are used and the `images` array is empty or undefined, images with file names matching `*feature*`, `*cover*`, or `*thumbnail*` are used for image metadata. If no image resources with those names are found, the images defined in your [project configuration](/configuration/) are used instead. If no images are found at all, then an image-less Twitter `summary` card is used instead of `summary_large_image`.
 
 Hugo uses the page title and description for the card's title and description fields. The page summary is used if no description is given.
 
-Set the value of `twitter:site` in your site configuration:
+Set the value of `twitter:site` in your project configuration:
 
 {{< code-toggle file=hugo >}}
 [params.social]
-twitter = "GoHugoIO"
+twitter = 'GoHugoIO'
 {{</ code-toggle >}}
 
 NOTE: The `@` will be added for you

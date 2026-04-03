@@ -145,6 +145,15 @@ func (ns *Namespace) lookup(name string) (*tplimpl.TemplInfo, error) {
 // include is a helper function that lookups and executes the named partial.
 // Returns the final template name and the rendered output.
 func (ns *Namespace) doInclude(ctx context.Context, key string, templ *tplimpl.TemplInfo, dataList ...any) includeResult {
+	if templ.ParseInfo.HasPartialInner {
+		stack := tpl.Context.PartialDecoratorIDStack.Get(ctx)
+		if stack != nil {
+			if id, ok := stack.Peek(); ok {
+				// Signal that inner exists.
+				id.Bool = true
+			}
+		}
+	}
 	var data any
 	if len(dataList) > 0 {
 		data = dataList[0]
@@ -155,6 +164,7 @@ func (ns *Namespace) doInclude(ctx context.Context, key string, templ *tplimpl.T
 	var w io.Writer
 
 	if info.HasReturn {
+
 		// Wrap the context sent to the template to capture the return value.
 		// Note that the template is rewritten to make sure that the dot (".")
 		// and the $ variable points to Arg.
@@ -221,7 +231,7 @@ func (ns *Namespace) IncludeCached(ctx context.Context, name string, context any
 		if ns.deps.Conf.Watching() {
 			// We need to create a shared dependency manager to pass downwards
 			// and add those same dependencies to any cached invocation of this partial.
-			depsManagerShared = identity.NewManager("partials")
+			depsManagerShared = identity.NewManager()
 			ctx = tpl.Context.DependencyManagerScopedProvider.Set(ctx, depsManagerShared.(identity.DependencyManagerScopedProvider))
 		}
 		r := ns.doInclude(ctx, keyString, ti, context)
